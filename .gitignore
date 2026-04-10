@@ -3,6 +3,7 @@ dist
 .DS_Store
 *.log
 .codex
+Akcja CV.xlsx
 
 src-tauri/target
 src-tauri/gen

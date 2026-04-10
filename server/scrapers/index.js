@@ -1,6 +1,6 @@
 import { fetchHtml } from "./http.js";
 import { getProvider, getSupportedSources } from "./providers/index.js";
-import { parseJobsFromJsonLd } from "./parsers.js";
+import { parseJobFromMeta, parseJobsFromJsonLd } from "./parsers.js";
 
 function normalizeJob(job, source) {
   return {
@@ -87,7 +87,7 @@ export async function scrapeJobFromLink(urlInput) {
 
   const html = await fetchHtml(url.toString());
   const fromJsonLd = parseJobsFromJsonLd(html, source);
-  const first = fromJsonLd.find((job) => job.title || job.company || job.url);
+  const first = fromJsonLd.find((job) => job.title || job.company || job.url) || parseJobFromMeta(html, source, url.toString());
 
   if (!first) {
     throw new Error("Could not parse job data from this URL");

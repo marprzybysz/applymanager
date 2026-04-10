@@ -41,6 +41,35 @@ function normalizeLocation(location) {
   return null;
 }
 
+function hasJobPostingType(typeValue) {
+  if (!typeValue) return false;
+  if (typeof typeValue === "string") return typeValue === "JobPosting";
+  if (Array.isArray(typeValue)) return typeValue.some((entry) => hasJobPostingType(entry));
+  return false;
+}
+
+function cleanText(value) {
+  return value ? String(value).replace(/\s+/g, " ").trim() : null;
+}
+
+function stripOlxSuffix(title) {
+  if (!title) return null;
+  return title.replace(/\s*(?:•|-)\s*OLX\.pl\s*$/i, "").trim() || null;
+}
+
+function parseRocketJobsTitleMeta(title, source) {
+  if (!title || source !== "rocketjobs") {
+    return { role: title || null, company: null };
+  }
+
+  const parts = title.split(" - ").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return { role: parts[0] || null, company: parts.slice(1).join(" - ") || null };
+  }
+
+  return { role: title, company: null };
+}
+
 export function parseJobsFromJsonLd(html, source) {
   const $ = cheerio.load(html);
   const jsonLd = readJsonLdObjects($);
@@ -50,7 +79,7 @@ export function parseJobsFromJsonLd(html, source) {
     const items = block?.["@graph"] ? block["@graph"] : [block];
 
     for (const item of items) {
-      if (!item || item["@type"] !== "JobPosting") continue;
+      if (!item || !hasJobPostingType(item["@type"])) continue;
 
       const location = toArray(item.jobLocation)
         .map(normalizeLocation)
@@ -59,8 +88,8 @@ export function parseJobsFromJsonLd(html, source) {
 
       jobs.push({
         source,
-        title: item.title || null,
-        company: item.hiringOrganization?.name || null,
+        title: cleanText(item.title) || null,
+        company: cleanText(item.hiringOrganization?.name) || null,
         location: location || null,
         url: item.url || null,
         datePosted: item.datePosted || null,
@@ -72,4 +101,33 @@ export function parseJobsFromJsonLd(html, source) {
   }
 
   return jobs;
+}
+
+export function parseJobFromMeta(html, source, fallbackUrl = null) {
+  const $ = cheerio.load(html);
+  const ogTitle = cleanText($("meta[property='og:title']").attr("content"));
+  const docTitle = stripOlxSuffix(cleanText($("title").first().text()));
+  const description = cleanText($("meta[name='description']").attr("content"));
+  const ogDescription = cleanText($("meta[property='og:description']").attr("content"));
+  const parsedTitle = parseRocketJobsTitleMeta(docTitle, source);
+  const title = ogTitle || parsedTitle.role;
+
+  const canonical = $("link[rel='canonical']").attr("href");
+  const url = cleanText(canonical) || fallbackUrl || null;
+  const location = source === "rocketjobs" ? ogDescription || null : null;
+
+  if (!title && !description && !ogDescription) {
+    return null;
+  }
+
+  return {
+    source,
+    title: title || null,
+    company: parsedTitle.company || null,
+    location,
+    url,
+    datePosted: null,
+    salary: null,
+    raw: { from: "meta" }
+  };
 }

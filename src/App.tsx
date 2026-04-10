@@ -319,7 +319,7 @@ export function App() {
             Import
           </button>
         </form>
-        <p className="hint">Supported columns: company/firma, role/stanowisko, status, location, notes, date, source, url.</p>
+        <p className="hint">Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).</p>
       </section>
 
       <section className="card">

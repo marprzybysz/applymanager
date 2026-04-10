@@ -27,7 +27,27 @@ const distDir = path.resolve(__dirname, "..", "dist");
 app.use(express.json());
 
 function safeDate(value) {
-  if (!value) return null;
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed?.y && parsed?.m && parsed?.d) {
+      const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  if (typeof value === "string") {
+    const asNumber = Number(value);
+    if (Number.isFinite(asNumber) && value.trim() !== "") {
+      const parsed = XLSX.SSF.parse_date_code(asNumber);
+      if (parsed?.y && parsed?.m && parsed?.d) {
+        const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+        return date.toISOString().slice(0, 10);
+      }
+    }
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString().slice(0, 10);
@@ -50,16 +70,67 @@ function mapExcelRowToOffer(row) {
     return null;
   }
 
+  const directSourceUrl = pickFirstValue(row, ["url", "URL", "link", "Link", "hyperlink", "Hyperlink"]);
+  const linkedSourceUrl = pickFirstValue(row, [
+    "__link__url",
+    "__link__URL",
+    "__link__link",
+    "__link__Link",
+    "__link__hyperlink",
+    "__link__Hyperlink"
+  ]);
+
   return {
     company,
     role,
     status: pickFirstValue(row, ["status", "Status"]) || "applied",
     location: pickFirstValue(row, ["location", "Location", "lokalizacja", "Lokalizacja"]),
     notes: pickFirstValue(row, ["notes", "Notes", "notatki", "Notatki"]),
-    appliedAt: safeDate(pickFirstValue(row, ["applied_at", "appliedAt", "date", "Date", "data", "Data"])),
+    appliedAt: safeDate(
+      pickFirstValue(row, [
+        "applied_at",
+        "appliedAt",
+        "date",
+        "Date",
+        "data",
+        "Data",
+        "data aplikacji",
+        "Data aplikacji"
+      ])
+    ),
     source: pickFirstValue(row, ["source", "Source", "portal", "Portal"]),
-    sourceUrl: pickFirstValue(row, ["url", "URL", "link", "Link"])
+    sourceUrl: isAbsoluteHttpUrl(directSourceUrl) ? directSourceUrl : linkedSourceUrl || null
   };
+}
+
+function readExcelRowsWithHyperlinks(worksheet) {
+  const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: true });
+  if (!matrix.length) return [];
+
+  const headers = matrix[0].map((value) => String(value || "").trim());
+  const rows = [];
+
+  for (let rowIndex = 1; rowIndex < matrix.length; rowIndex += 1) {
+    const rowValues = matrix[rowIndex] || [];
+    const row = {};
+
+    for (let colIndex = 0; colIndex < headers.length; colIndex += 1) {
+      const header = headers[colIndex];
+      if (!header) continue;
+
+      row[header] = rowValues[colIndex] ?? "";
+
+      const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+      const cell = worksheet[cellAddress];
+      if (cell?.l?.Target) {
+        row[`__link__${header}`] = String(cell.l.Target).trim();
+      }
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function isAbsoluteHttpUrl(value) {
@@ -224,7 +295,7 @@ app.post("/api/offers/import-excel", upload.single("file"), async (req, res) => 
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    const rows = readExcelRowsWithHyperlinks(worksheet);
 
     const mappedOffers = rows.map(mapExcelRowToOffer).filter(Boolean);
 
