@@ -7,3 +7,6 @@ Akcja CV.xlsx
 
 src-tauri/target
 src-tauri/gen
+__pycache__/
+*.pyc
+.venv/

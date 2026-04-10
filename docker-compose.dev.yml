@@ -1,0 +1,60 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api-dev
+    container_name: applymanager-api-dev
+    shm_size: "1gb"
+    working_dir: /app
+    command: ["python3", "-m", "uvicorn", "server_py.main:app", "--host", "0.0.0.0", "--port", "3000", "--reload"]
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: applymanager
+      DB_PASSWORD: applymanager
+      DB_NAME: applymanager
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: node:20-bookworm-slim
+    container_name: applymanager-web-dev
+    working_dir: /app
+    command: ["sh", "-lc", "npm install && npm run dev -- --host 0.0.0.0 --port 1420"]
+    ports:
+      - "1420:1420"
+    environment:
+      VITE_API_PROXY_TARGET: http://api:3000
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
+  db:
+    build:
+      context: .
+      dockerfile: db/Dockerfile
+    container_name: applymanager-db-dev
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: applymanager
+      POSTGRES_PASSWORD: applymanager
+      POSTGRES_DB: applymanager
+    volumes:
+      - applymanager-db-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U applymanager -d applymanager"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  applymanager-db-dev-data:
