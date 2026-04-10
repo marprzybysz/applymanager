@@ -57,6 +57,8 @@ export function App() {
   const [message, setMessage] = useState("Ready");
   const [showStatus, setShowStatus] = useState(true);
   const [showAddOffer, setShowAddOffer] = useState(false);
+  const [addOfferUrl, setAddOfferUrl] = useState("");
+  const [showAddOfferForm, setShowAddOfferForm] = useState(false);
   const [showImportExcel, setShowImportExcel] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -135,8 +137,63 @@ export function App() {
       }
 
       setOfferForm(DEFAULT_OFFER);
+      setAddOfferUrl("");
+      setShowAddOfferForm(false);
+      setShowAddOffer(false);
       await fetchOffers();
       setStatusMessage("Offer added");
+    } catch (error) {
+      setShowAddOfferForm(true);
+      setOfferForm((prev) => ({
+        ...prev,
+        sourceUrl: addOfferUrl || prev.sourceUrl
+      }));
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleScrapeAddOfferLink(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!addOfferUrl.trim()) {
+      setStatusMessage("Wklej link do oferty");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/scrape/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: addOfferUrl })
+      });
+
+      const data = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        job?: {
+          source?: string | null;
+          title?: string | null;
+          company?: string | null;
+          location?: string | null;
+          url?: string | null;
+        };
+      };
+      if (!data.ok || !data.job) {
+        throw new Error(data.error || "Nie udalo sie pobrac oferty");
+      }
+
+      setOfferForm((prev) => ({
+        ...prev,
+        company: data.job?.company || prev.company,
+        role: data.job?.title || prev.role,
+        location: data.job?.location || prev.location || "",
+        source: data.job?.source || prev.source || "manual",
+        sourceUrl: data.job?.url || addOfferUrl
+      }));
+      setShowAddOfferForm(true);
+      setStatusMessage("Pobrano dane z linku, sprawdz i zapisz oferte");
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -293,14 +350,31 @@ export function App() {
   }
 
   return (
-    <main className="app">
+    <main className="app" id="top">
       <header className="header app-bar">
-        <div className="brand">
-          <h1>ApplyManager</h1>
-          <p>Manual offers, scrape jobs, and import your Excel tracker.</p>
-        </div>
+        <a className="brand brand-link" href="#top">
+          ApplyManager
+        </a>
+
+        <nav className="top-nav" aria-label="Sekcje">
+          <a href="#offers-list">Offers</a>
+        </nav>
 
         <div className="header-actions">
+          <button
+            type="button"
+            className="add-offer-btn"
+            onClick={() => {
+              setShowAddOffer(true);
+              setShowAddOfferForm(false);
+              setAddOfferUrl("");
+              setOfferForm(DEFAULT_OFFER);
+              setShowUserMenu(false);
+              setShowSettingsMenu(false);
+            }}
+          >
+            Dodaj
+          </button>
           <div className="menu-wrap">
             <button
               type="button"
@@ -346,11 +420,14 @@ export function App() {
                   type="button"
                   className="ghost-btn"
                   onClick={() => {
-                    setShowAddOffer((prev) => !prev);
+                    setShowAddOffer(true);
+                    setShowAddOfferForm(false);
+                    setAddOfferUrl("");
+                    setOfferForm(DEFAULT_OFFER);
                     setShowUserMenu(false);
                   }}
                 >
-                  {showAddOffer ? "Ukryj Add Offer" : "Pokaz Add Offer"}
+                  Dodaj oferte
                 </button>
                 <button
                   type="button"
@@ -391,77 +468,8 @@ export function App() {
         </p>
       ) : null}
 
-      {showAddOffer ? (
-        <section className="card">
-          <h2>Add Offer</h2>
-          <form className="grid" onSubmit={handleAddOffer}>
-          <input
-            value={offerForm.company}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, company: event.target.value }))}
-            placeholder="Company"
-            required
-          />
-          <input
-            value={offerForm.role}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, role: event.target.value }))}
-            placeholder="Role"
-            required
-          />
-          <input
-            value={offerForm.status}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
-            placeholder="Status (applied/interview/offer/rejected)"
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={offerForm.applied}
-              onChange={(event) =>
-                setOfferForm((prev) => ({
-                  ...prev,
-                  applied: event.target.checked,
-                  status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
-                }))
-              }
-            />
-            Aplikowano
-          </label>
-          <input
-            value={offerForm.location || ""}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, location: event.target.value }))}
-            placeholder="Location"
-          />
-          <input
-            type="date"
-            value={offerForm.appliedAt || ""}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, appliedAt: event.target.value }))}
-          />
-          <input
-            value={offerForm.source || ""}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, source: event.target.value }))}
-            placeholder="Source (manual/pracuj/etc.)"
-          />
-          <input
-            className="span-2"
-            value={offerForm.sourceUrl || ""}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
-            placeholder="Offer URL"
-          />
-          <textarea
-            className="span-2"
-            value={offerForm.notes || ""}
-            onChange={(event) => setOfferForm((prev) => ({ ...prev, notes: event.target.value }))}
-            placeholder="Notes"
-          />
-          <button className="span-2" type="submit" disabled={loading}>
-            Add Offer
-          </button>
-          </form>
-        </section>
-      ) : null}
-
       {showImportExcel ? (
-        <section className="card">
+        <section className="card" id="import-excel">
           <h2>Import Excel</h2>
           <form className="row" onSubmit={handleImportExcel}>
             <input
@@ -477,7 +485,7 @@ export function App() {
         </section>
       ) : null}
 
-      <section className="card">
+      <section className="card" id="scrape-jobs">
         <h2>Scrape Jobs</h2>
         <form className="row" onSubmit={handleScrape}>
           <input
@@ -524,7 +532,7 @@ export function App() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card" id="offers-list">
         <h2>Offers ({offers.length})</h2>
         <div className="list">
           {offers.map((offer, index) => (
@@ -548,6 +556,127 @@ export function App() {
           {offers.length === 0 ? <p className="hint">No offers in database yet.</p> : null}
         </div>
       </section>
+
+      {showAddOffer ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="add-offer">
+            <h3>Dodaj Oferte</h3>
+            <form className="row" onSubmit={handleScrapeAddOfferLink}>
+              <input
+                value={addOfferUrl}
+                onChange={(event) => setAddOfferUrl(event.target.value)}
+                placeholder="Wklej link do oferty (np. pracuj.pl)"
+                required
+              />
+              <button type="submit" disabled={loading}>
+                Pobierz
+              </button>
+            </form>
+
+            {showAddOfferForm ? (
+              <form className="grid" onSubmit={handleAddOffer}>
+                <label className="form-field">
+                  <span>Firma</span>
+                  <input
+                    value={offerForm.company}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, company: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Stanowisko</span>
+                  <input
+                    value={offerForm.role}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, role: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Status</span>
+                  <select
+                    value={offerForm.status}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
+                  >
+                    <option value="applied">applied</option>
+                    <option value="saved">saved</option>
+                    <option value="interview">interview</option>
+                    <option value="offer">offer</option>
+                    <option value="rejected">rejected</option>
+                  </select>
+                </label>
+                <label className="form-field checkbox-field">
+                  <span>Aplikowano</span>
+                  <input
+                    type="checkbox"
+                    checked={offerForm.applied}
+                    onChange={(event) =>
+                      setOfferForm((prev) => ({
+                        ...prev,
+                        applied: event.target.checked,
+                        status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
+                      }))
+                    }
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Lokalizacja</span>
+                  <input
+                    value={offerForm.location || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, location: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Data aplikacji</span>
+                  <input
+                    type="date"
+                    value={offerForm.appliedAt || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, appliedAt: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Źródło</span>
+                  <input
+                    value={offerForm.source || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, source: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field span-2">
+                  <span>Link oferty</span>
+                  <input
+                    value={offerForm.sourceUrl || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="form-field span-2">
+                  <span>Notatki</span>
+                  <textarea
+                    value={offerForm.notes || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, notes: event.target.value }))}
+                  />
+                </label>
+                <div className="modal-actions span-2">
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => {
+                      setShowAddOffer(false);
+                      setShowAddOfferForm(false);
+                      setAddOfferUrl("");
+                    }}
+                    disabled={loading}
+                  >
+                    Zamknij
+                  </button>
+                  <button type="submit" disabled={loading}>
+                    Dodaj oferte
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {pendingOffer ? (
         <div className="modal-backdrop">
