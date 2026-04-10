@@ -55,6 +55,11 @@ export function App() {
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Ready");
+  const [showStatus, setShowStatus] = useState(true);
+  const [showAddOffer, setShowAddOffer] = useState(false);
+  const [showImportExcel, setShowImportExcel] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -66,6 +71,17 @@ export function App() {
   });
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
+  const statusText = loading ? "Working..." : message;
+  const statusTone = loading
+    ? "neutral"
+    : /error|failed|invalid|http\s*\d+/i.test(message)
+      ? "error"
+      : "success";
+
+  function setStatusMessage(nextMessage: string) {
+    setMessage(nextMessage);
+    setShowStatus(true);
+  }
 
   async function fetchOffers() {
     const response = await fetch("/api/offers");
@@ -79,8 +95,8 @@ export function App() {
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchOffers()])
-      .then(() => setMessage("Data loaded"))
-      .catch((error) => setMessage(String(error)))
+      .then(() => setStatusMessage("Data loaded"))
+      .catch((error) => setStatusMessage(String(error)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -120,9 +136,9 @@ export function App() {
 
       setOfferForm(DEFAULT_OFFER);
       await fetchOffers();
-      setMessage("Offer added");
+      setStatusMessage("Offer added");
     } catch (error) {
-      setMessage(String(error));
+      setStatusMessage(String(error));
     } finally {
       setLoading(false);
     }
@@ -131,7 +147,7 @@ export function App() {
   async function handleImportExcel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!excelFile) {
-      setMessage("Select .xlsx file first");
+      setStatusMessage("Select .xlsx file first");
       return;
     }
 
@@ -152,9 +168,9 @@ export function App() {
 
       await fetchOffers();
       setExcelFile(null);
-      setMessage(`Excel imported: ${data.imported ?? 0}, skipped: ${data.skipped ?? 0}`);
+      setStatusMessage(`Excel imported: ${data.imported ?? 0}, skipped: ${data.skipped ?? 0}`);
     } catch (error) {
-      setMessage(String(error));
+      setStatusMessage(String(error));
     } finally {
       setLoading(false);
     }
@@ -186,7 +202,7 @@ export function App() {
 
       const jobs = data.jobs || [];
       setScrapedJobs(jobs);
-      setMessage(`Scraped jobs: ${data.total ?? 0}`);
+      setStatusMessage(`Scraped jobs: ${data.total ?? 0}`);
 
       if (data.mode === "link" && jobs[0]) {
         setPendingOffer({
@@ -203,7 +219,7 @@ export function App() {
         setPendingScrapedIndex(0);
       }
     } catch (error) {
-      setMessage(String(error));
+      setStatusMessage(String(error));
     } finally {
       setLoading(false);
     }
@@ -241,7 +257,7 @@ export function App() {
           : job
       )
     );
-    setMessage("Scraped record updated");
+    setStatusMessage("Scraped record updated");
   }
 
   async function confirmSavePendingOffer(event: FormEvent<HTMLFormElement>) {
@@ -264,9 +280,9 @@ export function App() {
       await fetchOffers();
       setPendingOffer(null);
       setPendingScrapedIndex(null);
-      setMessage("Scraped job saved to offers");
+      setStatusMessage("Scraped job saved to offers");
     } catch (error) {
-      setMessage(String(error));
+      setStatusMessage(String(error));
     } finally {
       setLoading(false);
     }
@@ -278,31 +294,107 @@ export function App() {
 
   return (
     <main className="app">
-      <header className="header">
-        <h1>ApplyManager</h1>
-        <p>Manual offers, scrape jobs, and import your Excel tracker.</p>
-        <div className="theme-switch">
-          <label htmlFor="theme-select">Theme</label>
-          <select
-            id="theme-select"
-            value={themeMode}
-            onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
-          >
-            <option value="auto">Auto</option>
-            <option value="light">Jasny</option>
-            <option value="dark">Ciemny</option>
-          </select>
+      <header className="header app-bar">
+        <div className="brand">
+          <h1>ApplyManager</h1>
+          <p>Manual offers, scrape jobs, and import your Excel tracker.</p>
         </div>
-        <button type="button" onClick={exportExcel}>
-          Export Offers to Excel
-        </button>
+
+        <div className="header-actions">
+          <div className="menu-wrap">
+            <button
+              type="button"
+              className="ghost-btn icon-btn"
+              onClick={() => {
+                setShowSettingsMenu((prev) => !prev);
+                setShowUserMenu(false);
+              }}
+              aria-label="Ustawienia"
+            >
+              ⚙
+            </button>
+            {showSettingsMenu ? (
+              <div className="menu-panel">
+                <label htmlFor="theme-select">Theme</label>
+                <select
+                  id="theme-select"
+                  value={themeMode}
+                  onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+                >
+                  <option value="auto">Auto</option>
+                  <option value="light">Jasny</option>
+                  <option value="dark">Ciemny</option>
+                </select>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="menu-wrap">
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                setShowUserMenu((prev) => !prev);
+                setShowSettingsMenu(false);
+              }}
+            >
+              Uzytkownik
+            </button>
+            {showUserMenu ? (
+              <div className="menu-panel">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowAddOffer((prev) => !prev);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {showAddOffer ? "Ukryj Add Offer" : "Pokaz Add Offer"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowImportExcel((prev) => !prev);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {showImportExcel ? "Ukryj Import Excel" : "Pokaz Import Excel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportExcel();
+                    setShowUserMenu(false);
+                  }}
+                >
+                  Export Offers to Excel
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </header>
 
-      <p className="status">{loading ? "Working..." : message}</p>
+      {showStatus ? (
+        <p className={`status status--${statusTone}`}>
+          <span>{statusText}</span>
+          <button
+            type="button"
+            className="status-close"
+            onClick={() => setShowStatus(false)}
+            aria-label="Zamknij status"
+          >
+            X
+          </button>
+        </p>
+      ) : null}
 
-      <section className="card">
-        <h2>Add Offer</h2>
-        <form className="grid" onSubmit={handleAddOffer}>
+      {showAddOffer ? (
+        <section className="card">
+          <h2>Add Offer</h2>
+          <form className="grid" onSubmit={handleAddOffer}>
           <input
             value={offerForm.company}
             onChange={(event) => setOfferForm((prev) => ({ ...prev, company: event.target.value }))}
@@ -364,23 +456,26 @@ export function App() {
           <button className="span-2" type="submit" disabled={loading}>
             Add Offer
           </button>
-        </form>
-      </section>
+          </form>
+        </section>
+      ) : null}
 
-      <section className="card">
-        <h2>Import Excel</h2>
-        <form className="row" onSubmit={handleImportExcel}>
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
-          />
-          <button type="submit" disabled={loading}>
-            Import
-          </button>
-        </form>
-        <p className="hint">Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).</p>
-      </section>
+      {showImportExcel ? (
+        <section className="card">
+          <h2>Import Excel</h2>
+          <form className="row" onSubmit={handleImportExcel}>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
+            />
+            <button type="submit" disabled={loading}>
+              Import
+            </button>
+          </form>
+          <p className="hint">Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).</p>
+        </section>
+      ) : null}
 
       <section className="card">
         <h2>Scrape Jobs</h2>
