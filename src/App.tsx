@@ -485,53 +485,6 @@ export function App() {
         </section>
       ) : null}
 
-      <section className="card" id="scrape-jobs">
-        <h2>Scrape Jobs</h2>
-        <form className="row" onSubmit={handleScrape}>
-          <input
-            value={scrapeQuery}
-            onChange={(event) => setScrapeQuery(event.target.value)}
-            placeholder="Search phrase OR offer URL (e.g. https://www.pracuj.pl/...)"
-            required
-          />
-          <button type="submit" disabled={loading}>
-            Scrape
-          </button>
-        </form>
-        <p className="hint">
-          {isUrlMode
-            ? "URL mode: source is auto-detected by backend."
-            : "Phrase mode: backend searches supported job sources."}
-        </p>
-
-        <div className="list">
-          {scrapedJobs.map((job, index) => (
-            <article className="item" key={`${job.source}-${job.url || index}`}>
-              <div>
-                <strong>{job.title || "Unknown role"}</strong>
-                <p>
-                  {job.company || "Unknown company"} | {job.location || "Unknown location"} | {job.source}
-                </p>
-                {job.url ? (
-                  <a href={job.url} target="_blank" rel="noreferrer">
-                    {job.url}
-                  </a>
-                ) : null}
-              </div>
-              <div className="item-actions">
-                <button type="button" className="ghost-btn" onClick={() => openSaveDialog(job, index)} disabled={loading}>
-                  Edit
-                </button>
-                <button type="button" onClick={() => openSaveDialog(job, index)} disabled={loading}>
-                  Save
-                </button>
-              </div>
-            </article>
-          ))}
-          {scrapedJobs.length === 0 ? <p className="hint">No scraped jobs yet.</p> : null}
-        </div>
-      </section>
-
       <section className="card" id="offers-list">
         <h2>Offers ({offers.length})</h2>
         <div className="list">
@@ -553,7 +506,7 @@ export function App() {
               </div>
             </article>
           ))}
-          {offers.length === 0 ? <p className="hint">No offers in database yet.</p> : null}
+          {offers.length === 0 ? <p className="hint">Nie masz jeszcze dodanych ofert.</p> : null}
         </div>
       </section>
 
