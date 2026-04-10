@@ -112,3 +112,24 @@
   - `npm run dev:full` - frontend + backend równolegle,
   - `npm run dev:db` - szybki start samej bazy `db`.
 - Zaktualizowano `README.md` o uruchamianie trybu React dev bez problemu 404 na `/api/*`.
+
+## 2026-04-11
+
+### Podział backendu na web/local/modules
+
+- Refactor backendu FastAPI do struktury:
+  - `server/web/` (endpointy webowe),
+  - `server/local/` (endpointy lokalne),
+  - `server/modules/` (logika współdzielona).
+- Dodano rejestr użycia modułów oraz endpointy:
+  - `GET /api/modules`,
+  - `GET /api/local/modules`.
+
+### Scaffold lokalnego UI Qt
+
+- Dodano katalog `local/` z minimalnym interfejsem desktop:
+  - `local/CMakeLists.txt`,
+  - `local/src/main.cpp`,
+  - `local/src/MainWindow.h`,
+  - `local/src/MainWindow.cpp`.
+- Układ UI jest zgodny sekcjami z webowym (header, status, offers).

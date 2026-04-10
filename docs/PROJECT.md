@@ -11,11 +11,15 @@ Aplikacja do:
 ## Obecny zakres (MVP)
 
 - Frontend: React + TypeScript.
+- Lokalny scaffold UI: Qt6 + C++ (`local/`).
 - Tryb web/docker do testów: React + backend FastAPI.
 - Baza testowa: PostgreSQL w osobnym kontenerze.
 - Podstawowe endpointy API:
   - `/api/greet`
   - `/api/health`
+  - `/api/modules`
+  - `/api/local/health`
+  - `/api/local/modules`
   - `/api/scrape/sources`
   - `/api/scrape`
   - `/api/scrape/link`

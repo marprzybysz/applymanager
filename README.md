@@ -9,6 +9,7 @@ Project docs: `docs/`
 - React + TypeScript (UI)
 - Vite (frontend tooling)
 - FastAPI (Python backend)
+- Qt 6 + C++ (local UI scaffold)
 - PostgreSQL (test DB in Docker)
 
 ## Run (development)
@@ -154,3 +155,33 @@ Other commands:
 ```bash
 npm run build
 ```
+
+## Local Qt UI Scaffold
+
+Minimalny interfejs lokalny (zgodny sekcjami z webowym: header/status/offers) znajduje się w `local/`.
+
+Build:
+
+```bash
+cmake -S local -B build/local
+cmake --build build/local -j
+```
+
+Run:
+
+```bash
+./build/local/applymanager_local
+```
+
+## Backend Module Split
+
+Backend jest podzielony na:
+
+- `server/web/` - endpointy webowe (`/api/*`)
+- `server/local/` - endpointy lokalne (`/api/local/*`)
+- `server/modules/` - logika współdzielona (db/offers/scrape/common/registry)
+
+Szybki podgląd wykorzystania modułów:
+
+- `GET /api/modules`
+- `GET /api/local/modules`
