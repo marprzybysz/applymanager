@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type Offer = {
   id?: number;
@@ -21,6 +21,15 @@ type ScrapedJob = {
   datePosted: string | null;
 };
 
+function isAbsoluteHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const DEFAULT_OFFER: Offer = {
   company: "",
   role: "",
@@ -36,21 +45,13 @@ export function App() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(DEFAULT_OFFER);
   const [scrapeQuery, setScrapeQuery] = useState("frontend react");
-  const [limitPerSource, setLimitPerSource] = useState(10);
-  const [sources, setSources] = useState<string[]>([]);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [scrapedJobs, setScrapedJobs] = useState<ScrapedJob[]>([]);
+  const [pendingOffer, setPendingOffer] = useState<Offer | null>(null);
+  const [pendingScrapedIndex, setPendingScrapedIndex] = useState<number | null>(null);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Ready");
-
-  const sourceToggleLabel = useMemo(
-    () =>
-      selectedSources.length === 0
-        ? "all"
-        : `${selectedSources.length}/${sources.length} selected`,
-    [selectedSources.length, sources.length]
-  );
+  const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
 
   async function fetchOffers() {
     const response = await fetch("/api/offers");
@@ -61,15 +62,9 @@ export function App() {
     setOffers(data.offers || []);
   }
 
-  async function fetchSources() {
-    const response = await fetch("/api/scrape/sources");
-    const data = (await response.json()) as { sources: string[] };
-    setSources(data.sources || []);
-  }
-
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchOffers(), fetchSources()])
+    Promise.all([fetchOffers()])
       .then(() => setMessage("Data loaded"))
       .catch((error) => setMessage(String(error)))
       .finally(() => setLoading(false));
@@ -142,19 +137,38 @@ export function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: scrapeQuery,
-          sources: selectedSources,
-          limitPerSource
+          query: scrapeQuery
         })
       });
 
-      const data = (await response.json()) as { ok: boolean; jobs?: ScrapedJob[]; total?: number; error?: string };
+      const data = (await response.json()) as {
+        ok: boolean;
+        mode?: "link" | "search";
+        jobs?: ScrapedJob[];
+        total?: number;
+        error?: string;
+      };
       if (!data.ok) {
         throw new Error(data.error || "Scrape failed");
       }
 
-      setScrapedJobs(data.jobs || []);
+      const jobs = data.jobs || [];
+      setScrapedJobs(jobs);
       setMessage(`Scraped jobs: ${data.total ?? 0}`);
+
+      if (data.mode === "link" && jobs[0]) {
+        setPendingOffer({
+          company: jobs[0].company || "Unknown company",
+          role: jobs[0].title || "Unknown role",
+          status: "applied",
+          location: jobs[0].location,
+          notes: "",
+          appliedAt: new Date().toISOString().slice(0, 10),
+          source: jobs[0].source,
+          sourceUrl: jobs[0].url
+        });
+        setPendingScrapedIndex(0);
+      }
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -162,21 +176,50 @@ export function App() {
     }
   }
 
-  async function saveScrapedJob(job: ScrapedJob) {
+  function openSaveDialog(job: ScrapedJob, index: number) {
+    setPendingOffer({
+      company: job.company || "Unknown company",
+      role: job.title || "Unknown role",
+      status: "applied",
+      location: job.location,
+      notes: "",
+      appliedAt: new Date().toISOString().slice(0, 10),
+      source: job.source,
+      sourceUrl: job.url
+    });
+    setPendingScrapedIndex(index);
+  }
+
+  function applyPendingChangesToScraped() {
+    if (!pendingOffer || pendingScrapedIndex === null) return;
+
+    setScrapedJobs((prev) =>
+      prev.map((job, index) =>
+        index === pendingScrapedIndex
+          ? {
+              ...job,
+              title: pendingOffer.role,
+              company: pendingOffer.company,
+              location: pendingOffer.location || null,
+              source: pendingOffer.source || job.source,
+              url: pendingOffer.sourceUrl || null
+            }
+          : job
+      )
+    );
+    setMessage("Scraped record updated");
+  }
+
+  async function confirmSavePendingOffer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingOffer) return;
+
     setLoading(true);
     try {
       const response = await fetch("/api/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          company: job.company || "Unknown company",
-          role: job.title || "Unknown role",
-          status: "applied",
-          location: job.location,
-          source: job.source,
-          sourceUrl: job.url,
-          appliedAt: new Date().toISOString().slice(0, 10)
-        })
+        body: JSON.stringify(pendingOffer)
       });
 
       const data = (await response.json()) as { ok: boolean; error?: string };
@@ -185,6 +228,8 @@ export function App() {
       }
 
       await fetchOffers();
+      setPendingOffer(null);
+      setPendingScrapedIndex(null);
       setMessage("Scraped job saved to offers");
     } catch (error) {
       setMessage(String(error));
@@ -195,12 +240,6 @@ export function App() {
 
   function exportExcel() {
     window.open("/api/offers/export-excel", "_blank");
-  }
-
-  function toggleSource(source: string) {
-    setSelectedSources((prev) =>
-      prev.includes(source) ? prev.filter((item) => item !== source) : [...prev, source]
-    );
   }
 
   return (
@@ -285,39 +324,22 @@ export function App() {
 
       <section className="card">
         <h2>Scrape Jobs</h2>
-        <form className="grid" onSubmit={handleScrape}>
+        <form className="row" onSubmit={handleScrape}>
           <input
-            className="span-2"
             value={scrapeQuery}
             onChange={(event) => setScrapeQuery(event.target.value)}
             placeholder="Search phrase OR offer URL (e.g. https://www.pracuj.pl/...)"
             required
           />
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={limitPerSource}
-            onChange={(event) => setLimitPerSource(Number(event.target.value || 10))}
-          />
-          <div className="pill span-1">Sources: {sourceToggleLabel}</div>
-          <div className="sources span-2">
-            {sources.map((source) => (
-              <label key={source}>
-                <input
-                  type="checkbox"
-                  checked={selectedSources.includes(source)}
-                  onChange={() => toggleSource(source)}
-                />
-                <span>{source}</span>
-              </label>
-            ))}
-          </div>
-          <button className="span-2" type="submit" disabled={loading}>
+          <button type="submit" disabled={loading}>
             Scrape
           </button>
         </form>
-        <p className="hint">Supported URL domains: pracuj.pl, olx.pl, nofluffjobs.com, rocketjobs.pl, indeed, justjoin.it</p>
+        <p className="hint">
+          {isUrlMode
+            ? "URL mode: source is auto-detected by backend."
+            : "Phrase mode: backend searches supported job sources."}
+        </p>
 
         <div className="list">
           {scrapedJobs.map((job, index) => (
@@ -333,9 +355,14 @@ export function App() {
                   </a>
                 ) : null}
               </div>
-              <button type="button" onClick={() => saveScrapedJob(job)} disabled={loading}>
-                Save
-              </button>
+              <div className="item-actions">
+                <button type="button" className="ghost-btn" onClick={() => openSaveDialog(job, index)} disabled={loading}>
+                  Edit
+                </button>
+                <button type="button" onClick={() => openSaveDialog(job, index)} disabled={loading}>
+                  Save
+                </button>
+              </div>
             </article>
           ))}
           {scrapedJobs.length === 0 ? <p className="hint">No scraped jobs yet.</p> : null}
@@ -366,6 +393,84 @@ export function App() {
           {offers.length === 0 ? <p className="hint">No offers in database yet.</p> : null}
         </div>
       </section>
+
+      {pendingOffer ? (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Confirm And Save Offer</h3>
+            <form className="grid" onSubmit={confirmSavePendingOffer}>
+              <input
+                value={pendingOffer.company}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, company: event.target.value } : prev))}
+                placeholder="Company"
+                required
+              />
+              <input
+                value={pendingOffer.role}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, role: event.target.value } : prev))}
+                placeholder="Role"
+                required
+              />
+              <input
+                value={pendingOffer.status}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, status: event.target.value } : prev))}
+                placeholder="Status"
+              />
+              <input
+                value={pendingOffer.location || ""}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, location: event.target.value } : prev))}
+                placeholder="Location"
+              />
+              <input
+                type="date"
+                value={pendingOffer.appliedAt || ""}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, appliedAt: event.target.value } : prev))}
+              />
+              <input
+                value={pendingOffer.source || ""}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, source: event.target.value } : prev))}
+                placeholder="Source"
+              />
+              <input
+                className="span-2"
+                value={pendingOffer.sourceUrl || ""}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, sourceUrl: event.target.value } : prev))}
+                placeholder="Source URL"
+              />
+              <textarea
+                className="span-2"
+                value={pendingOffer.notes || ""}
+                onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, notes: event.target.value } : prev))}
+                placeholder="Notes"
+              />
+              <div className="modal-actions span-2">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setPendingOffer(null);
+                    setPendingScrapedIndex(null);
+                  }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={applyPendingChangesToScraped}
+                  disabled={loading || pendingScrapedIndex === null}
+                >
+                  Update Scraped
+                </button>
+                <button type="submit" disabled={loading}>
+                  Save To Database
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

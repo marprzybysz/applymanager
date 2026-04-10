@@ -84,3 +84,32 @@
   - URL -> scrapowanie pojedynczego linku,
   - tekst -> scrapowanie wyszukiwania po źródłach.
 - Uproszczono frontend `Scrape Jobs` do jednego pola wejściowego (fraza lub URL).
+
+### Potwierdzenie przed zapisem zescrapowanej oferty
+
+- Dla trybu URL ukryto wybór źródeł i pokazano informację o auto-detekcji źródła.
+- Dodano okno modalne potwierdzenia zapisu oferty do bazy:
+  - edycja firmy, roli, statusu, lokalizacji, daty,
+  - dodanie notatek,
+  - podgląd i edycja linku źródłowego.
+- Kliknięcie `Save` przy wyniku scrapowania otwiera modal zamiast natychmiastowego zapisu.
+
+### Uproszczenie sekcji Scrape + edycja rekordów scraped
+
+- Sekcja `Scrape Jobs` została uproszczona do:
+  - jednego pola tekstowego,
+  - jednego przycisku `Scrape`.
+- Usunięto UI wyboru źródeł i limitu z widoku frontendu.
+- Dodano edycję danych zescrapowanych przed zapisem:
+  - `Edit` otwiera modal z pełną edycją,
+  - `Update Scraped` aktualizuje rekord w liście wyników,
+  - `Save To Database` zapisuje edytowane dane do tabeli `applications`.
+
+### React dev mode fix
+
+- Dodano proxy Vite `/api -> http://localhost:3000` w `vite.config.ts`.
+- Dodano skrypty developerskie:
+  - `npm run dev:api` - backend z `node --watch`,
+  - `npm run dev:full` - frontend + backend równolegle,
+  - `npm run dev:db` - szybki start samej bazy `db`.
+- Zaktualizowano `README.md` o uruchamianie trybu React dev bez problemu 404 na `/api/*`.

@@ -6,7 +6,13 @@ export default defineConfig(() => ({
   clearScreen: false,
   server: {
     port: 1420,
-    strictPort: true
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true
+      }
+    }
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {

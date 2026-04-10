@@ -96,32 +96,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.pill {
-  display: flex;
-  align-items: center;
-  padding: 0.62rem 0.72rem;
-  border: 1px solid #cfd9e8;
-  border-radius: 10px;
-  color: #334155;
-  background: #f8fafc;
-}
-
-.sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.sources label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid #dbe3f0;
-  background: #f8fafc;
-}
-
 .list {
   display: grid;
   gap: 0.65rem;
@@ -151,6 +125,46 @@ button:disabled {
 .hint {
   color: #64748b;
   margin: 0.25rem 0 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 20;
+}
+
+.modal {
+  width: min(760px, 100%);
+  background: #ffffff;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.modal h3 {
+  margin: 0 0 0.85rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.ghost-btn {
+  background: #ffffff;
+  color: #111827;
+  border-color: #cfd9e8;
+}
+
+.item-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-self: flex-start;
 }
 
 @media (max-width: 860px) {

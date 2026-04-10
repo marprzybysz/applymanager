@@ -26,6 +26,27 @@ npm install
 npm run tauri dev
 ```
 
+## React Dev Mode (with API)
+
+1. Start database (once per session):
+
+```bash
+npm run dev:db
+```
+
+2. Run frontend + backend together:
+
+```bash
+npm run dev:full
+```
+
+Open: `http://localhost:1420`
+
+Notes:
+
+- Vite now proxies `/api/*` to `http://localhost:3000`.
+- If dependencies changed, run `npm install` again.
+
 ## Docker (frontend + backend + db)
 
 Start containers:
