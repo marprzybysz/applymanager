@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS applications (
   id SERIAL PRIMARY KEY,
   company TEXT NOT NULL,
   role TEXT NOT NULL,
+  applied BOOLEAN NOT NULL DEFAULT TRUE,
   status TEXT NOT NULL DEFAULT 'applied',
   location TEXT,
   notes TEXT,

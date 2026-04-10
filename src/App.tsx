@@ -4,6 +4,7 @@ type Offer = {
   id?: number;
   company: string;
   role: string;
+  applied: boolean;
   status: string;
   location?: string | null;
   notes?: string | null;
@@ -21,6 +22,8 @@ type ScrapedJob = {
   datePosted: string | null;
 };
 
+type ThemeMode = "auto" | "light" | "dark";
+
 function isAbsoluteHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -33,6 +36,7 @@ function isAbsoluteHttpUrl(value: string) {
 const DEFAULT_OFFER: Offer = {
   company: "",
   role: "",
+  applied: true,
   status: "applied",
   location: "",
   notes: "",
@@ -51,7 +55,17 @@ export function App() {
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Ready");
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "auto";
+    const stored = window.localStorage.getItem("themeMode");
+    return stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+  });
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
+  const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
 
   async function fetchOffers() {
     const response = await fetch("/api/offers");
@@ -69,6 +83,24 @@ export function App() {
       .catch((error) => setMessage(String(error)))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches);
+
+    setSystemPrefersDark(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.setAttribute("data-theme", resolvedTheme);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("themeMode", themeMode);
+    }
+  }, [resolvedTheme, themeMode]);
 
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,6 +192,7 @@ export function App() {
         setPendingOffer({
           company: jobs[0].company || "Unknown company",
           role: jobs[0].title || "Unknown role",
+          applied: true,
           status: "applied",
           location: jobs[0].location,
           notes: "",
@@ -180,6 +213,7 @@ export function App() {
     setPendingOffer({
       company: job.company || "Unknown company",
       role: job.title || "Unknown role",
+      applied: true,
       status: "applied",
       location: job.location,
       notes: "",
@@ -247,6 +281,18 @@ export function App() {
       <header className="header">
         <h1>ApplyManager</h1>
         <p>Manual offers, scrape jobs, and import your Excel tracker.</p>
+        <div className="theme-switch">
+          <label htmlFor="theme-select">Theme</label>
+          <select
+            id="theme-select"
+            value={themeMode}
+            onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+          >
+            <option value="auto">Auto</option>
+            <option value="light">Jasny</option>
+            <option value="dark">Ciemny</option>
+          </select>
+        </div>
         <button type="button" onClick={exportExcel}>
           Export Offers to Excel
         </button>
@@ -274,6 +320,20 @@ export function App() {
             onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
             placeholder="Status (applied/interview/offer/rejected)"
           />
+          <label>
+            <input
+              type="checkbox"
+              checked={offerForm.applied}
+              onChange={(event) =>
+                setOfferForm((prev) => ({
+                  ...prev,
+                  applied: event.target.checked,
+                  status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
+                }))
+              }
+            />
+            Aplikowano
+          </label>
           <input
             value={offerForm.location || ""}
             onChange={(event) => setOfferForm((prev) => ({ ...prev, location: event.target.value }))}
@@ -379,7 +439,7 @@ export function App() {
                   {offer.role} @ {offer.company}
                 </strong>
                 <p>
-                  {offer.status} | {offer.location || "-"} | {offer.appliedAt || "-"} | {offer.source || "manual"}
+                  {offer.applied ? "applied" : "not applied"} | {offer.status} | {offer.location || "-"} | {offer.appliedAt || "-"} | {offer.source || "manual"}
                 </p>
                 {offer.sourceUrl ? (
                   <a href={offer.sourceUrl} target="_blank" rel="noreferrer">
@@ -416,6 +476,24 @@ export function App() {
                 onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, status: event.target.value } : prev))}
                 placeholder="Status"
               />
+              <label>
+                <input
+                  type="checkbox"
+                  checked={pendingOffer.applied}
+                  onChange={(event) =>
+                    setPendingOffer((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            applied: event.target.checked,
+                            status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
+                          }
+                        : prev
+                    )
+                  }
+                />
+                Aplikowano
+              </label>
               <input
                 value={pendingOffer.location || ""}
                 onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, location: event.target.value } : prev))}

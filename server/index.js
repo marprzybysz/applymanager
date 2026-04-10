@@ -29,6 +29,7 @@ app.use(express.json());
 const EXCEL_FIELDS = {
   company: ["company", "Company", "firma", "Firma"],
   role: ["role", "Role", "position", "Position", "stanowisko", "Stanowisko"],
+  applied: ["applied", "Applied", "aplikowano", "Aplikowano"],
   status: ["status", "Status"],
   location: ["location", "Location", "lokalizacja", "Lokalizacja"],
   notes: ["notes", "Notes", "notatki", "Notatki"],
@@ -42,6 +43,23 @@ function toNonEmptyString(value) {
   if (value === undefined || value === null) return null;
   const normalized = String(value).trim();
   return normalized || null;
+}
+
+function toBooleanOrNull(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (["true", "1", "yes", "y", "tak", "t", "applied"].includes(normalized)) return true;
+  if (["false", "0", "no", "n", "nie", "f", "not_applied", "not-applied"].includes(normalized)) return false;
+  return null;
 }
 
 function parseExcelDateNumber(value) {
@@ -93,10 +111,14 @@ function mapExcelRowToOffer(row) {
   const directSourceUrl = pickFirstValue(row, EXCEL_FIELDS.sourceUrl);
   const linkedSourceUrl = pickFirstValue(row, EXCEL_FIELDS.sourceUrlLink);
 
+  const applied = toBooleanOrNull(pickFirstValue(row, EXCEL_FIELDS.applied)) ?? true;
+  const explicitStatus = pickFirstValue(row, EXCEL_FIELDS.status);
+
   return {
     company,
     role,
-    status: pickFirstValue(row, EXCEL_FIELDS.status) || "applied",
+    applied,
+    status: explicitStatus || (applied ? "applied" : "saved"),
     location: pickFirstValue(row, EXCEL_FIELDS.location),
     notes: pickFirstValue(row, EXCEL_FIELDS.notes),
     appliedAt: safeDate(pickFirstValue(row, EXCEL_FIELDS.appliedAt)),
@@ -144,11 +166,45 @@ function isAbsoluteHttpUrl(value) {
   }
 }
 
+function extractFirstHttpUrl(input) {
+  const text = toNonEmptyString(input);
+  if (!text) return null;
+
+  const match = text.match(/https?:\/\/[^\s"'<>]+/i);
+  if (!match?.[0]) return null;
+
+  // Trim trailing punctuation that often appears in copy-pasted text.
+  return match[0].replace(/[),.;!?]+$/g, "");
+}
+
+function normalizeScrapeUrl(input) {
+  const candidate = extractFirstHttpUrl(input) || toNonEmptyString(input);
+  if (!candidate || !isAbsoluteHttpUrl(candidate)) return null;
+
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+
+    // Copy-pasted Pracuj links often include tracking params that are unnecessary for scraping.
+    if (host.includes("pracuj.pl")) {
+      url.search = "";
+      url.hash = "";
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function mapOfferForInsertFromRequest(body) {
+  const applied = toBooleanOrNull(body?.applied);
+
   return {
     company: toNonEmptyString(body?.company) || "",
     role: toNonEmptyString(body?.role) || "",
-    status: toNonEmptyString(body?.status) || "applied",
+    applied: applied ?? true,
+    status: toNonEmptyString(body?.status) || ((applied ?? true) ? "applied" : "saved"),
     location: toNonEmptyString(body?.location),
     notes: toNonEmptyString(body?.notes),
     appliedAt: body?.appliedAt,
@@ -163,6 +219,7 @@ async function ensureSchema() {
       id SERIAL PRIMARY KEY,
       company TEXT NOT NULL,
       role TEXT NOT NULL,
+      applied BOOLEAN NOT NULL DEFAULT TRUE,
       status TEXT NOT NULL DEFAULT 'applied',
       location TEXT,
       notes TEXT,
@@ -174,6 +231,10 @@ async function ensureSchema() {
     )
   `);
 
+  await dbPool.query("ALTER TABLE applications ADD COLUMN IF NOT EXISTS applied BOOLEAN");
+  await dbPool.query("UPDATE applications SET applied = TRUE WHERE applied IS NULL");
+  await dbPool.query("ALTER TABLE applications ALTER COLUMN applied SET DEFAULT TRUE");
+  await dbPool.query("ALTER TABLE applications ALTER COLUMN applied SET NOT NULL");
   await dbPool.query("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source TEXT");
   await dbPool.query("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source_url TEXT");
 }
@@ -181,14 +242,15 @@ async function ensureSchema() {
 async function insertOffer(offer) {
   const result = await dbPool.query(
     `
-      INSERT INTO applications (company, role, status, location, notes, applied_at, source, source_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, company, role, status, location, notes, applied_at AS "appliedAt", source, source_url AS "sourceUrl", created_at AS "createdAt"
+      INSERT INTO applications (company, role, applied, status, location, notes, applied_at, source, source_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, company, role, applied, status, location, notes, applied_at AS "appliedAt", source, source_url AS "sourceUrl", created_at AS "createdAt"
     `,
     [
       offer.company,
       offer.role,
-      offer.status || "applied",
+      offer.applied ?? true,
+      offer.status || (offer.applied === false ? "saved" : "applied"),
       offer.location || null,
       offer.notes || null,
       safeDate(offer.appliedAt),
@@ -207,6 +269,7 @@ async function listOffers() {
         id,
         company,
         role,
+        applied,
         status,
         location,
         notes,
@@ -252,6 +315,7 @@ app.get("/api/offers/export-excel", async (_req, res) => {
     const rows = offers.map((offer) => ({
       company: offer.company || "",
       role: offer.role || "",
+      applied: offer.applied ?? true,
       status: offer.status || "",
       location: offer.location || "",
       notes: offer.notes || "",
@@ -340,14 +404,15 @@ app.post("/api/scrape", async (req, res) => {
   }
 
   try {
-    if (isAbsoluteHttpUrl(query)) {
-      const job = await scrapeJobFromLink(query);
+    const normalizedQueryUrl = normalizeScrapeUrl(query);
+    if (normalizedQueryUrl) {
+      const job = await scrapeJobFromLink(normalizedQueryUrl);
       return res.json({
         ok: true,
         mode: "link",
-        query,
+        query: normalizedQueryUrl,
         total: 1,
-        sources: [{ source: job.source, ok: true, jobs: [job], fetchedFrom: query, count: 1 }],
+        sources: [{ source: job.source, ok: true, jobs: [job], fetchedFrom: normalizedQueryUrl, count: 1 }],
         jobs: [job]
       });
     }
@@ -367,7 +432,7 @@ app.post("/api/scrape", async (req, res) => {
 });
 
 app.post("/api/scrape/link", async (req, res) => {
-  const url = toNonEmptyString(req.body?.url) || "";
+  const url = normalizeScrapeUrl(req.body?.url) || "";
 
   if (!url) {
     return res.status(400).json({
