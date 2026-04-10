@@ -77,3 +77,10 @@
   - pole wklejenia linku oferty i akcję `Scrape Link`,
   - przycisk `Export Offers to Excel`.
 - Zaktualizowano dokumentację (`README`, `docs/PROJECT.md`, `docs/ARCHITECTURE.md`).
+
+### Auto-detekcja w jednym polu scrapowania
+
+- Zmieniono `POST /api/scrape`, aby automatycznie wykrywał, czy `query` jest URL:
+  - URL -> scrapowanie pojedynczego linku,
+  - tekst -> scrapowanie wyszukiwania po źródłach.
+- Uproszczono frontend `Scrape Jobs` do jednego pola wejściowego (fraza lub URL).

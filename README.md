@@ -62,12 +62,12 @@ curl -X POST http://localhost:3000/api/scrape \
   -d '{"query":"frontend react","sources":["justjoinit","nofluffjobs"],"limitPerSource":10}'
 ```
 
-Example single-link scrape request:
+Example URL scrape via the same endpoint:
 
 ```bash
-curl -X POST http://localhost:3000/api/scrape/link \
+curl -X POST http://localhost:3000/api/scrape \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://www.pracuj.pl/praca/..."}'
+  -d '{"query":"https://www.pracuj.pl/praca/..."}'
 ```
 
 Notes:

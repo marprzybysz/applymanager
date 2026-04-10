@@ -62,6 +62,15 @@ function mapExcelRowToOffer(row) {
   };
 }
 
+function isAbsoluteHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 async function ensureSchema() {
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS applications (
@@ -255,9 +264,22 @@ app.post("/api/scrape", async (req, res) => {
   }
 
   try {
+    if (isAbsoluteHttpUrl(query)) {
+      const job = await scrapeJobFromLink(query);
+      return res.json({
+        ok: true,
+        mode: "link",
+        query,
+        total: 1,
+        sources: [{ source: job.source, ok: true, jobs: [job], fetchedFrom: query, count: 1 }],
+        jobs: [job]
+      });
+    }
+
     const result = await scrapeJobs({ query, sources, limitPerSource });
     return res.json({
       ok: true,
+      mode: "search",
       ...result
     });
   } catch (error) {

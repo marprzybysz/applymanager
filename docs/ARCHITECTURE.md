@@ -37,6 +37,9 @@
 - `server/scrapers/providers/index.js` - providerzy i selektory per portal.
 - `server/scrapers/index.js` - orkiestracja scrapowania wielu źródeł.
 - `POST /api/scrape/link` - scrapowanie pojedynczego URL oferty.
+- `POST /api/scrape` - auto-tryb:
+  - jeśli `query` jest URL, backend scrapuje pojedynczy link,
+  - jeśli `query` jest frazą, backend robi scraping search dla źródeł.
 
 Wspierane źródła:
 
