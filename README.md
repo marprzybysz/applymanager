@@ -1,12 +1,11 @@
 # ApplyManager
 
-Starter scaffold for a desktop app plus Docker test environment.
+Starter scaffold for web app plus Docker test environment.
 
 Project docs: `docs/`
 
 ## Stack
 
-- Tauri 2 (desktop shell + Rust commands)
 - React + TypeScript (UI)
 - Vite (frontend tooling)
 - FastAPI (Python backend)
@@ -23,7 +22,7 @@ npm install
 2. Start app:
 
 ```bash
-npm run tauri dev
+npm run dev:full
 ```
 
 ## React Dev Mode (with API)
@@ -118,6 +117,9 @@ Helper commands:
 ./scripts/run-all.sh down
 ./scripts/run-all.sh logs
 ./scripts/run-all.sh restart
+./scripts/run-all.sh ports
+./scripts/run-all.sh images
+./scripts/run-all.sh clean-images
 ```
 
 ## Docker Dev (hot reload)
@@ -142,12 +144,13 @@ Other commands:
 ./scripts/run-dev.sh restart
 ./scripts/run-dev.sh logs
 ./scripts/run-dev.sh down
+./scripts/run-dev.sh ports
+./scripts/run-dev.sh images
+./scripts/run-dev.sh clean-images
 ```
 
-## Build installer
+## Build frontend
 
 ```bash
-npm run tauri build
+npm run build
 ```
-
-Installers are generated in `src-tauri/target/release/bundle`.

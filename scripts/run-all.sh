@@ -20,6 +20,34 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+show_ports() {
+  echo
+  echo "ApplyManager container map (production compose):"
+  echo "Frontend+Backend (app): http://localhost:3000"
+  echo "Backend health:         http://localhost:3000/api/health"
+  echo "Backend sources:        http://localhost:3000/api/scrape/sources"
+  echo "Database (PostgreSQL):  localhost:5432"
+  echo
+  echo "Containers:"
+  echo "- applymanager-app"
+  echo "- applymanager-db"
+}
+
+show_images() {
+  echo
+  echo "Compose images (production):"
+  docker compose images
+  echo
+  echo "Docker disk usage:"
+  docker system df
+}
+
+clean_images() {
+  echo "Stopping stack and removing local build images for production compose..."
+  docker compose down --rmi local --remove-orphans
+  echo "Done. Removed compose local images."
+}
+
 wait_for_app() {
   local attempts=30
   local delay=2
@@ -43,11 +71,8 @@ case "$MODE" in
   up)
     docker compose up --build -d
     wait_for_app
-    echo
     echo "ApplyManager started."
-    echo "App: http://localhost:3000"
-    echo "Health: http://localhost:3000/api/health"
-    echo "Sources: http://localhost:3000/api/scrape/sources"
+    show_ports
     ;;
   down)
     docker compose down
@@ -56,14 +81,24 @@ case "$MODE" in
   logs)
     docker compose logs -f app db
     ;;
+  images)
+    show_images
+    ;;
+  clean-images)
+    clean_images
+    ;;
   restart)
     docker compose down
     docker compose up --build -d
     wait_for_app
     echo "ApplyManager restarted."
+    show_ports
+    ;;
+  ports)
+    show_ports
     ;;
   *)
-    echo "Usage: $0 [up|down|logs|restart]"
+    echo "Usage: $0 [up|down|logs|restart|ports|images|clean-images]"
     exit 1
     ;;
 esac

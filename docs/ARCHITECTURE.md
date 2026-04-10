@@ -1,12 +1,6 @@
 # Architektura
 
-## Desktop mode (docelowy)
-
-- Frontend: React + TypeScript.
-- Shell/natywny runtime: Tauri.
-- Lokalna baza: SQLite (plan).
-
-## Docker test mode (obecny)
+## Web + Docker mode (obecny)
 
 - `app` container:
   - build React przez Vite,
@@ -17,7 +11,6 @@
 
 ## Komunikacja
 
-- Frontend -> Tauri command (`invoke`) w desktop.
 - Frontend -> `/api/*` w trybie web/docker.
 - Backend -> PostgreSQL przez `pg`.
 - Backend -> portale pracy przez HTTP fetch + parsery HTML/JSON-LD.
@@ -53,9 +46,8 @@ Wspierane źródła:
 ## Pliki kluczowe
 
 - `src/` - UI React.
-- `src-tauri/` - konfiguracja i kod Rust dla desktop.
-- `server/index.js` - backend Express.
+- `server/main.py` - backend FastAPI.
 - `server/scrapers/` - logika scrapowania ofert.
-- `src/App.tsx` - podstawowy interfejs: ręczne dodawanie, scraping, import Excel, lista ofert.
+- `src/App.tsx` - podstawowy interfejs: dodawanie, import Excel, lista ofert.
 - `docker-compose.yml` - orkiestracja app + db.
 - `db/init/001_init.sql` - inicjalna struktura tabel.

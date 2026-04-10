@@ -16,6 +16,35 @@ require_cmd() {
 
 require_cmd docker
 
+show_ports() {
+  echo
+  echo "ApplyManager container map (dev compose):"
+  echo "Frontend (web/Vite):    http://localhost:1420"
+  echo "Backend (api/FastAPI):  http://localhost:3000"
+  echo "Backend health:         http://localhost:3000/api/health"
+  echo "Database (PostgreSQL):  localhost:5432"
+  echo
+  echo "Containers:"
+  echo "- applymanager-web-dev"
+  echo "- applymanager-api-dev"
+  echo "- applymanager-db-dev"
+}
+
+show_images() {
+  echo
+  echo "Compose images (dev):"
+  $COMPOSE images
+  echo
+  echo "Docker disk usage:"
+  docker system df
+}
+
+clean_images() {
+  echo "Stopping dev stack and removing local build images for dev compose..."
+  $COMPOSE down --rmi local --remove-orphans
+  echo "Done. Removed compose local images."
+}
+
 wait_for_dev() {
   local attempts=40
   local delay=2
@@ -48,10 +77,8 @@ case "$MODE" in
   up)
     $COMPOSE up --build -d
     wait_for_dev
-    echo
     echo "ApplyManager dev started."
-    echo "Web (Vite): http://localhost:1420"
-    echo "API: http://localhost:3000/api/health"
+    show_ports
     ;;
   down)
     $COMPOSE down
@@ -60,14 +87,24 @@ case "$MODE" in
   logs)
     $COMPOSE logs -f api web db
     ;;
+  images)
+    show_images
+    ;;
+  clean-images)
+    clean_images
+    ;;
   restart)
     $COMPOSE down
     $COMPOSE up --build -d
     wait_for_dev
     echo "ApplyManager dev restarted."
+    show_ports
+    ;;
+  ports)
+    show_ports
     ;;
   *)
-    echo "Usage: $0 [up|down|logs|restart]"
+    echo "Usage: $0 [up|down|logs|restart|ports|images|clean-images]"
     exit 1
     ;;
 esac

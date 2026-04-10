@@ -4,8 +4,7 @@
 
 ### Bootstrap projektu
 
-- Utworzono bazowy scaffold: Tauri + React + TypeScript + Vite.
-- Dodano konfigurację `src-tauri` i testową komendę Rust `greet`.
+- Utworzono bazowy scaffold: React + TypeScript + Vite.
 - Dodano podstawowe pliki build i konfigurację TypeScript.
 - Repozytorium utworzone na GitHub: `marprzybysz/ApplyManager`.
 
@@ -19,7 +18,7 @@
 - Dodano obraz `app` (`Dockerfile`).
 - Dodano obraz `db` (`db/Dockerfile`) oraz init SQL (`db/init/001_init.sql`).
 - Dodano `docker-compose.yml` z serwisami `app` i `db`.
-- Zaktualizowano frontend, aby działał zarówno w Tauri, jak i Docker/web.
+- Zaktualizowano frontend pod tryb Docker/web.
 - Zaktualizowano `README.md` o instrukcję uruchamiania Dockera.
 
 ### Scraping job boards
