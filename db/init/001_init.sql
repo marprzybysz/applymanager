@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS applications (
   location TEXT,
   notes TEXT,
   applied_at DATE,
+  source TEXT,
+  source_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

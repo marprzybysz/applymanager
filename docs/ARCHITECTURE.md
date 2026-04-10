@@ -22,6 +22,13 @@
 - Backend -> PostgreSQL przez `pg`.
 - Backend -> portale pracy przez HTTP fetch + parsery HTML/JSON-LD.
 
+## Moduł ofert
+
+- `GET /api/offers` - lista ofert z bazy.
+- `POST /api/offers` - ręczne dodanie oferty.
+- `POST /api/offers/import-excel` - import ofert z pliku Excel (`xlsx/xls`).
+- Backend podczas startu zapewnia strukturę tabeli `applications` (w tym pola `source`, `source_url`).
+
 ## Scraping moduł
 
 - `server/scrapers/http.js` - pobieranie HTML z timeoutem i nagłówkami.
@@ -44,5 +51,6 @@ Wspierane źródła:
 - `src-tauri/` - konfiguracja i kod Rust dla desktop.
 - `server/index.js` - backend Express.
 - `server/scrapers/` - logika scrapowania ofert.
+- `src/App.tsx` - podstawowy interfejs: ręczne dodawanie, scraping, import Excel, lista ofert.
 - `docker-compose.yml` - orkiestracja app + db.
 - `db/init/001_init.sql` - inicjalna struktura tabel.

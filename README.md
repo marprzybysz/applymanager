@@ -47,6 +47,9 @@ Services:
 - API greet: `http://localhost:3000/api/greet?name=Marcin`
 - API supported sources: `GET /api/scrape/sources`
 - API scrape jobs: `POST /api/scrape`
+- API offers list: `GET /api/offers`
+- API add offer: `POST /api/offers`
+- API import Excel: `POST /api/offers/import-excel` (`multipart/form-data`, file field: `file`)
 - PostgreSQL: `localhost:5432`
 
 Example scrape request:
@@ -61,6 +64,7 @@ Notes:
 
 - Scraping selectors can change when job portals update their HTML.
 - Always verify portal Terms of Service and legal requirements before production use.
+- Excel import reads first sheet and maps columns like `company/firma`, `role/stanowisko`, `status`, `location`, `notes`, `date`, `source`, `url`.
 
 Stop containers:
 

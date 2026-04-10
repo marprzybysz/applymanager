@@ -1,7 +1,9 @@
 import express from "express";
+import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
+import * as XLSX from "xlsx";
 import { getSupportedSources, scrapeJobs } from "./scrapers/index.js";
 
 const app = express();
@@ -16,11 +18,92 @@ const dbPool = new Pool({
   database: process.env.DB_NAME || "applymanager"
 });
 
+const upload = multer({ storage: multer.memoryStorage() });
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distDir = path.resolve(__dirname, "..", "dist");
 
 app.use(express.json());
+
+function safeDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function pickFirstValue(row, candidates) {
+  for (const key of candidates) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+      return String(row[key]).trim();
+    }
+  }
+  return null;
+}
+
+function mapExcelRowToOffer(row) {
+  const company = pickFirstValue(row, ["company", "Company", "firma", "Firma"]);
+  const role = pickFirstValue(row, ["role", "Role", "position", "Position", "stanowisko", "Stanowisko"]);
+
+  if (!company || !role) {
+    return null;
+  }
+
+  return {
+    company,
+    role,
+    status: pickFirstValue(row, ["status", "Status"]) || "applied",
+    location: pickFirstValue(row, ["location", "Location", "lokalizacja", "Lokalizacja"]),
+    notes: pickFirstValue(row, ["notes", "Notes", "notatki", "Notatki"]),
+    appliedAt: safeDate(pickFirstValue(row, ["applied_at", "appliedAt", "date", "Date", "data", "Data"])),
+    source: pickFirstValue(row, ["source", "Source", "portal", "Portal"]),
+    sourceUrl: pickFirstValue(row, ["url", "URL", "link", "Link"])
+  };
+}
+
+async function ensureSchema() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS applications (
+      id SERIAL PRIMARY KEY,
+      company TEXT NOT NULL,
+      role TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'applied',
+      location TEXT,
+      notes TEXT,
+      applied_at DATE,
+      source TEXT,
+      source_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await dbPool.query("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source TEXT");
+  await dbPool.query("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source_url TEXT");
+}
+
+async function insertOffer(offer) {
+  const result = await dbPool.query(
+    `
+      INSERT INTO applications (company, role, status, location, notes, applied_at, source, source_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, company, role, status, location, notes, applied_at AS "appliedAt", source, source_url AS "sourceUrl", created_at AS "createdAt"
+    `,
+    [
+      offer.company,
+      offer.role,
+      offer.status || "applied",
+      offer.location || null,
+      offer.notes || null,
+      safeDate(offer.appliedAt),
+      offer.source || null,
+      offer.sourceUrl || null
+    ]
+  );
+
+  return result.rows[0];
+}
 
 app.get("/api/greet", (req, res) => {
   const name = typeof req.query.name === "string" && req.query.name.trim() ? req.query.name.trim() : "friend";
@@ -33,6 +116,89 @@ app.get("/api/health", async (_req, res) => {
     res.json({ ok: true, db: "connected", now: result.rows[0].now });
   } catch (error) {
     res.status(500).json({ ok: false, db: "disconnected", error: String(error) });
+  }
+});
+
+app.get("/api/offers", async (_req, res) => {
+  try {
+    const result = await dbPool.query(
+      `
+        SELECT
+          id,
+          company,
+          role,
+          status,
+          location,
+          notes,
+          applied_at AS "appliedAt",
+          source,
+          source_url AS "sourceUrl",
+          created_at AS "createdAt"
+        FROM applications
+        ORDER BY created_at DESC
+        LIMIT 500
+      `
+    );
+
+    res.json({ ok: true, offers: result.rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error) });
+  }
+});
+
+app.post("/api/offers", async (req, res) => {
+  const company = typeof req.body?.company === "string" ? req.body.company.trim() : "";
+  const role = typeof req.body?.role === "string" ? req.body.role.trim() : "";
+
+  if (!company || !role) {
+    return res.status(400).json({ ok: false, error: "company and role are required" });
+  }
+
+  try {
+    const offer = await insertOffer({
+      company,
+      role,
+      status: typeof req.body?.status === "string" ? req.body.status.trim() || "applied" : "applied",
+      location: typeof req.body?.location === "string" ? req.body.location.trim() : null,
+      notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
+      appliedAt: req.body?.appliedAt,
+      source: typeof req.body?.source === "string" ? req.body.source.trim() : null,
+      sourceUrl: typeof req.body?.sourceUrl === "string" ? req.body.sourceUrl.trim() : null
+    });
+
+    return res.status(201).json({ ok: true, offer });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error) });
+  }
+});
+
+app.post("/api/offers/import-excel", upload.single("file"), async (req, res) => {
+  if (!req.file?.buffer) {
+    return res.status(400).json({ ok: false, error: "file is required" });
+  }
+
+  try {
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+    const mappedOffers = rows.map(mapExcelRowToOffer).filter(Boolean);
+
+    const saved = [];
+    for (const offer of mappedOffers) {
+      const inserted = await insertOffer(offer);
+      saved.push(inserted);
+    }
+
+    return res.json({
+      ok: true,
+      imported: saved.length,
+      skipped: rows.length - saved.length,
+      offers: saved
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error) });
   }
 });
 
@@ -73,6 +239,13 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
-app.listen(port, () => {
-  console.log(`ApplyManager server listening on http://localhost:${port}`);
-});
+ensureSchema()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`ApplyManager server listening on http://localhost:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to initialize database schema:", error);
+    process.exit(1);
+  });

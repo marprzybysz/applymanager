@@ -51,3 +51,19 @@
   - `restart`
 - Skrypt czeka na gotowość API (`/api/health`) po starcie.
 - Zaktualizowano `README.md` o sposób użycia skryptu.
+
+### Podstawowy interfejs ofert + import Excel
+
+- Rozbudowano backend (`server/index.js`) o endpointy:
+  - `GET /api/offers`
+  - `POST /api/offers`
+  - `POST /api/offers/import-excel`
+- Dodano import plików Excel (`xlsx/xls`) z mapowaniem kolumn PL/EN.
+- Dodano automatyczne zapewnienie schematu tabeli `applications` (kolumny `source`, `source_url`).
+- Rozbudowano frontend (`src/App.tsx`) o:
+  - formularz ręcznego dodawania oferty,
+  - sekcję scrapowania ofert i zapisu wyniku do bazy,
+  - sekcję importu Excela,
+  - listę aktualnych ofert z bazy.
+- Przebudowano style (`src/styles.css`) pod nowy układ interfejsu.
+- Dodano zależności `multer` i `xlsx`.
