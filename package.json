@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:api": "node --watch server/index.js",
+    "dev:api": "uvicorn server_py.main:app --reload --host 0.0.0.0 --port 3000",
     "dev:full": "concurrently -k -n FE,API \"npm:dev\" \"npm:dev:api\"",
     "dev:db": "docker compose up -d db",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "start": "node server/index.js"
+    "start": "uvicorn server_py.main:app --host 0.0.0.0 --port 3000"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
