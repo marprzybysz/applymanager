@@ -34,6 +34,12 @@ Start containers:
 docker compose up --build
 ```
 
+Or use helper script:
+
+```bash
+./scripts/run-all.sh up
+```
+
 Services:
 
 - App: `http://localhost:3000`
@@ -60,6 +66,14 @@ Stop containers:
 
 ```bash
 docker compose down
+```
+
+Helper commands:
+
+```bash
+./scripts/run-all.sh down
+./scripts/run-all.sh logs
+./scripts/run-all.sh restart
 ```
 
 ## Build installer

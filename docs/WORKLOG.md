@@ -41,3 +41,13 @@
   - JustJoin.it
 - Dodano zależność `cheerio` do parsowania HTML.
 - Zaktualizowano dokumentację (`README`, `docs/PROJECT.md`, `docs/ARCHITECTURE.md`).
+
+### Bash startup script
+
+- Dodano skrypt `scripts/run-all.sh` do zarządzania całym stackiem Docker:
+  - `up`
+  - `down`
+  - `logs`
+  - `restart`
+- Skrypt czeka na gotowość API (`/api/health`) po starcie.
+- Zaktualizowano `README.md` o sposób użycia skryptu.
