@@ -9,7 +9,7 @@ Project docs: `docs/`
 - Tauri 2 (desktop shell + Rust commands)
 - React + TypeScript (UI)
 - Vite (frontend tooling)
-- Express (web backend for Docker mode)
+- FastAPI (Python backend)
 - PostgreSQL (test DB in Docker)
 
 ## Run (development)
@@ -34,7 +34,15 @@ npm run tauri dev
 npm run dev:db
 ```
 
-2. Run frontend + backend together:
+2. Install Python backend dependencies (local):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+3. Run frontend + backend together:
 
 ```bash
 npm run dev:full
@@ -46,6 +54,7 @@ Notes:
 
 - Vite now proxies `/api/*` to `http://localhost:3000`.
 - If dependencies changed, run `npm install` again.
+- For backend changes, keep `.venv` activated while running `npm run dev:api` or `npm run dev:full`.
 
 ## Docker (frontend + backend + db)
 
@@ -109,6 +118,30 @@ Helper commands:
 ./scripts/run-all.sh down
 ./scripts/run-all.sh logs
 ./scripts/run-all.sh restart
+```
+
+## Docker Dev (hot reload)
+
+Use this mode during development. Frontend (`Vite`) and backend (`FastAPI`) reload automatically after file changes.
+
+Start dev stack:
+
+```bash
+./scripts/run-dev.sh up
+```
+
+Services:
+
+- Web (Vite): `http://localhost:1420`
+- API: `http://localhost:3000`
+- DB: `localhost:5432`
+
+Other commands:
+
+```bash
+./scripts/run-dev.sh restart
+./scripts/run-dev.sh logs
+./scripts/run-dev.sh down
 ```
 
 ## Build installer
