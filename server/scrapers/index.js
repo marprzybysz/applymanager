@@ -2,14 +2,32 @@ import { fetchHtml } from "./http.js";
 import { getProvider, getSupportedSources } from "./providers/index.js";
 import { parseJobFromMeta, parseJobsFromJsonLd } from "./parsers.js";
 
+const UNKNOWN_SOURCE = "unknown";
+const DIRECT_SCRAPE_HOST_MATCHERS = [
+  ["pracuj.pl", "pracuj"],
+  ["olx.pl", "olx"],
+  ["nofluffjobs.com", "nofluffjobs"],
+  ["rocketjobs.pl", "rocketjobs"],
+  ["indeed.", "indeed"],
+  ["justjoin.it", "justjoinit"]
+];
+
+function normalizeText(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function clampLimit(limitPerSource) {
+  return Math.max(1, Math.min(Number(limitPerSource) || 20, 50));
+}
+
 function normalizeJob(job, source) {
   return {
     source,
-    title: job.title || null,
-    company: job.company || null,
-    location: job.location || null,
-    url: job.url || null,
-    datePosted: job.datePosted || null,
+    title: normalizeText(job.title),
+    company: normalizeText(job.company),
+    location: normalizeText(job.location),
+    url: normalizeText(job.url),
+    datePosted: normalizeText(job.datePosted),
     salary: job.salary || null,
     raw: job.raw || null
   };
@@ -49,13 +67,12 @@ async function scrapeSource(source, query, limitPerSource) {
 }
 
 export async function scrapeJobs({ query, sources, limitPerSource = 20 }) {
-  const requestedSources = (Array.isArray(sources) && sources.length ? sources : getSupportedSources()).map((source) =>
-    source.toLowerCase().trim()
-  );
+  const requestedSources = (Array.isArray(sources) && sources.length ? sources : getSupportedSources())
+    .map((source) => String(source || "").toLowerCase().trim())
+    .filter(Boolean);
+  const safeLimit = clampLimit(limitPerSource);
 
-  const settled = await Promise.all(
-    requestedSources.map((source) => scrapeSource(source, query, Math.max(1, Math.min(limitPerSource, 50))))
-  );
+  const settled = await Promise.all(requestedSources.map((source) => scrapeSource(source, query, safeLimit)));
 
   const jobs = settled.flatMap((entry) => entry.jobs);
 
@@ -68,20 +85,18 @@ export async function scrapeJobs({ query, sources, limitPerSource = 20 }) {
 }
 
 function detectSourceFromHost(hostname) {
-  if (hostname.includes("pracuj.pl")) return "pracuj";
-  if (hostname.includes("olx.pl")) return "olx";
-  if (hostname.includes("nofluffjobs.com")) return "nofluffjobs";
-  if (hostname.includes("rocketjobs.pl")) return "rocketjobs";
-  if (hostname.includes("indeed.")) return "indeed";
-  if (hostname.includes("justjoin.it")) return "justjoinit";
-  return "unknown";
+  for (const [matcher, source] of DIRECT_SCRAPE_HOST_MATCHERS) {
+    if (hostname.includes(matcher)) return source;
+  }
+
+  return UNKNOWN_SOURCE;
 }
 
 export async function scrapeJobFromLink(urlInput) {
   const url = new URL(urlInput);
   const source = detectSourceFromHost(url.hostname.toLowerCase());
 
-  if (source === "unknown") {
+  if (source === UNKNOWN_SOURCE) {
     throw new Error("Unsupported domain for direct link scraping");
   }
 
@@ -95,11 +110,11 @@ export async function scrapeJobFromLink(urlInput) {
 
   return {
     source,
-    title: first.title || null,
-    company: first.company || null,
-    location: first.location || null,
-    url: first.url || url.toString(),
-    datePosted: first.datePosted || null,
+    title: normalizeText(first.title),
+    company: normalizeText(first.company),
+    location: normalizeText(first.location),
+    url: normalizeText(first.url) || url.toString(),
+    datePosted: normalizeText(first.datePosted),
     salary: first.salary || null,
     raw: first.raw || null
   };

@@ -1,9 +1,12 @@
 import * as cheerio from "cheerio";
 
+const JSON_LD_SELECTOR = 'script[type="application/ld+json"]';
+const JOB_POSTING_TYPE = "JobPosting";
+
 function readJsonLdObjects($) {
   const objects = [];
 
-  $('script[type="application/ld+json"]').each((_, element) => {
+  $(JSON_LD_SELECTOR).each((_, element) => {
     const text = $(element).text()?.trim();
     if (!text) return;
 
@@ -43,7 +46,7 @@ function normalizeLocation(location) {
 
 function hasJobPostingType(typeValue) {
   if (!typeValue) return false;
-  if (typeof typeValue === "string") return typeValue === "JobPosting";
+  if (typeof typeValue === "string") return typeValue === JOB_POSTING_TYPE;
   if (Array.isArray(typeValue)) return typeValue.some((entry) => hasJobPostingType(entry));
   return false;
 }
@@ -70,6 +73,25 @@ function parseRocketJobsTitleMeta(title, source) {
   return { role: title, company: null };
 }
 
+function mapJsonLdJob(item, source) {
+  const location = toArray(item.jobLocation)
+    .map(normalizeLocation)
+    .filter(Boolean)
+    .join(" | ");
+
+  return {
+    source,
+    title: cleanText(item.title) || null,
+    company: cleanText(item.hiringOrganization?.name) || null,
+    location: location || null,
+    url: item.url || null,
+    datePosted: item.datePosted || null,
+    salary:
+      item.baseSalary?.value?.value || item.baseSalary?.value?.minValue || item.baseSalary?.value?.maxValue || null,
+    raw: { from: "json-ld" }
+  };
+}
+
 export function parseJobsFromJsonLd(html, source) {
   const $ = cheerio.load(html);
   const jsonLd = readJsonLdObjects($);
@@ -80,23 +102,7 @@ export function parseJobsFromJsonLd(html, source) {
 
     for (const item of items) {
       if (!item || !hasJobPostingType(item["@type"])) continue;
-
-      const location = toArray(item.jobLocation)
-        .map(normalizeLocation)
-        .filter(Boolean)
-        .join(" | ");
-
-      jobs.push({
-        source,
-        title: cleanText(item.title) || null,
-        company: cleanText(item.hiringOrganization?.name) || null,
-        location: location || null,
-        url: item.url || null,
-        datePosted: item.datePosted || null,
-        salary:
-          item.baseSalary?.value?.value || item.baseSalary?.value?.minValue || item.baseSalary?.value?.maxValue || null,
-        raw: { from: "json-ld" }
-      });
+      jobs.push(mapJsonLdJob(item, source));
     }
   }
 

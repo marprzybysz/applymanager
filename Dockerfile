@@ -1,5 +1,6 @@
-FROM node:20-alpine AS build
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy AS build
 WORKDIR /app
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 COPY package*.json ./
 RUN npm install
@@ -7,9 +8,10 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 COPY package*.json ./
 RUN npm install --omit=dev

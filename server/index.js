@@ -26,25 +26,45 @@ const distDir = path.resolve(__dirname, "..", "dist");
 
 app.use(express.json());
 
+const EXCEL_FIELDS = {
+  company: ["company", "Company", "firma", "Firma"],
+  role: ["role", "Role", "position", "Position", "stanowisko", "Stanowisko"],
+  status: ["status", "Status"],
+  location: ["location", "Location", "lokalizacja", "Lokalizacja"],
+  notes: ["notes", "Notes", "notatki", "Notatki"],
+  appliedAt: ["applied_at", "appliedAt", "date", "Date", "data", "Data", "data aplikacji", "Data aplikacji"],
+  source: ["source", "Source", "portal", "Portal"],
+  sourceUrl: ["url", "URL", "link", "Link", "hyperlink", "Hyperlink"],
+  sourceUrlLink: ["__link__url", "__link__URL", "__link__link", "__link__Link", "__link__hyperlink", "__link__Hyperlink"]
+};
+
+function toNonEmptyString(value) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function parseExcelDateNumber(value) {
+  const parsed = XLSX.SSF.parse_date_code(value);
+  if (!parsed?.y || !parsed?.m || !parsed?.d) return null;
+
+  const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+  return date.toISOString().slice(0, 10);
+}
+
 function safeDate(value) {
   if (value === null || value === undefined || value === "") return null;
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (parsed?.y && parsed?.m && parsed?.d) {
-      const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
-      return date.toISOString().slice(0, 10);
-    }
+    const fromExcelNumber = parseExcelDateNumber(value);
+    if (fromExcelNumber) return fromExcelNumber;
   }
 
   if (typeof value === "string") {
     const asNumber = Number(value);
     if (Number.isFinite(asNumber) && value.trim() !== "") {
-      const parsed = XLSX.SSF.parse_date_code(asNumber);
-      if (parsed?.y && parsed?.m && parsed?.d) {
-        const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
-        return date.toISOString().slice(0, 10);
-      }
+      const fromExcelNumber = parseExcelDateNumber(asNumber);
+      if (fromExcelNumber) return fromExcelNumber;
     }
   }
 
@@ -55,50 +75,32 @@ function safeDate(value) {
 
 function pickFirstValue(row, candidates) {
   for (const key of candidates) {
-    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
-      return String(row[key]).trim();
-    }
+    const value = toNonEmptyString(row[key]);
+    if (value) return value;
   }
+
   return null;
 }
 
 function mapExcelRowToOffer(row) {
-  const company = pickFirstValue(row, ["company", "Company", "firma", "Firma"]);
-  const role = pickFirstValue(row, ["role", "Role", "position", "Position", "stanowisko", "Stanowisko"]);
+  const company = pickFirstValue(row, EXCEL_FIELDS.company);
+  const role = pickFirstValue(row, EXCEL_FIELDS.role);
 
   if (!company || !role) {
     return null;
   }
 
-  const directSourceUrl = pickFirstValue(row, ["url", "URL", "link", "Link", "hyperlink", "Hyperlink"]);
-  const linkedSourceUrl = pickFirstValue(row, [
-    "__link__url",
-    "__link__URL",
-    "__link__link",
-    "__link__Link",
-    "__link__hyperlink",
-    "__link__Hyperlink"
-  ]);
+  const directSourceUrl = pickFirstValue(row, EXCEL_FIELDS.sourceUrl);
+  const linkedSourceUrl = pickFirstValue(row, EXCEL_FIELDS.sourceUrlLink);
 
   return {
     company,
     role,
-    status: pickFirstValue(row, ["status", "Status"]) || "applied",
-    location: pickFirstValue(row, ["location", "Location", "lokalizacja", "Lokalizacja"]),
-    notes: pickFirstValue(row, ["notes", "Notes", "notatki", "Notatki"]),
-    appliedAt: safeDate(
-      pickFirstValue(row, [
-        "applied_at",
-        "appliedAt",
-        "date",
-        "Date",
-        "data",
-        "Data",
-        "data aplikacji",
-        "Data aplikacji"
-      ])
-    ),
-    source: pickFirstValue(row, ["source", "Source", "portal", "Portal"]),
+    status: pickFirstValue(row, EXCEL_FIELDS.status) || "applied",
+    location: pickFirstValue(row, EXCEL_FIELDS.location),
+    notes: pickFirstValue(row, EXCEL_FIELDS.notes),
+    appliedAt: safeDate(pickFirstValue(row, EXCEL_FIELDS.appliedAt)),
+    source: pickFirstValue(row, EXCEL_FIELDS.source),
     sourceUrl: isAbsoluteHttpUrl(directSourceUrl) ? directSourceUrl : linkedSourceUrl || null
   };
 }
@@ -140,6 +142,19 @@ function isAbsoluteHttpUrl(value) {
   } catch {
     return false;
   }
+}
+
+function mapOfferForInsertFromRequest(body) {
+  return {
+    company: toNonEmptyString(body?.company) || "",
+    role: toNonEmptyString(body?.role) || "",
+    status: toNonEmptyString(body?.status) || "applied",
+    location: toNonEmptyString(body?.location),
+    notes: toNonEmptyString(body?.notes),
+    appliedAt: body?.appliedAt,
+    source: toNonEmptyString(body?.source),
+    sourceUrl: toNonEmptyString(body?.sourceUrl)
+  };
 }
 
 async function ensureSchema() {
@@ -261,25 +276,15 @@ app.get("/api/offers/export-excel", async (_req, res) => {
 });
 
 app.post("/api/offers", async (req, res) => {
-  const company = typeof req.body?.company === "string" ? req.body.company.trim() : "";
-  const role = typeof req.body?.role === "string" ? req.body.role.trim() : "";
+  const offerInput = mapOfferForInsertFromRequest(req.body);
+  const { company, role } = offerInput;
 
   if (!company || !role) {
     return res.status(400).json({ ok: false, error: "company and role are required" });
   }
 
   try {
-    const offer = await insertOffer({
-      company,
-      role,
-      status: typeof req.body?.status === "string" ? req.body.status.trim() || "applied" : "applied",
-      location: typeof req.body?.location === "string" ? req.body.location.trim() : null,
-      notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
-      appliedAt: req.body?.appliedAt,
-      source: typeof req.body?.source === "string" ? req.body.source.trim() : null,
-      sourceUrl: typeof req.body?.sourceUrl === "string" ? req.body.sourceUrl.trim() : null
-    });
-
+    const offer = await insertOffer(offerInput);
     return res.status(201).json({ ok: true, offer });
   } catch (error) {
     return res.status(500).json({ ok: false, error: String(error) });
@@ -323,7 +328,7 @@ app.get("/api/scrape/sources", (_req, res) => {
 });
 
 app.post("/api/scrape", async (req, res) => {
-  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
+  const query = toNonEmptyString(req.body?.query) || "";
   const sources = Array.isArray(req.body?.sources) ? req.body.sources : undefined;
   const limitPerSource = Number(req.body?.limitPerSource || 20);
 
@@ -362,7 +367,7 @@ app.post("/api/scrape", async (req, res) => {
 });
 
 app.post("/api/scrape/link", async (req, res) => {
-  const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  const url = toNonEmptyString(req.body?.url) || "";
 
   if (!url) {
     return res.status(400).json({

@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: applymanager-app
+    shm_size: "1gb"
     ports:
       - "3000:3000"
     environment:
