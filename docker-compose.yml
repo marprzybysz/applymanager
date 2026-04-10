@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: applymanager-app
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: applymanager
+      DB_PASSWORD: applymanager
+      DB_NAME: applymanager
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    build:
+      context: .
+      dockerfile: db/Dockerfile
+    container_name: applymanager-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: applymanager
+      POSTGRES_PASSWORD: applymanager
+      POSTGRES_DB: applymanager
+    volumes:
+      - applymanager-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U applymanager -d applymanager"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  applymanager-db-data:
