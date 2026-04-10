@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
+import { getSupportedSources, scrapeJobs } from "./scrapers/index.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -32,6 +33,38 @@ app.get("/api/health", async (_req, res) => {
     res.json({ ok: true, db: "connected", now: result.rows[0].now });
   } catch (error) {
     res.status(500).json({ ok: false, db: "disconnected", error: String(error) });
+  }
+});
+
+app.get("/api/scrape/sources", (_req, res) => {
+  res.json({
+    sources: getSupportedSources()
+  });
+});
+
+app.post("/api/scrape", async (req, res) => {
+  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
+  const sources = Array.isArray(req.body?.sources) ? req.body.sources : undefined;
+  const limitPerSource = Number(req.body?.limitPerSource || 20);
+
+  if (!query) {
+    return res.status(400).json({
+      ok: false,
+      error: "query is required"
+    });
+  }
+
+  try {
+    const result = await scrapeJobs({ query, sources, limitPerSource });
+    return res.json({
+      ok: true,
+      ...result
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: String(error)
+    });
   }
 });
 

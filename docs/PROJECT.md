@@ -16,6 +16,15 @@ Aplikacja do:
 - Podstawowe endpointy API:
   - `/api/greet`
   - `/api/health`
+  - `/api/scrape/sources`
+  - `/api/scrape`
+- Moduł scrapowania ofert pracy dla:
+  - OLX
+  - Pracuj.pl
+  - NoFluffJobs
+  - RocketJobs
+  - Indeed
+  - JustJoin.it
 
 ## Kierunek rozwoju
 

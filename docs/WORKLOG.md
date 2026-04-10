@@ -21,3 +21,23 @@
 - Dodano `docker-compose.yml` z serwisami `app` i `db`.
 - Zaktualizowano frontend, aby działał zarówno w Tauri, jak i Docker/web.
 - Zaktualizowano `README.md` o instrukcję uruchamiania Dockera.
+
+### Scraping job boards
+
+- Dodano moduł scrapowania po stronie backendu:
+  - `server/scrapers/http.js`
+  - `server/scrapers/parsers.js`
+  - `server/scrapers/providers/index.js`
+  - `server/scrapers/index.js`
+- Dodano endpointy:
+  - `GET /api/scrape/sources`
+  - `POST /api/scrape`
+- Dodano wspierane źródła:
+  - OLX
+  - Pracuj.pl
+  - NoFluffJobs
+  - RocketJobs
+  - Indeed
+  - JustJoin.it
+- Dodano zależność `cheerio` do parsowania HTML.
+- Zaktualizowano dokumentację (`README`, `docs/PROJECT.md`, `docs/ARCHITECTURE.md`).
