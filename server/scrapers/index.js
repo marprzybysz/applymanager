@@ -1,5 +1,6 @@
 import { fetchHtml } from "./http.js";
 import { getProvider, getSupportedSources } from "./providers/index.js";
+import { parseJobsFromJsonLd } from "./parsers.js";
 
 function normalizeJob(job, source) {
   return {
@@ -63,6 +64,44 @@ export async function scrapeJobs({ query, sources, limitPerSource = 20 }) {
     total: jobs.length,
     sources: settled,
     jobs
+  };
+}
+
+function detectSourceFromHost(hostname) {
+  if (hostname.includes("pracuj.pl")) return "pracuj";
+  if (hostname.includes("olx.pl")) return "olx";
+  if (hostname.includes("nofluffjobs.com")) return "nofluffjobs";
+  if (hostname.includes("rocketjobs.pl")) return "rocketjobs";
+  if (hostname.includes("indeed.")) return "indeed";
+  if (hostname.includes("justjoin.it")) return "justjoinit";
+  return "unknown";
+}
+
+export async function scrapeJobFromLink(urlInput) {
+  const url = new URL(urlInput);
+  const source = detectSourceFromHost(url.hostname.toLowerCase());
+
+  if (source === "unknown") {
+    throw new Error("Unsupported domain for direct link scraping");
+  }
+
+  const html = await fetchHtml(url.toString());
+  const fromJsonLd = parseJobsFromJsonLd(html, source);
+  const first = fromJsonLd.find((job) => job.title || job.company || job.url);
+
+  if (!first) {
+    throw new Error("Could not parse job data from this URL");
+  }
+
+  return {
+    source,
+    title: first.title || null,
+    company: first.company || null,
+    location: first.location || null,
+    url: first.url || url.toString(),
+    datePosted: first.datePosted || null,
+    salary: first.salary || null,
+    raw: first.raw || null
   };
 }
 

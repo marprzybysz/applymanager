@@ -40,6 +40,7 @@ export function App() {
   const [sources, setSources] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [scrapedJobs, setScrapedJobs] = useState<ScrapedJob[]>([]);
+  const [jobLink, setJobLink] = useState("");
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Ready");
@@ -193,6 +194,35 @@ export function App() {
     }
   }
 
+  async function handleScrapeLink(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/scrape/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: jobLink })
+      });
+
+      const data = (await response.json()) as { ok: boolean; job?: ScrapedJob; error?: string };
+      if (!data.ok || !data.job) {
+        throw new Error(data.error || "Link scraping failed");
+      }
+
+      setScrapedJobs((prev) => [data.job!, ...prev]);
+      setMessage("Link scraped successfully");
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function exportExcel() {
+    window.open("/api/offers/export-excel", "_blank");
+  }
+
   function toggleSource(source: string) {
     setSelectedSources((prev) =>
       prev.includes(source) ? prev.filter((item) => item !== source) : [...prev, source]
@@ -204,6 +234,9 @@ export function App() {
       <header className="header">
         <h1>ApplyManager</h1>
         <p>Manual offers, scrape jobs, and import your Excel tracker.</p>
+        <button type="button" onClick={exportExcel}>
+          Export Offers to Excel
+        </button>
       </header>
 
       <p className="status">{loading ? "Working..." : message}</p>
@@ -278,6 +311,19 @@ export function App() {
 
       <section className="card">
         <h2>Scrape Jobs</h2>
+        <form className="row" onSubmit={handleScrapeLink}>
+          <input
+            value={jobLink}
+            onChange={(event) => setJobLink(event.target.value)}
+            placeholder="Paste offer URL (e.g. pracuj.pl offer link)"
+            required
+          />
+          <button type="submit" disabled={loading}>
+            Scrape Link
+          </button>
+        </form>
+        <p className="hint">Supported domains: pracuj.pl, olx.pl, nofluffjobs.com, rocketjobs.pl, indeed, justjoin.it</p>
+
         <form className="grid" onSubmit={handleScrape}>
           <input
             className="span-2"

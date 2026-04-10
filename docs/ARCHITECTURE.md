@@ -27,6 +27,7 @@
 - `GET /api/offers` - lista ofert z bazy.
 - `POST /api/offers` - ręczne dodanie oferty.
 - `POST /api/offers/import-excel` - import ofert z pliku Excel (`xlsx/xls`).
+- `GET /api/offers/export-excel` - eksport ofert do pliku Excel (`xlsx`).
 - Backend podczas startu zapewnia strukturę tabeli `applications` (w tym pola `source`, `source_url`).
 
 ## Scraping moduł
@@ -35,6 +36,7 @@
 - `server/scrapers/parsers.js` - parser JSON-LD (`JobPosting`).
 - `server/scrapers/providers/index.js` - providerzy i selektory per portal.
 - `server/scrapers/index.js` - orkiestracja scrapowania wielu źródeł.
+- `POST /api/scrape/link` - scrapowanie pojedynczego URL oferty.
 
 Wspierane źródła:
 

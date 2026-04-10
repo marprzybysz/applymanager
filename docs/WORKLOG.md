@@ -67,3 +67,13 @@
   - listę aktualnych ofert z bazy.
 - Przebudowano style (`src/styles.css`) pod nowy układ interfejsu.
 - Dodano zależności `multer` i `xlsx`.
+
+### Scrapowanie pojedynczego linku + eksport Excel
+
+- Dodano endpoint `POST /api/scrape/link` do pobierania danych oferty z konkretnego URL (np. Pracuj.pl).
+- Dodano obsługę wykrywania źródła po domenie i parser JSON-LD dla stron pojedynczych ofert.
+- Dodano endpoint `GET /api/offers/export-excel` do eksportu danych z bazy do pliku `.xlsx`.
+- Rozszerzono frontend o:
+  - pole wklejenia linku oferty i akcję `Scrape Link`,
+  - przycisk `Export Offers to Excel`.
+- Zaktualizowano dokumentację (`README`, `docs/PROJECT.md`, `docs/ARCHITECTURE.md`).

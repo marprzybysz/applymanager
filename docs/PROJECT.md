@@ -18,9 +18,11 @@ Aplikacja do:
   - `/api/health`
   - `/api/scrape/sources`
   - `/api/scrape`
+  - `/api/scrape/link`
 - Zarządzanie ofertami:
   - `/api/offers` (listowanie + dodawanie)
   - `/api/offers/import-excel` (import xlsx/xls)
+  - `/api/offers/export-excel` (eksport xlsx)
 - Moduł scrapowania ofert pracy dla:
   - OLX
   - Pracuj.pl

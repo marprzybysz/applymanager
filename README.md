@@ -47,9 +47,11 @@ Services:
 - API greet: `http://localhost:3000/api/greet?name=Marcin`
 - API supported sources: `GET /api/scrape/sources`
 - API scrape jobs: `POST /api/scrape`
+- API scrape single link: `POST /api/scrape/link`
 - API offers list: `GET /api/offers`
 - API add offer: `POST /api/offers`
 - API import Excel: `POST /api/offers/import-excel` (`multipart/form-data`, file field: `file`)
+- API export Excel: `GET /api/offers/export-excel`
 - PostgreSQL: `localhost:5432`
 
 Example scrape request:
@@ -58,6 +60,14 @@ Example scrape request:
 curl -X POST http://localhost:3000/api/scrape \
   -H "Content-Type: application/json" \
   -d '{"query":"frontend react","sources":["justjoinit","nofluffjobs"],"limitPerSource":10}'
+```
+
+Example single-link scrape request:
+
+```bash
+curl -X POST http://localhost:3000/api/scrape/link \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.pracuj.pl/praca/..."}'
 ```
 
 Notes:

@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
 import * as XLSX from "xlsx";
-import { getSupportedSources, scrapeJobs } from "./scrapers/index.js";
+import { getSupportedSources, scrapeJobFromLink, scrapeJobs } from "./scrapers/index.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -105,6 +105,29 @@ async function insertOffer(offer) {
   return result.rows[0];
 }
 
+async function listOffers() {
+  const result = await dbPool.query(
+    `
+      SELECT
+        id,
+        company,
+        role,
+        status,
+        location,
+        notes,
+        applied_at AS "appliedAt",
+        source,
+        source_url AS "sourceUrl",
+        created_at AS "createdAt"
+      FROM applications
+      ORDER BY created_at DESC
+      LIMIT 500
+    `
+  );
+
+  return result.rows;
+}
+
 app.get("/api/greet", (req, res) => {
   const name = typeof req.query.name === "string" && req.query.name.trim() ? req.query.name.trim() : "friend";
   res.json({ message: `Hello, ${name}! Node backend is connected.` });
@@ -121,28 +144,39 @@ app.get("/api/health", async (_req, res) => {
 
 app.get("/api/offers", async (_req, res) => {
   try {
-    const result = await dbPool.query(
-      `
-        SELECT
-          id,
-          company,
-          role,
-          status,
-          location,
-          notes,
-          applied_at AS "appliedAt",
-          source,
-          source_url AS "sourceUrl",
-          created_at AS "createdAt"
-        FROM applications
-        ORDER BY created_at DESC
-        LIMIT 500
-      `
-    );
-
-    res.json({ ok: true, offers: result.rows });
+    const offers = await listOffers();
+    res.json({ ok: true, offers });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error) });
+  }
+});
+
+app.get("/api/offers/export-excel", async (_req, res) => {
+  try {
+    const offers = await listOffers();
+    const rows = offers.map((offer) => ({
+      company: offer.company || "",
+      role: offer.role || "",
+      status: offer.status || "",
+      location: offer.location || "",
+      notes: offer.notes || "",
+      appliedAt: offer.appliedAt || "",
+      source: offer.source || "",
+      sourceUrl: offer.sourceUrl || "",
+      createdAt: offer.createdAt || ""
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "applications");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    const filename = `applymanager-offers-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${filename}\"`);
+    return res.send(buffer);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error) });
   }
 });
 
@@ -228,6 +262,30 @@ app.post("/api/scrape", async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({
+      ok: false,
+      error: String(error)
+    });
+  }
+});
+
+app.post("/api/scrape/link", async (req, res) => {
+  const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+
+  if (!url) {
+    return res.status(400).json({
+      ok: false,
+      error: "url is required"
+    });
+  }
+
+  try {
+    const parsed = await scrapeJobFromLink(url);
+    return res.json({
+      ok: true,
+      job: parsed
+    });
+  } catch (error) {
+    return res.status(400).json({
       ok: false,
       error: String(error)
     });
