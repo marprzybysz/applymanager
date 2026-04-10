@@ -16,7 +16,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.utils.datetime import from_excel
 from psycopg2.extras import RealDictCursor
 
-from server_py.scrapers.index import get_supported_sources, scrape_job_from_link, scrape_jobs
+from server.scrapers.index import get_supported_sources, scrape_job_from_link, scrape_jobs
 
 PORT = int(os.getenv("PORT", "3000"))
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dist"))
