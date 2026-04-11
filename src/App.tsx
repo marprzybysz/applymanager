@@ -24,6 +24,114 @@ type ScrapedJob = {
 
 type ThemeMode = "auto" | "light" | "dark";
 type AddOfferMode = "link" | "manual";
+type Language = "pl" | "en";
+
+const I18N = {
+  pl: {
+    ready: "Gotowe",
+    working: "Przetwarzanie...",
+    dataLoaded: "Dane zaladowane",
+    addOffer: "Dodaj",
+    offers: "Oferty",
+    user: "Uzytkownik",
+    settings: "Ustawienia",
+    theme: "Motyw",
+    language: "Jezyk",
+    hideImport: "Ukryj Import Excel",
+    showImport: "Pokaz Import Excel",
+    exportExcel: "Eksportuj Oferty do Excel",
+    importExcel: "Import Excel",
+    import: "Import",
+    noOffers: "Nie masz jeszcze dodanych ofert.",
+    close: "Zamknij",
+    addOfferTitle: "Dodaj Oferte",
+    pasteLink: "Wklej link",
+    manual: "Manualnie",
+    fetch: "Pobierz",
+    manualHint: "Tryb manualny: uzupelnij pola ponizej i zapisz oferte.",
+    company: "Firma",
+    role: "Stanowisko",
+    status: "Status",
+    applied: "Aplikowano",
+    location: "Lokalizacja",
+    appliedAt: "Data aplikacji",
+    source: "Zrodlo",
+    offerLink: "Link oferty",
+    notes: "Notatki",
+    addOfferSubmit: "Dodaj oferte",
+    copiedLinkRequired: "Wklej link do oferty",
+    offerAddFailed: "Nie udalo sie dodac oferty",
+    linkFetchFailed: "Nie udalo sie pobrac oferty",
+    linkFetched: "Pobrano dane z linku, sprawdz i zapisz oferte",
+    offerAdded: "Oferta dodana",
+    fileFirst: "Najpierw wybierz plik .xlsx",
+    excelImportFailed: "Import Excel nie powiodl sie",
+    excelImported: "Zaimportowano z Excela: {imported}, pominieto: {skipped}",
+    scrapeFailed: "Scraping nie powiodl sie",
+    scrapedJobs: "Zescrapowane oferty: {total}",
+    scrapedUpdated: "Zaktualizowano rekord zescrapowany",
+    saveScrapedFailed: "Nie udalo sie zapisac zescrapowanej oferty",
+    scrapedSaved: "Zescrapowana oferta zapisana",
+    failedFetchOffers: "Nie udalo sie pobrac ofert",
+    fetchLinkPlaceholder: "Wklej link do oferty (np. pracuj.pl)",
+    supportedColumns:
+      "Obslugiwane kolumny: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (lub warianty company/role/date/url).",
+    yesApplied: "applied",
+    noApplied: "not applied"
+  },
+  en: {
+    ready: "Ready",
+    working: "Working...",
+    dataLoaded: "Data loaded",
+    addOffer: "Add",
+    offers: "Offers",
+    user: "User",
+    settings: "Settings",
+    theme: "Theme",
+    language: "Language",
+    hideImport: "Hide Excel Import",
+    showImport: "Show Excel Import",
+    exportExcel: "Export Offers to Excel",
+    importExcel: "Import Excel",
+    import: "Import",
+    noOffers: "You don't have any offers yet.",
+    close: "Close",
+    addOfferTitle: "Add Offer",
+    pasteLink: "Paste Link",
+    manual: "Manual",
+    fetch: "Fetch",
+    manualHint: "Manual mode: fill in fields below and save the offer.",
+    company: "Company",
+    role: "Role",
+    status: "Status",
+    applied: "Applied",
+    location: "Location",
+    appliedAt: "Application date",
+    source: "Source",
+    offerLink: "Offer URL",
+    notes: "Notes",
+    addOfferSubmit: "Add offer",
+    copiedLinkRequired: "Paste offer URL first",
+    offerAddFailed: "Failed to add offer",
+    linkFetchFailed: "Failed to fetch offer from URL",
+    linkFetched: "Fetched data from URL, review and save the offer",
+    offerAdded: "Offer added",
+    fileFirst: "Select .xlsx file first",
+    excelImportFailed: "Excel import failed",
+    excelImported: "Excel imported: {imported}, skipped: {skipped}",
+    scrapeFailed: "Scrape failed",
+    scrapedJobs: "Scraped jobs: {total}",
+    scrapedUpdated: "Scraped record updated",
+    saveScrapedFailed: "Failed to save scraped job",
+    scrapedSaved: "Scraped job saved to offers",
+    failedFetchOffers: "Failed to fetch offers",
+    fetchLinkPlaceholder: "Paste offer URL (e.g. pracuj.pl)",
+    supportedColumns:
+      "Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).",
+    yesApplied: "applied",
+    noApplied: "not applied"
+  }
+} as const;
 
 function isAbsoluteHttpUrl(value: string) {
   try {
@@ -61,7 +169,7 @@ export function App() {
   const [pendingScrapedIndex, setPendingScrapedIndex] = useState<number | null>(null);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Ready");
+  const [message, setMessage] = useState("");
   const [showStatus, setShowStatus] = useState(true);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [addOfferUrl, setAddOfferUrl] = useState("");
@@ -75,13 +183,19 @@ export function App() {
     const stored = window.localStorage.getItem("themeMode");
     return stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
   });
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window === "undefined") return "pl";
+    const stored = window.localStorage.getItem("language");
+    return stored === "pl" || stored === "en" ? stored : "pl";
+  });
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
-  const statusText = loading ? "Working..." : message;
+  const t = I18N[language];
+  const statusText = loading ? t.working : message || t.ready;
   const statusTone = loading
     ? "neutral"
     : /error|failed|invalid|http\s*\d+/i.test(message)
@@ -121,7 +235,7 @@ export function App() {
     const response = await fetch("/api/offers");
     const data = (await response.json()) as { ok: boolean; offers?: Offer[]; error?: string };
     if (!data.ok) {
-      throw new Error(data.error || "Failed to fetch offers");
+      throw new Error(data.error || t.failedFetchOffers);
     }
     setOffers(data.offers || []);
   }
@@ -129,10 +243,10 @@ export function App() {
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchOffers()])
-      .then(() => setStatusMessage("Data loaded"))
+      .then(() => setStatusMessage(t.dataLoaded))
       .catch((error) => setStatusMessage(String(error)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -152,6 +266,11 @@ export function App() {
     }
   }, [resolvedTheme, themeMode]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("language", language);
+  }, [language]);
+
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -165,7 +284,7 @@ export function App() {
 
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!data.ok) {
-        throw new Error(data.error || "Failed to add offer");
+        throw new Error(data.error || t.offerAddFailed);
       }
 
       setOfferForm(createDefaultOffer());
@@ -173,7 +292,7 @@ export function App() {
       setShowAddOfferForm(false);
       setShowAddOffer(false);
       await fetchOffers();
-      setStatusMessage("Offer added");
+      setStatusMessage(t.offerAdded);
     } catch (error) {
       setShowAddOfferForm(true);
       setOfferForm((prev) => ({
@@ -189,7 +308,7 @@ export function App() {
   async function handleScrapeAddOfferLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!addOfferUrl.trim()) {
-      setStatusMessage("Wklej link do oferty");
+      setStatusMessage(t.copiedLinkRequired);
       return;
     }
 
@@ -213,7 +332,7 @@ export function App() {
         };
       };
       if (!data.ok || !data.job) {
-        throw new Error(data.error || "Nie udalo sie pobrac oferty");
+        throw new Error(data.error || t.linkFetchFailed);
       }
 
       setOfferForm((prev) => ({
@@ -225,7 +344,7 @@ export function App() {
         sourceUrl: data.job?.url || addOfferUrl
       }));
       setShowAddOfferForm(true);
-      setStatusMessage("Pobrano dane z linku, sprawdz i zapisz oferte");
+      setStatusMessage(t.linkFetched);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -236,7 +355,7 @@ export function App() {
   async function handleImportExcel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!excelFile) {
-      setStatusMessage("Select .xlsx file first");
+      setStatusMessage(t.fileFirst);
       return;
     }
 
@@ -252,12 +371,16 @@ export function App() {
 
       const data = (await response.json()) as { ok: boolean; imported?: number; skipped?: number; error?: string };
       if (!data.ok) {
-        throw new Error(data.error || "Excel import failed");
+        throw new Error(data.error || t.excelImportFailed);
       }
 
       await fetchOffers();
       setExcelFile(null);
-      setStatusMessage(`Excel imported: ${data.imported ?? 0}, skipped: ${data.skipped ?? 0}`);
+      setStatusMessage(
+        t.excelImported
+          .replace("{imported}", String(data.imported ?? 0))
+          .replace("{skipped}", String(data.skipped ?? 0))
+      );
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -286,17 +409,17 @@ export function App() {
         error?: string;
       };
       if (!data.ok) {
-        throw new Error(data.error || "Scrape failed");
+        throw new Error(data.error || t.scrapeFailed);
       }
 
       const jobs = data.jobs || [];
       setScrapedJobs(jobs);
-      setStatusMessage(`Scraped jobs: ${data.total ?? 0}`);
+      setStatusMessage(t.scrapedJobs.replace("{total}", String(data.total ?? 0)));
 
       if (data.mode === "link" && jobs[0]) {
         setPendingOffer({
-          company: jobs[0].company || "Unknown company",
-          role: jobs[0].title || "Unknown role",
+          company: jobs[0].company || t.company,
+          role: jobs[0].title || t.role,
           applied: true,
           status: "applied",
           location: jobs[0].location,
@@ -316,8 +439,8 @@ export function App() {
 
   function openSaveDialog(job: ScrapedJob, index: number) {
     setPendingOffer({
-      company: job.company || "Unknown company",
-      role: job.title || "Unknown role",
+      company: job.company || t.company,
+      role: job.title || t.role,
       applied: true,
       status: "applied",
       location: job.location,
@@ -346,7 +469,7 @@ export function App() {
           : job
       )
     );
-    setStatusMessage("Scraped record updated");
+    setStatusMessage(t.scrapedUpdated);
   }
 
   async function confirmSavePendingOffer(event: FormEvent<HTMLFormElement>) {
@@ -363,13 +486,13 @@ export function App() {
 
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!data.ok) {
-        throw new Error(data.error || "Failed to save scraped job");
+        throw new Error(data.error || t.saveScrapedFailed);
       }
 
       await fetchOffers();
       setPendingOffer(null);
       setPendingScrapedIndex(null);
-      setStatusMessage("Scraped job saved to offers");
+      setStatusMessage(t.scrapedSaved);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -389,7 +512,7 @@ export function App() {
         </a>
 
         <nav className="top-nav" aria-label="Sekcje">
-          <a href="#offers-list">Offers</a>
+          <a href="#offers-list">{t.offers}</a>
         </nav>
 
         <div className="header-actions">
@@ -398,7 +521,7 @@ export function App() {
             className="add-offer-btn"
             onClick={toggleAddOfferModal}
           >
-            Dodaj
+            {t.addOffer}
           </button>
           <div className="menu-wrap">
             <button
@@ -408,13 +531,13 @@ export function App() {
                 setShowSettingsMenu((prev) => !prev);
                 setShowUserMenu(false);
               }}
-              aria-label="Ustawienia"
+              aria-label={t.settings}
             >
               ⚙
             </button>
             {showSettingsMenu ? (
               <div className="menu-panel">
-                <label htmlFor="theme-select">Theme</label>
+                <label htmlFor="theme-select">{t.theme}</label>
                 <select
                   id="theme-select"
                   value={themeMode}
@@ -423,6 +546,15 @@ export function App() {
                   <option value="auto">Auto</option>
                   <option value="light">Jasny</option>
                   <option value="dark">Ciemny</option>
+                </select>
+                <label htmlFor="language-select">{t.language}</label>
+                <select
+                  id="language-select"
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value as Language)}
+                >
+                  <option value="pl">Polski</option>
+                  <option value="en">English</option>
                 </select>
               </div>
             ) : null}
@@ -437,7 +569,7 @@ export function App() {
                 setShowSettingsMenu(false);
               }}
             >
-              Uzytkownik
+              {t.user}
             </button>
             {showUserMenu ? (
               <div className="menu-panel">
@@ -446,7 +578,7 @@ export function App() {
                   className="ghost-btn"
                   onClick={openAddOfferModal}
                 >
-                  Dodaj oferte
+                  {t.addOfferTitle}
                 </button>
                 <button
                   type="button"
@@ -456,7 +588,7 @@ export function App() {
                     setShowUserMenu(false);
                   }}
                 >
-                  {showImportExcel ? "Ukryj Import Excel" : "Pokaz Import Excel"}
+                  {showImportExcel ? t.hideImport : t.showImport}
                 </button>
                 <button
                   type="button"
@@ -465,7 +597,7 @@ export function App() {
                     setShowUserMenu(false);
                   }}
                 >
-                  Export Offers to Excel
+                  {t.exportExcel}
                 </button>
               </div>
             ) : null}
@@ -480,7 +612,7 @@ export function App() {
             type="button"
             className="status-close"
             onClick={() => setShowStatus(false)}
-            aria-label="Zamknij status"
+            aria-label={t.close}
           >
             X
           </button>
@@ -489,7 +621,7 @@ export function App() {
 
       {showImportExcel ? (
         <section className="card" id="import-excel">
-          <h2>Import Excel</h2>
+          <h2>{t.importExcel}</h2>
           <form className="row" onSubmit={handleImportExcel}>
             <input
               type="file"
@@ -497,15 +629,15 @@ export function App() {
               onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
             />
             <button type="submit" disabled={loading}>
-              Import
+              {t.import}
             </button>
           </form>
-          <p className="hint">Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).</p>
+          <p className="hint">{t.supportedColumns}</p>
         </section>
       ) : null}
 
       <section className="card" id="offers-list">
-        <h2>Offers ({offers.length})</h2>
+        <h2>{t.offers} ({offers.length})</h2>
         <div className="list">
           {offers.map((offer, index) => (
             <article className="item" key={`${offer.id || "offer"}-${index}`}>
@@ -514,7 +646,7 @@ export function App() {
                   {offer.role} @ {offer.company}
                 </strong>
                 <p>
-                  {offer.applied ? "applied" : "not applied"} | {offer.status} | {offer.location || "-"} | {offer.appliedAt || "-"} | {offer.source || "manual"}
+                  {offer.applied ? t.yesApplied : t.noApplied} | {offer.status} | {offer.location || "-"} | {offer.appliedAt || "-"} | {offer.source || "manual"}
                 </p>
                 {offer.sourceUrl ? (
                   <a href={offer.sourceUrl} target="_blank" rel="noreferrer">
@@ -525,7 +657,7 @@ export function App() {
               </div>
             </article>
           ))}
-          {offers.length === 0 ? <p className="hint">Nie masz jeszcze dodanych ofert.</p> : null}
+          {offers.length === 0 ? <p className="hint">{t.noOffers}</p> : null}
         </div>
       </section>
 
@@ -536,11 +668,11 @@ export function App() {
               type="button"
               className="modal-close"
               onClick={closeAddOfferModal}
-              aria-label="Zamknij okno dodawania oferty"
+              aria-label={t.close}
             >
               X
             </button>
-            <h3>Dodaj Oferte</h3>
+            <h3>{t.addOfferTitle}</h3>
             <div className="row">
               <button
                 type="button"
@@ -550,7 +682,7 @@ export function App() {
                   setShowAddOfferForm(false);
                 }}
               >
-                Wklej link
+                {t.pasteLink}
               </button>
               <button
                 type="button"
@@ -564,7 +696,7 @@ export function App() {
                   }));
                 }}
               >
-                Manualnie
+                {t.manual}
               </button>
             </div>
 
@@ -573,21 +705,21 @@ export function App() {
                 <input
                   value={addOfferUrl}
                   onChange={(event) => setAddOfferUrl(event.target.value)}
-                  placeholder="Wklej link do oferty (np. pracuj.pl)"
+                  placeholder={t.fetchLinkPlaceholder}
                   required
                 />
                 <button type="submit" disabled={loading}>
-                  Pobierz
+                  {t.fetch}
                 </button>
               </form>
             ) : (
-              <p className="hint">Tryb manualny: uzupelnij pola ponizej i zapisz oferte.</p>
+              <p className="hint">{t.manualHint}</p>
             )}
 
             {showAddOfferForm || addOfferMode === "manual" ? (
               <form className="grid" onSubmit={handleAddOffer}>
                 <label className="form-field">
-                  <span>Firma</span>
+                  <span>{t.company}</span>
                   <input
                     value={offerForm.company}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, company: event.target.value }))}
@@ -595,7 +727,7 @@ export function App() {
                   />
                 </label>
                 <label className="form-field">
-                  <span>Stanowisko</span>
+                  <span>{t.role}</span>
                   <input
                     value={offerForm.role}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, role: event.target.value }))}
@@ -603,7 +735,7 @@ export function App() {
                   />
                 </label>
                 <label className="form-field">
-                  <span>Status</span>
+                  <span>{t.status}</span>
                   <select
                     value={offerForm.status}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
@@ -616,7 +748,7 @@ export function App() {
                   </select>
                 </label>
                 <label className="form-field checkbox-field">
-                  <span>Aplikowano</span>
+                  <span>{t.applied}</span>
                   <input
                     type="checkbox"
                     checked={offerForm.applied}
@@ -630,14 +762,14 @@ export function App() {
                   />
                 </label>
                 <label className="form-field">
-                  <span>Lokalizacja</span>
+                  <span>{t.location}</span>
                   <input
                     value={offerForm.location || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, location: event.target.value }))}
                   />
                 </label>
                 <label className="form-field">
-                  <span>Data aplikacji</span>
+                  <span>{t.appliedAt}</span>
                   <input
                     type="date"
                     value={offerForm.appliedAt || ""}
@@ -645,21 +777,21 @@ export function App() {
                   />
                 </label>
                 <label className="form-field">
-                  <span>Źródło</span>
+                  <span>{t.source}</span>
                   <input
                     value={offerForm.source || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, source: event.target.value }))}
                   />
                 </label>
                 <label className="form-field span-2">
-                  <span>Link oferty</span>
+                  <span>{t.offerLink}</span>
                   <input
                     value={offerForm.sourceUrl || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
                   />
                 </label>
                 <label className="form-field span-2">
-                  <span>Notatki</span>
+                  <span>{t.notes}</span>
                   <textarea
                     value={offerForm.notes || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, notes: event.target.value }))}
@@ -672,10 +804,10 @@ export function App() {
                     onClick={closeAddOfferModal}
                     disabled={loading}
                   >
-                    Zamknij
+                    {t.close}
                   </button>
                   <button type="submit" disabled={loading}>
-                    Dodaj oferte
+                    {t.addOfferSubmit}
                   </button>
                 </div>
               </form>
