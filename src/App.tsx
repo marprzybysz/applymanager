@@ -77,6 +77,7 @@ type SortColumn =
   | "expiresAt"
   | "daysToExpire"
   | "source";
+type StatusTone = "blue" | "yellow" | "green" | "neutral";
 
 const I18N = {
   pl: {
@@ -494,6 +495,33 @@ export function App() {
   function getSortIndicator(column: SortColumn) {
     if (sortColumn !== column || sortDirection === "none") return "";
     return sortDirection === "asc" ? " ↑" : " ↓";
+  }
+
+  function getOfferStatusTone(status: string | null | undefined): StatusTone {
+    const normalized = String(status || "").trim().toLowerCase();
+    if (!normalized) return "neutral";
+
+    if (["wysłano", "wyslano", "applied", "saved"].includes(normalized)) {
+      return "blue";
+    }
+    if (
+      [
+        "interview",
+        "in progress",
+        "odczytana",
+        "odczytane",
+        "odczytano",
+        "w trakcie",
+        "proces",
+        "?",
+      ].includes(normalized)
+    ) {
+      return "yellow";
+    }
+    if (["offer", "umowienie na rozmowe", "umówienie na rozmowę", "rozmowa", "rozmowa umowiona"].includes(normalized)) {
+      return "green";
+    }
+    return "neutral";
   }
 
   function resolveOfferPeriodDate(offer: Offer) {
@@ -1325,41 +1353,51 @@ export function App() {
           <div className="offers-head">
             <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
             <div className="offers-toolbar">
-              <div className="offers-toolbar-left">
+              <div className="offers-toolbar-right">
                 <button
                   type="button"
                   className="ghost-btn"
-                  onClick={() => setShowSearchInput((prev) => !prev)}
-                  aria-label={t.search}
+                  onClick={() => setCompactView((prev) => !prev)}
+                  aria-label={t.viewMode}
                 >
-                  🔍 {t.search}
+                  👁 {t.viewMode}: {compactView ? t.viewCompact : t.viewFull}
                 </button>
-                {showSearchInput ? (
-                  <input
-                    value={filterText}
-                    onChange={(event) => setFilterText(event.target.value)}
-                    placeholder={t.search}
-                    className="toolbar-search-input"
-                  />
-                ) : null}
-              </div>
-              <div className="offers-toolbar-right">
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={() => setCompactView((prev) => !prev)}
-                aria-label={t.viewMode}
-              >
-                👁 {t.viewMode}: {compactView ? t.viewCompact : t.viewFull}
-              </button>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={() => setShowFilters((prev) => !prev)}
-                aria-label={t.filters}
-              >
-                ⏷ {t.filters}
-              </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => setShowFilters((prev) => !prev)}
+                  aria-label={t.filters}
+                >
+                  ⏷ {t.filters}
+                </button>
+                {!showSearchInput ? (
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => setShowSearchInput(true)}
+                    aria-label={t.search}
+                  >
+                    🔍 {t.search}
+                  </button>
+                ) : (
+                  <div className="toolbar-search-box">
+                    <button
+                      type="button"
+                      className="toolbar-search-icon-btn"
+                      onClick={() => setShowSearchInput(false)}
+                      aria-label={t.search}
+                    >
+                      🔍
+                    </button>
+                    <input
+                      value={filterText}
+                      onChange={(event) => setFilterText(event.target.value)}
+                      placeholder={t.search}
+                      className="toolbar-search-input"
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1489,7 +1527,11 @@ export function App() {
                     >
                       <td>{offer.role || "-"}</td>
                       <td>{offer.company || "-"}</td>
-                      <td>{offer.status || "-"}</td>
+                      <td>
+                        <span className={`offer-status-pill offer-status-pill--${getOfferStatusTone(offer.status)}`}>
+                          {offer.status || "-"}
+                        </span>
+                      </td>
                       <td>{offer.applied ? t.yesApplied : t.noApplied}</td>
                       {!compactView ? <td>{offer.location || "-"}</td> : null}
                       <td>{offer.appliedAt || "-"}</td>

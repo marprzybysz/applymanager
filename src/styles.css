@@ -266,9 +266,14 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.offers-head h2 {
+  margin: 0;
+  white-space: nowrap;
+}
+
 .offers-toolbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.55rem;
   width: 100%;
@@ -285,12 +290,40 @@ body {
   gap: 0.55rem;
 }
 
-.offers-toolbar-left {
-  min-width: 0;
-}
-
 .toolbar-search-input {
   min-width: 240px;
+}
+
+.toolbar-search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 0.3rem 0.4rem;
+  background: var(--surface);
+}
+
+.toolbar-search-icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  min-width: 24px;
+}
+
+.toolbar-search-icon-btn:hover {
+  color: var(--text-main);
+}
+
+.toolbar-search-box .toolbar-search-input {
+  border: 0;
+  padding: 0.2rem 0;
+  min-width: 220px;
+}
+
+.toolbar-search-box .toolbar-search-input:focus {
+  outline: none;
 }
 
 .offers-filters {
@@ -431,6 +464,41 @@ button:disabled {
 }
 
 .offers-table td {
+  color: var(--text-muted);
+}
+
+.offer-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.16rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.offer-status-pill--blue {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #bfdbfe;
+}
+
+.offer-status-pill--yellow {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fde68a;
+}
+
+.offer-status-pill--green {
+  background: rgba(22, 163, 74, 0.18);
+  border-color: rgba(22, 163, 74, 0.45);
+  color: #bbf7d0;
+}
+
+.offer-status-pill--neutral {
+  background: var(--surface-2);
+  border-color: var(--border);
   color: var(--text-muted);
 }
 
@@ -671,6 +739,15 @@ button:disabled {
   }
 
   .toolbar-search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .toolbar-search-box {
+    width: 100%;
+  }
+
+  .toolbar-search-box .toolbar-search-input {
     min-width: 0;
     width: 100%;
   }
