@@ -268,19 +268,41 @@ body {
 
 .offers-toolbar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 0.55rem;
+  width: 100%;
 }
 
 .offers-toolbar .ghost-btn {
   white-space: nowrap;
 }
 
+.offers-toolbar-left,
+.offers-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.offers-toolbar-left {
+  min-width: 0;
+}
+
+.toolbar-search-input {
+  min-width: 240px;
+}
+
 .offers-filters {
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
   margin-bottom: 0.8rem;
+}
+
+.offers-filters-actions {
+  display: flex;
+  align-items: flex-end;
 }
 
 .card h2 {
@@ -410,6 +432,14 @@ button:disabled {
 
 .offers-table td {
   color: var(--text-muted);
+}
+
+.offers-table .clickable-row {
+  cursor: pointer;
+}
+
+.offers-table .clickable-row:hover {
+  background: var(--surface-2);
 }
 
 .offers-table td a {
@@ -634,7 +664,22 @@ button:disabled {
     flex-wrap: wrap;
   }
 
+  .offers-toolbar-left,
+  .offers-toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .toolbar-search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
   .offers-filters {
     grid-template-columns: 1fr;
+  }
+
+  .offers-filters-actions {
+    align-items: stretch;
   }
 }

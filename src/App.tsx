@@ -177,7 +177,15 @@ const I18N = {
     periodAll: "Wszystko",
     periodMonth: "Tylko ten miesiac",
     periodQuarter: "Tylko ten kwartal",
-    periodYear: "Tylko ten rok"
+    periodYear: "Tylko ten rok",
+    clearFilters: "Wyczysc filtry",
+    offerDetails: "Szczegoly oferty",
+    edit: "Edytuj",
+    save: "Zapisz",
+    delete: "Usun",
+    deleted: "Oferta usunieta",
+    updated: "Oferta zaktualizowana",
+    deleteConfirm: "Czy na pewno chcesz usunac te oferte?"
   },
   en: {
     ready: "Ready",
@@ -277,7 +285,15 @@ const I18N = {
     periodAll: "All",
     periodMonth: "This month",
     periodQuarter: "This quarter",
-    periodYear: "This year"
+    periodYear: "This year",
+    clearFilters: "Clear filters",
+    offerDetails: "Offer details",
+    edit: "Edit",
+    save: "Save",
+    delete: "Delete",
+    deleted: "Offer deleted",
+    updated: "Offer updated",
+    deleteConfirm: "Are you sure you want to delete this offer?"
   }
 } as const;
 
@@ -394,11 +410,15 @@ export function App() {
   const [compactView, setCompactView] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [showSearchInput, setShowSearchInput] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
+  const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -543,6 +563,28 @@ export function App() {
     setAddOfferUrl("");
     setOfferForm(createDefaultOffer());
     setShowSettingsMenu(false);
+  }
+
+  function clearOfferFilters() {
+    setFilterText("");
+    setFilterStatus("all");
+    setFilterSource("all");
+    setFilterPeriod("all");
+  }
+
+  function openOfferDetails(offer: Offer) {
+    setSelectedOffer(offer);
+    setSelectedOfferDraft({
+      ...offer,
+      employmentTypes: [...(offer.employmentTypes || [])],
+    });
+    setEditingSelectedOffer(false);
+  }
+
+  function closeOfferDetails() {
+    setSelectedOffer(null);
+    setSelectedOfferDraft(null);
+    setEditingSelectedOffer(false);
   }
 
   function closeAddOfferModal() {
@@ -1091,6 +1133,56 @@ export function App() {
     }
   }
 
+  async function handleSaveOfferDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedOfferDraft?.id) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/offers/${selectedOfferDraft.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedOfferDraft),
+      });
+      const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
+      if (!data.ok || !data.offer) {
+        throw new Error(data.error || t.offerAddFailed);
+      }
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setSelectedOffer(data.offer);
+      setSelectedOfferDraft(data.offer);
+      setEditingSelectedOffer(false);
+      setStatusMessage(t.updated);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteOfferDetails() {
+    if (!selectedOffer?.id) return;
+    if (!window.confirm(t.deleteConfirm)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/offers/${selectedOffer.id}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!data.ok) {
+        throw new Error(data.error || t.offerAddFailed);
+      }
+      await Promise.all([fetchOffers(), fetchStats()]);
+      closeOfferDetails();
+      setStatusMessage(t.deleted);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="app" id="top">
       <header className="header app-bar">
@@ -1233,6 +1325,25 @@ export function App() {
           <div className="offers-head">
             <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
             <div className="offers-toolbar">
+              <div className="offers-toolbar-left">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => setShowSearchInput((prev) => !prev)}
+                  aria-label={t.search}
+                >
+                  🔍 {t.search}
+                </button>
+                {showSearchInput ? (
+                  <input
+                    value={filterText}
+                    onChange={(event) => setFilterText(event.target.value)}
+                    placeholder={t.search}
+                    className="toolbar-search-input"
+                  />
+                ) : null}
+              </div>
+              <div className="offers-toolbar-right">
               <button
                 type="button"
                 className="ghost-btn"
@@ -1249,19 +1360,12 @@ export function App() {
               >
                 ⏷ {t.filters}
               </button>
+              </div>
             </div>
           </div>
 
           {showFilters ? (
             <div className="offers-filters">
-              <label className="form-field">
-                <span>{t.search}</span>
-                <input
-                  value={filterText}
-                  onChange={(event) => setFilterText(event.target.value)}
-                  placeholder={t.search}
-                />
-              </label>
               <label className="form-field">
                 <span>{t.filterByStatus}</span>
                 <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
@@ -1296,6 +1400,11 @@ export function App() {
                   <option value="year">{t.periodYear}</option>
                 </select>
               </label>
+              <div className="offers-filters-actions">
+                <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
+                  {t.clearFilters}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -1373,7 +1482,11 @@ export function App() {
                 </thead>
                 <tbody>
                   {visibleOffers.map((offer, index) => (
-                    <tr key={`${offer.id || "offer"}-${index}`}>
+                    <tr
+                      key={`${offer.id || "offer"}-${index}`}
+                      className="clickable-row"
+                      onClick={() => openOfferDetails(offer)}
+                    >
                       <td>{offer.role || "-"}</td>
                       <td>{offer.company || "-"}</td>
                       <td>{offer.status || "-"}</td>
@@ -1392,7 +1505,12 @@ export function App() {
                       {!compactView ? <td>{offer.source || "manual"}</td> : null}
                       <td>
                         {offer.sourceUrl ? (
-                          <a href={offer.sourceUrl} target="_blank" rel="noreferrer">
+                          <a
+                            href={offer.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                          >
                             link
                           </a>
                         ) : (
@@ -1658,6 +1776,197 @@ export function App() {
                 </div>
               </form>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {selectedOfferDraft ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="offer-details-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={closeOfferDetails}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.offerDetails}</h3>
+            <form className="grid" onSubmit={handleSaveOfferDetails}>
+              <label className="form-field">
+                <span>{t.company}</span>
+                <input
+                  value={selectedOfferDraft.company || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, company: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.role}</span>
+                <input
+                  value={selectedOfferDraft.role || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, role: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.status}</span>
+                <select
+                  value={selectedOfferDraft.status || "saved"}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, status: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                >
+                  <option value="applied">applied</option>
+                  <option value="saved">saved</option>
+                  <option value="interview">interview</option>
+                  <option value="offer">offer</option>
+                  <option value="rejected">rejected</option>
+                </select>
+              </label>
+              <label className="form-field checkbox-field">
+                <span>{t.applied}</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedOfferDraft.applied)}
+                  onChange={(event) =>
+                    setSelectedOfferDraft((prev) =>
+                      prev ? { ...prev, applied: event.target.checked } : prev
+                    )
+                  }
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.location}</span>
+                <input
+                  value={selectedOfferDraft.location || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, location: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.appliedAt}</span>
+                <input
+                  type="date"
+                  value={selectedOfferDraft.appliedAt || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, appliedAt: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>Data publikacji</span>
+                <input
+                  type="date"
+                  value={selectedOfferDraft.datePosted || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, datePosted: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>Wygasa</span>
+                <input
+                  type="date"
+                  value={selectedOfferDraft.expiresAt || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, expiresAt: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.source}</span>
+                <input
+                  value={selectedOfferDraft.source || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, source: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field span-2">
+                <span>{t.offerLink}</span>
+                <input
+                  value={selectedOfferDraft.sourceUrl || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, sourceUrl: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field span-2">
+                <span>{t.contractTypes}</span>
+                <input
+                  value={(selectedOfferDraft.employmentTypes || []).join(", ")}
+                  onChange={(event) =>
+                    setSelectedOfferDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            employmentTypes: event.target.value
+                              .split(",")
+                              .map((v) => v.trim())
+                              .filter(Boolean),
+                          }
+                        : prev
+                    )
+                  }
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.workTimes}</span>
+                <input
+                  value={selectedOfferDraft.workTime || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, workTime: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.workModes}</span>
+                <input
+                  value={selectedOfferDraft.workMode || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, workMode: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.shiftCounts}</span>
+                <input
+                  value={selectedOfferDraft.shiftCount || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, shiftCount: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.workHoursRange}</span>
+                <input
+                  value={selectedOfferDraft.workingHours || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, workingHours: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <label className="form-field span-2">
+                <span>{t.notes}</span>
+                <textarea
+                  value={selectedOfferDraft.notes || ""}
+                  onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, notes: event.target.value } : prev))}
+                  disabled={!editingSelectedOffer}
+                />
+              </label>
+              <div className="modal-actions span-2">
+                <button type="button" className="ghost-btn" onClick={closeOfferDetails}>
+                  {t.close}
+                </button>
+                {!editingSelectedOffer ? (
+                  <button type="button" className="ghost-btn" onClick={() => setEditingSelectedOffer(true)}>
+                    {t.edit}
+                  </button>
+                ) : (
+                  <button type="submit" disabled={loading}>
+                    {t.save}
+                  </button>
+                )}
+                <button type="button" onClick={handleDeleteOfferDetails} disabled={loading}>
+                  {t.delete}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}
