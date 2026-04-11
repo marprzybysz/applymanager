@@ -1,16 +1,16 @@
-# Docs
+# Dokumentacja ApplyManager
 
-Ten katalog zawiera dokumentację projektu ApplyManager.
+Ten katalog zawiera aktualną dokumentację projektu.
 
-## Spis
+## Zawartość
 
-- `PROJECT.md` - zakres projektu i funkcje
-- `ARCHITECTURE.md` - frontend/backend/baza danych
-- `WORKLOG.md` - dziennik wykonanych prac
+- `PROJECT.md` - zakres funkcjonalny, cele i roadmapa
+- `ARCHITECTURE.md` - architektura systemu, moduły i przepływy
+- `WORKLOG.md` - dziennik zmian technicznych
 
-## Zasada
+## Zasady utrzymania
 
-Każda większa zmiana w projekcie powinna mieć:
+Przy większych zmianach należy:
 
-1. aktualizację odpowiedniej dokumentacji technicznej,
-2. wpis w `WORKLOG.md` (co zostało zrobione, kiedy i dlaczego).
+1. zaktualizować odpowiedni plik dokumentacji technicznej,
+2. dopisać wpis w `WORKLOG.md`.

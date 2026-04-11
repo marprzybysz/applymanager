@@ -1,63 +1,136 @@
 # Architektura
 
-## Web + Docker mode (obecny)
+## 1. Przegląd
 
-- `app` container:
-  - build React przez Vite,
-  - backend FastAPI serwujący `dist` i API.
-- `db` container:
-  - PostgreSQL 16,
-  - inicjalizacja schema z `db/init/001_init.sql`.
+ApplyManager działa w modelu web + API + DB:
 
-## Local mode (Qt scaffold)
+- Frontend React (Vite)
+- Backend FastAPI
+- PostgreSQL
+- Moduł scrapowania ofert (provider-based)
 
-- `local/`:
-  - podstawowy UI desktop w Qt6/C++,
-  - układ zgodny z web: header, status, offers.
+Dodatkowo projekt zawiera lokalny scaffold desktop (`local/`, Qt6/C++).
 
-## Komunikacja
+## 2. Warstwy systemu
 
-- Frontend -> `/api/*` w trybie web/docker.
-- Backend -> PostgreSQL przez `psycopg2`.
-- Backend -> portale pracy przez HTTP fetch + parsery HTML/JSON-LD.
+### Frontend (`src/`)
 
-## Moduł ofert
+- renderowanie tabeli ofert, statystyk i modali,
+- filtrowanie/sortowanie po stronie UI,
+- obsługa importu/eksportu i preferencji użytkownika,
+- komunikacja z API przez `/api/*`.
 
-- `GET /api/offers` - lista ofert z bazy.
-- `POST /api/offers` - ręczne dodanie oferty.
-- `POST /api/offers/import-excel` - import ofert z pliku Excel (`xlsx/xls`).
-- `GET /api/offers/export-excel` - eksport ofert do pliku Excel (`xlsx`).
-- Backend podczas startu zapewnia strukturę tabeli `applications` (w tym pola `source`, `source_url`).
+### Backend (`server/`)
 
-## Scraping moduł
+- `server/main.py`:
+  - tworzy aplikację FastAPI,
+  - uruchamia `ensure_schema()` przy starcie,
+  - serwuje build frontendu (`dist/`) i fallback SPA.
+- `server/web/routes.py`:
+  - endpointy webowe `/api/*`.
+- `server/local/routes.py`:
+  - endpointy lokalne `/api/local/*`.
+- `server/modules/*`:
+  - logika biznesowa i dostęp do danych.
 
-- `server/scrapers/http.py` - pobieranie HTML z timeoutem i nagłówkami.
-- `server/scrapers/parsers.py` - parser JSON-LD (`JobPosting`).
-- `server/scrapers/providers.py` - providerzy i selektory per portal.
-- `server/scrapers/index.py` - orkiestracja scrapowania wielu źródeł.
-- `POST /api/scrape/link` - scrapowanie pojedynczego URL oferty.
-- `POST /api/scrape` - auto-tryb:
-  - jeśli `query` jest URL, backend scrapuje pojedynczy link,
-  - jeśli `query` jest frazą, backend robi scraping search dla źródeł.
+### Database (`db/`)
 
-Wspierane źródła:
+- PostgreSQL 16,
+- schema inicjalna: `db/init/001_init.sql`.
 
-- `olx`
-- `pracuj`
-- `nofluffjobs`
-- `rocketjobs`
-- `indeed`
-- `justjoinit`
+## 3. Moduły backendu
 
-## Pliki kluczowe
+### `server/modules/offers.py`
 
-- `src/` - UI React.
-- `local/` - lokalny scaffold UI Qt6/C++.
-- `server/main.py` - bootstrap FastAPI i mount routerów.
-- `server/web/` - endpointy webowe (`/api/*`).
-- `server/local/` - endpointy lokalne (`/api/local/*`).
-- `server/modules/` - logika współdzielona backendu.
-- `server/scrapers/` - logika scrapowania ofert.
-- `src/App.tsx` - interfejs web: dodawanie, import Excel, lista ofert.
-- `docker-compose.yml` - orkiestracja app + db.
-- `db/init/001_init.sql` - inicjalna struktura tabel.
+- listowanie ofert,
+- tworzenie, edycja, usuwanie,
+- import/export Excel,
+- agregacja statystyk.
+
+### `server/modules/preferences.py`
+
+- odczyt i zapis preferencji użytkownika.
+
+### `server/modules/scrape.py`
+
+- normalizacja query/URL,
+- rozróżnianie trybu `search` vs `link`,
+- delegacja do warstwy scraperów.
+
+### `server/modules/db.py`
+
+- połączenie DB,
+- zapewnienie schematu (`ensure_schema`).
+
+### `server/modules/registry.py`
+
+- metadane użycia modułów (`/api/modules`, `/api/local/modules`).
+
+## 4. Scraping
+
+Warstwa scrapera:
+
+- `server/scrapers/http.py` - pobieranie HTML,
+- `server/scrapers/parsers.py` - parsowanie treści,
+- `server/scrapers/providers.py` - mapowanie źródeł,
+- `server/scrapers/index.py` - orkiestracja.
+
+Obsługiwane źródła:
+
+- Pracuj.pl
+- OLX
+- NoFluffJobs
+- RocketJobs
+- Indeed
+- JustJoin.it
+
+## 5. Endpointy (web)
+
+### System
+
+- `GET /api/health`
+- `GET /api/greet`
+- `GET /api/modules`
+
+### Oferty
+
+- `GET /api/offers`
+- `GET /api/offers/stats`
+- `POST /api/offers`
+- `PUT /api/offers/{offer_id}`
+- `DELETE /api/offers/{offer_id}`
+- `POST /api/offers/import-excel`
+- `GET /api/offers/export-excel`
+
+### Preferencje
+
+- `GET /api/preferences`
+- `PUT /api/preferences`
+
+### Scraping
+
+- `GET /api/scrape/sources`
+- `POST /api/scrape`
+- `POST /api/scrape/link`
+
+## 6. Endpointy (local)
+
+- `GET /api/local/health`
+- `GET /api/local/modules`
+
+## 7. Tryby uruchamiania
+
+### Docker dev
+
+- `api` (FastAPI) - `localhost:3000`
+- `web` (Vite) - `localhost:1420`
+- `db` (PostgreSQL) - `localhost:5432`
+
+### Docker prod
+
+- `app` (frontend build + API) - `localhost:3000`
+- `db` - `localhost:5432`
+
+## 8. Uwaga techniczna
+
+Frontend ukrywa część pól pomocniczych (np. `applied`), ale backend nadal je utrzymuje dla kompatybilności danych i importu historycznego.

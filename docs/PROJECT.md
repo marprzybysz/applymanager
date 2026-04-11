@@ -2,42 +2,55 @@
 
 ## Cel
 
-Aplikacja do:
+Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
 
-- zarządzania danymi CV,
-- śledzenia aplikacji o pracę,
-- pracy lokalnej (web) oraz środowiska testowego w Dockerze.
+- zbieranie i porządkowanie ofert,
+- śledzenie statusów i terminów,
+- import/eksport danych,
+- szybkie pobieranie danych oferty z linku.
 
-## Obecny zakres (MVP)
+## Zakres aktualny (2026-04)
 
-- Frontend: React + TypeScript.
-- Lokalny scaffold UI: Qt6 + C++ (`local/`).
-- Tryb web/docker do testów: React + backend FastAPI.
-- Baza testowa: PostgreSQL w osobnym kontenerze.
-- Podstawowe endpointy API:
-  - `/api/greet`
-  - `/api/health`
-  - `/api/modules`
-  - `/api/local/health`
-  - `/api/local/modules`
-  - `/api/scrape/sources`
-  - `/api/scrape`
-  - `/api/scrape/link`
-- Zarządzanie ofertami:
-  - `/api/offers` (listowanie + dodawanie)
-  - `/api/offers/import-excel` (import xlsx/xls)
-  - `/api/offers/export-excel` (eksport xlsx)
-- Moduł scrapowania ofert pracy dla:
-  - OLX
-  - Pracuj.pl
-  - NoFluffJobs
-  - RocketJobs
-  - Indeed
-  - JustJoin.it
+### Web UI
 
-## Kierunek rozwoju
+- zakładki: `Oferty`, `Statystyki`,
+- tabela ofert (sortowanie + filtrowanie + wyszukiwarka),
+- tryb widoku prosty/zaawansowany,
+- modal szczegółów oferty (podgląd, edycja, usuwanie),
+- statusy ofert oznaczane kolorami,
+- menu użytkownika:
+  - preferencje,
+  - import,
+  - eksport.
 
-- Moduł CV (wersje CV, eksport/import).
-- Moduł Applications (statusy, timeline, notatki).
-- Integracja z lokalną bazą (docelowo SQLite dla desktop).
-- Ewentualna synchronizacja online w przyszłości.
+### API / Backend
+
+- pełna obsługa ofert (`GET/POST/PUT/DELETE`),
+- statystyki ofert,
+- preferencje użytkownika,
+- import i eksport Excel,
+- scraping URL i query.
+
+### Baza danych
+
+- tabela `applications`,
+- tabela `user_preferences`,
+- tabela `cvs` (pod przyszły moduł CV).
+
+### Desktop scaffold
+
+- `local/` (Qt6/C++) jako baza pod przyszły klient desktop.
+
+## Poza zakresem (na teraz)
+
+- autoryzacja użytkowników,
+- synchronizacja cloud,
+- zaawansowany workflow ATS,
+- pełny moduł CV (UI + operacje).
+
+## Roadmap (skrót)
+
+1. Stabilizacja modelu statusów i timeline aplikacji.
+2. Rozszerzenie raportowania i statystyk.
+3. Lepsza normalizacja danych importowanych.
+4. Rozbudowa klienta desktop (Qt) jako równoległego interfejsu.
