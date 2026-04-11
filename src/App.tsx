@@ -1595,7 +1595,6 @@ export function App() {
                       </button>
                       </th>
                     ) : null}
-                    <th>{t.offerLink}</th>
                     {!compactView ? <th>{t.contractTypes}</th> : null}
                     {!compactView ? <th>{t.workTimes}</th> : null}
                     {!compactView ? <th>{t.workModes}</th> : null}
@@ -1611,7 +1610,20 @@ export function App() {
                       className="clickable-row"
                       onClick={() => openOfferDetails(offer)}
                     >
-                      <td>{offer.role || "-"}</td>
+                      <td>
+                        {offer.sourceUrl ? (
+                          <a
+                            href={offer.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {offer.role || "-"}
+                          </a>
+                        ) : (
+                          offer.role || "-"
+                        )}
+                      </td>
                       <td>{offer.company || "-"}</td>
                       <td>
                         <span className={`offer-status-pill offer-status-pill--${getOfferStatusTone(offer.status)}`}>
@@ -1630,20 +1642,6 @@ export function App() {
                         </td>
                       ) : null}
                       {!compactView ? <td>{offer.source || "manual"}</td> : null}
-                      <td>
-                        {offer.sourceUrl ? (
-                          <a
-                            href={offer.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            link
-                          </a>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
                       {!compactView ? <td>{(offer.employmentTypes || []).join(", ") || "-"}</td> : null}
                       {!compactView ? <td>{offer.workTime || "-"}</td> : null}
                       {!compactView ? <td>{offer.workMode || "-"}</td> : null}
