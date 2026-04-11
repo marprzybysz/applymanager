@@ -6,12 +6,14 @@ from fastapi.responses import JSONResponse, Response
 from server.modules.common import to_non_empty_string
 from server.modules.db import get_connection
 from server.modules.offers import (
+    delete_offer,
     export_offers_to_excel_bytes,
     get_offer_stats,
     import_offers_from_excel,
     insert_offer,
     list_offers,
     map_offer_for_insert_from_request,
+    update_offer,
 )
 from server.modules.preferences import get_preferences, save_preferences
 from server.modules.registry import get_module_usage
@@ -88,6 +90,34 @@ async def create_offer(request: Request):
     try:
         offer = insert_offer(offer_input)
         return JSONResponse(status_code=201, content={"ok": True, "offer": offer})
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.put("/offers/{offer_id}")
+async def edit_offer(offer_id: int, request: Request):
+    body = await request.json()
+    offer_input = map_offer_for_insert_from_request(body or {})
+
+    if not offer_input["company"] or not offer_input["role"]:
+        raise HTTPException(status_code=400, detail="company and role are required")
+
+    try:
+        offer = update_offer(offer_id, offer_input)
+        if not offer:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "offer not found"})
+        return {"ok": True, "offer": offer}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.delete("/offers/{offer_id}")
+def remove_offer(offer_id: int):
+    try:
+        deleted = delete_offer(offer_id)
+        if not deleted:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "offer not found"})
+        return {"ok": True}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 

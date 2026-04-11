@@ -187,6 +187,76 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
         return dict(row) if row else {}
 
 
+def update_offer(offer_id: int, offer: dict[str, Any]) -> dict[str, Any] | None:
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                UPDATE applications
+                SET
+                    company = %s,
+                    role = %s,
+                    applied = %s,
+                    status = %s,
+                    location = %s,
+                    notes = %s,
+                    applied_at = %s,
+                    date_posted = %s,
+                    expires_at = %s,
+                    source = %s,
+                    source_url = %s,
+                    employment_types = %s,
+                    work_time = %s,
+                    work_mode = %s,
+                    shift_count = %s,
+                    working_hours = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING id, company, role, applied, status, location, notes,
+                          applied_at AS "appliedAt", date_posted AS "datePosted", expires_at AS "expiresAt",
+                          CASE
+                            WHEN expires_at IS NULL THEN NULL
+                            ELSE (expires_at - CURRENT_DATE)
+                          END AS "daysToExpire",
+                          source, source_url AS "sourceUrl",
+                          employment_types AS "employmentTypes", work_time AS "workTime",
+                          work_mode AS "workMode", shift_count AS "shiftCount",
+                          working_hours AS "workingHours", created_at AS "createdAt"
+                """,
+                (
+                    offer["company"],
+                    offer["role"],
+                    offer.get("applied", True),
+                    offer.get("status") or ("saved" if offer.get("applied") is False else "applied"),
+                    offer.get("location") or None,
+                    offer.get("notes") or None,
+                    safe_date(offer.get("appliedAt")),
+                    safe_date(offer.get("datePosted")),
+                    safe_date(offer.get("expiresAt")),
+                    offer.get("source") or None,
+                    offer.get("sourceUrl") or None,
+                    offer.get("employmentTypes") or None,
+                    offer.get("workTime") or None,
+                    offer.get("workMode") or None,
+                    offer.get("shiftCount") or None,
+                    offer.get("workingHours") or None,
+                    offer_id,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return dict(row) if row else None
+
+
+def delete_offer(offer_id: int) -> bool:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM applications WHERE id = %s", (offer_id,))
+            deleted = cur.rowcount > 0
+        conn.commit()
+    return deleted
+
+
 def import_offers_from_excel(content: bytes) -> dict[str, Any]:
     rows = read_excel_rows_with_hyperlinks(content)
     mapped_offers = [offer for offer in (map_excel_row_to_offer(row) for row in rows) if offer]
