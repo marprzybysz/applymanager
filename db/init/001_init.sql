@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS applications (
   location TEXT,
   notes TEXT,
   applied_at DATE,
+  date_posted DATE,
+  expires_at DATE,
   source TEXT,
   source_url TEXT,
   employment_types TEXT[],

@@ -44,6 +44,8 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
         "location": to_non_empty_string(body.get("location")),
         "notes": to_non_empty_string(body.get("notes")),
         "appliedAt": body.get("appliedAt"),
+        "datePosted": body.get("datePosted"),
+        "expiresAt": body.get("expiresAt"),
         "source": to_non_empty_string(body.get("source")),
         "sourceUrl": to_non_empty_string(body.get("sourceUrl")),
         "employmentTypes": [str(v).strip() for v in (body.get("employmentTypes") or []) if str(v).strip()],
@@ -117,6 +119,12 @@ def list_offers() -> list[dict[str, Any]]:
                     location,
                     notes,
                     applied_at AS "appliedAt",
+                    date_posted AS "datePosted",
+                    expires_at AS "expiresAt",
+                    CASE
+                      WHEN expires_at IS NULL THEN NULL
+                      ELSE (expires_at - CURRENT_DATE)
+                    END AS "daysToExpire",
                     source,
                     source_url AS "sourceUrl",
                     employment_types AS "employmentTypes",
@@ -140,12 +148,17 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 INSERT INTO applications (
-                    company, role, applied, status, location, notes, applied_at, source, source_url,
+                    company, role, applied, status, location, notes, applied_at, date_posted, expires_at, source, source_url,
                     employment_types, work_time, work_mode, shift_count, working_hours
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, company, role, applied, status, location, notes,
-                          applied_at AS "appliedAt", source, source_url AS "sourceUrl",
+                          applied_at AS "appliedAt", date_posted AS "datePosted", expires_at AS "expiresAt",
+                          CASE
+                            WHEN expires_at IS NULL THEN NULL
+                            ELSE (expires_at - CURRENT_DATE)
+                          END AS "daysToExpire",
+                          source, source_url AS "sourceUrl",
                           employment_types AS "employmentTypes", work_time AS "workTime",
                           work_mode AS "workMode", shift_count AS "shiftCount",
                           working_hours AS "workingHours", created_at AS "createdAt"
@@ -158,6 +171,8 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
                     offer.get("location") or None,
                     offer.get("notes") or None,
                     safe_date(offer.get("appliedAt")),
+                    safe_date(offer.get("datePosted")),
+                    safe_date(offer.get("expiresAt")),
                     offer.get("source") or None,
                     offer.get("sourceUrl") or None,
                     offer.get("employmentTypes") or None,
@@ -202,6 +217,9 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
         "location",
         "notes",
         "appliedAt",
+        "datePosted",
+        "expiresAt",
+        "daysToExpire",
         "source",
         "sourceUrl",
         "employmentTypes",
@@ -223,6 +241,9 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
                 offer.get("location") or "",
                 offer.get("notes") or "",
                 safe_date(offer.get("appliedAt")) or "",
+                safe_date(offer.get("datePosted")) or "",
+                safe_date(offer.get("expiresAt")) or "",
+                offer.get("daysToExpire") if offer.get("daysToExpire") is not None else "",
                 offer.get("source") or "",
                 offer.get("sourceUrl") or "",
                 ", ".join(offer.get("employmentTypes") or []),
@@ -240,3 +261,50 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
 
     filename = f"applymanager-offers-{datetime.now(timezone.utc).date().isoformat()}.xlsx"
     return buffer.read(), filename
+
+
+def get_offer_stats() -> dict[str, Any]:
+    offers = list_offers()
+    total = len(offers)
+    applied = sum(1 for offer in offers if offer.get("applied") is True)
+    active = sum(1 for offer in offers if isinstance(offer.get("daysToExpire"), int) and offer.get("daysToExpire") >= 0)
+    expired = sum(1 for offer in offers if isinstance(offer.get("daysToExpire"), int) and offer.get("daysToExpire") < 0)
+
+    status_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    days_values: list[int] = []
+    recent_applications = 0
+    today = datetime.now(timezone.utc).date()
+
+    for offer in offers:
+        status = str(offer.get("status") or "unknown").strip() or "unknown"
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+        source = str(offer.get("source") or "manual").strip() or "manual"
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+        days = offer.get("daysToExpire")
+        if isinstance(days, int):
+            days_values.append(days)
+
+        applied_at = offer.get("appliedAt")
+        if isinstance(applied_at, str) and applied_at:
+            try:
+                delta = (today - datetime.fromisoformat(applied_at).date()).days
+                if 0 <= delta <= 7:
+                    recent_applications += 1
+            except Exception:
+                pass
+
+    avg_days_left = round(sum(days_values) / len(days_values), 1) if days_values else None
+
+    return {
+        "totalOffers": total,
+        "appliedOffers": applied,
+        "activeOffers": active,
+        "expiredOffers": expired,
+        "averageDaysLeft": avg_days_left,
+        "recentApplications7d": recent_applications,
+        "statusCounts": status_counts,
+        "sourceCounts": source_counts,
+    }

@@ -93,6 +93,7 @@ def clamp_limit(limit_per_source: int | float | str | None) -> int:
 
 
 def normalize_job(job: dict[str, Any], source: str) -> dict[str, Any]:
+    is_pracuj = source == "pracuj"
     normalized = {
         "source": source,
         "title": normalize_text(job.get("title")),
@@ -102,11 +103,11 @@ def normalize_job(job: dict[str, Any], source: str) -> dict[str, Any]:
         "datePosted": normalize_date_only(job.get("datePosted")),
         "expiresAt": normalize_date_only(job.get("validThrough") or job.get("expiresAt")),
         "salary": job.get("salary"),
-        "employmentTypes": job.get("employmentTypes") if isinstance(job.get("employmentTypes"), list) else [],
-        "workTime": normalize_text(job.get("workTime")),
-        "workMode": normalize_text(job.get("workMode")),
-        "shiftCount": normalize_text(job.get("shiftCount")),
-        "workingHours": normalize_text(job.get("workingHours")),
+        "employmentTypes": (job.get("employmentTypes") if isinstance(job.get("employmentTypes"), list) else []) if is_pracuj else [],
+        "workTime": normalize_text(job.get("workTime")) if is_pracuj else None,
+        "workMode": normalize_text(job.get("workMode")) if is_pracuj else None,
+        "shiftCount": normalize_text(job.get("shiftCount")) if is_pracuj else None,
+        "workingHours": normalize_text(job.get("workingHours")) if is_pracuj else None,
         "raw": job.get("raw"),
     }
     return with_recruitment_window(normalized)
@@ -199,6 +200,7 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
     merged["shiftCount"] = (from_json_ld_first or {}).get("shiftCount") or (from_meta or {}).get("shiftCount")
     merged["workingHours"] = (from_json_ld_first or {}).get("workingHours") or (from_meta or {}).get("workingHours")
     merged["raw"] = (from_json_ld_first or {}).get("raw") or (from_meta or {}).get("raw")
+    is_pracuj = source == "pracuj"
 
     return with_recruitment_window(
         {
@@ -210,11 +212,11 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
             "datePosted": normalize_date_only(merged.get("datePosted")),
             "expiresAt": normalize_date_only(merged.get("expiresAt")),
             "salary": merged.get("salary"),
-            "employmentTypes": merged.get("employmentTypes"),
-            "workTime": normalize_text(merged.get("workTime")),
-            "workMode": normalize_text(merged.get("workMode")),
-            "shiftCount": normalize_text(merged.get("shiftCount")),
-            "workingHours": normalize_text(merged.get("workingHours")),
+            "employmentTypes": merged.get("employmentTypes") if is_pracuj else [],
+            "workTime": normalize_text(merged.get("workTime")) if is_pracuj else None,
+            "workMode": normalize_text(merged.get("workMode")) if is_pracuj else None,
+            "shiftCount": normalize_text(merged.get("shiftCount")) if is_pracuj else None,
+            "workingHours": normalize_text(merged.get("workingHours")) if is_pracuj else None,
             "raw": merged.get("raw"),
         }
     )

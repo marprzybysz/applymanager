@@ -31,6 +31,8 @@ def ensure_schema() -> None:
                   location TEXT,
                   notes TEXT,
                   applied_at DATE,
+                  date_posted DATE,
+                  expires_at DATE,
                   source TEXT,
                   source_url TEXT,
                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -44,6 +46,8 @@ def ensure_schema() -> None:
             cur.execute("ALTER TABLE applications ALTER COLUMN applied SET NOT NULL")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source TEXT")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source_url TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS date_posted DATE")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS expires_at DATE")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_types TEXT[]")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS work_time TEXT")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS work_mode TEXT")

@@ -8,30 +8,67 @@ from bs4 import BeautifulSoup
 
 JSON_LD_SELECTOR = "script[type='application/ld+json']"
 JOB_POSTING_TYPE = "JobPosting"
-CONTRACT_KEYWORDS = [
-    "umowa o prace",
-    "umowa b2b",
-    "b2b",
-    "umowa zlecenie",
-    "umowa o dzielo",
-    "umowa agencyjna",
-    "samozatrudnienie",
-]
-WORK_TIME_KEYWORDS = [
-    "pelny etat",
-    "pol etatu",
-    "czesc etatu",
-]
-WORK_MODE_KEYWORDS = [
-    "stacjonarna",
-    "hybrydowa",
-    "zdalna",
-]
-SHIFT_KEYWORDS = [
-    "jedna zmiana",
-    "dwie zmiany",
-    "trzy zmiany",
-]
+
+PRACUJ_CONTRACT_VARIANTS: dict[str, list[str]] = {
+    "umowa o pracę": [
+        "umowa o prace",
+        "umowe o prace",
+        "uop",
+        "umowaoprace",
+    ],
+    "umowa b2b": [
+        "umowa b2b",
+        "b2b",
+        "b 2 b",
+        "b-2-b",
+    ],
+    "umowa zlecenie": [
+        "umowa zlecenie",
+        "umowe zlecenie",
+        "zlecenie",
+    ],
+    "umowa o dzieło": [
+        "umowa o dzielo",
+        "umowe o dzielo",
+        "dzielo",
+    ],
+    "umowa agencyjna": [
+        "umowa agencyjna",
+        "agencyjna",
+    ],
+    "samozatrudnienie": [
+        "samozatrudnienie",
+        "self employed",
+        "self employed contract",
+    ],
+}
+
+PRACUJ_WORK_TIME_VARIANTS: dict[str, list[str]] = {
+    "pełny etat": [
+        "pelny etat",
+        "pelen etat",
+        "full time",
+        "fulltime",
+    ],
+    "pół etatu": [
+        "pol etatu",
+        "czesc etatu",
+        "part time",
+        "parttime",
+    ],
+}
+
+PRACUJ_WORK_MODE_VARIANTS: dict[str, list[str]] = {
+    "stacjonarna": ["stacjonarna", "stacjonarnie", "onsite", "on site"],
+    "hybrydowa": ["hybrydowa", "hybrydowo", "hybrid"],
+    "zdalna": ["zdalna", "zdalnie", "remote", "home office", "work from home"],
+}
+
+PRACUJ_SHIFT_VARIANTS: dict[str, list[str]] = {
+    "jedna zmiana": ["jedna zmiana", "1 zmiana", "i zmiana", "i-sza zmiana"],
+    "dwie zmiany": ["dwie zmiany", "2 zmiany", "ii zmiana", "ii-ga zmiana"],
+    "trzy zmiany": ["trzy zmiany", "3 zmiany", "iii zmiana", "iii-cia zmiana"],
+}
 
 
 def clean_text(value: Any) -> str | None:
@@ -142,41 +179,72 @@ def _extract_pracuj_employer_name_from_html(html: str, source: str) -> str | Non
 
 
 def _normalize_keyword(value: str) -> str:
-    return (
-        value.lower()
-        .replace("ą", "a")
-        .replace("ć", "c")
-        .replace("ę", "e")
-        .replace("ł", "l")
-        .replace("ń", "n")
-        .replace("ó", "o")
-        .replace("ś", "s")
-        .replace("ż", "z")
-        .replace("ź", "z")
-    )
+    return re.sub(
+        r"\s+",
+        " ",
+        (
+            value.lower()
+            .replace("ą", "a")
+            .replace("ć", "c")
+            .replace("ę", "e")
+            .replace("ł", "l")
+            .replace("ń", "n")
+            .replace("ó", "o")
+            .replace("ś", "s")
+            .replace("ż", "z")
+            .replace("ź", "z")
+        ),
+    ).strip()
+
+
+def _normalize_for_match(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", _normalize_keyword(value))).strip()
+
+
+def _contains_variant(normalized_text: str, variant: str) -> bool:
+    normalized_variant = _normalize_for_match(variant)
+    if not normalized_variant:
+        return False
+    return f" {normalized_variant} " in f" {normalized_text} "
+
+
+def _extract_from_palette(normalized_text: str, palette: dict[str, list[str]], allow_multiple: bool) -> list[str]:
+    matches: list[str] = []
+    for canonical, variants in palette.items():
+        if any(_contains_variant(normalized_text, variant) for variant in variants):
+            matches.append(canonical)
+            if not allow_multiple:
+                break
+    return matches
+
+
+def _extract_working_hours(normalized_text: str) -> str | None:
+    patterns = [
+        r"\b(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})\b",
+        r"\b(\d{1,2}\s*-\s*\d{1,2})\b",
+        r"\b(\d{1,2}[:.]\d{2}\s*do\s*\d{1,2}[:.]\d{2})\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized_text)
+        if match:
+            return clean_text(match.group(1))
+    return None
 
 
 def _extract_pracuj_conditions_from_html(html: str, source: str) -> dict[str, Any]:
     if source != "pracuj":
         return {}
 
-    text = _normalize_keyword(re.sub(r"\s+", " ", html))
-
-    contracts: list[str] = []
-    for keyword in CONTRACT_KEYWORDS:
-        if keyword in text:
-            label = keyword
-            if keyword == "b2b":
-                label = "umowa b2b"
-            if label not in contracts:
-                contracts.append(label)
-
-    work_time = next((keyword for keyword in WORK_TIME_KEYWORDS if keyword in text), None)
-    work_mode = next((keyword for keyword in WORK_MODE_KEYWORDS if keyword in text), None)
-    shift_count = next((keyword for keyword in SHIFT_KEYWORDS if keyword in text), None)
-
-    working_hours_match = re.search(r"\b(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})\b", text)
-    working_hours = clean_text(working_hours_match.group(1)) if working_hours_match else None
+    normalized = _normalize_for_match(re.sub(r"\s+", " ", html))
+    contracts = _extract_from_palette(normalized, PRACUJ_CONTRACT_VARIANTS, allow_multiple=True)
+    work_time = next(iter(_extract_from_palette(normalized, PRACUJ_WORK_TIME_VARIANTS, allow_multiple=False)), None)
+    work_modes = _extract_from_palette(normalized, PRACUJ_WORK_MODE_VARIANTS, allow_multiple=True)
+    if {"stacjonarna", "hybrydowa", "zdalna"}.issubset(set(work_modes)):
+        work_mode = "dowolny"
+    else:
+        work_mode = work_modes[0] if work_modes else None
+    shift_count = next(iter(_extract_from_palette(normalized, PRACUJ_SHIFT_VARIANTS, allow_multiple=False)), None)
+    working_hours = _extract_working_hours(normalized)
 
     return {
         "employmentTypes": contracts,
