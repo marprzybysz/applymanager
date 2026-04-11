@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Offer = {
   id?: number;
@@ -481,6 +481,8 @@ export function App() {
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
+  const offersToolbarRef = useRef<HTMLDivElement | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -857,6 +859,81 @@ export function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("language", language);
   }, [language]);
+
+  useEffect(() => {
+    if (activeTopTab !== "offers") {
+      setDockOfferToolsToHeader(false);
+      setShowSearchInput(false);
+      return;
+    }
+    const target = offersToolbarRef.current;
+    if (!target || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        setDockOfferToolsToHeader(!entry.isIntersecting);
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [activeTopTab]);
+
+  function renderOfferTools(isDocked: boolean) {
+    return (
+      <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
+        <button
+          type="button"
+          className="ghost-btn"
+          onClick={() => setCompactView((prev) => !prev)}
+          aria-label={t.viewMode}
+          title={t.viewMode}
+        >
+          {isDocked ? "👁" : `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`}
+        </button>
+        <button
+          type="button"
+          className="ghost-btn"
+          onClick={() => setShowFilters((prev) => !prev)}
+          aria-label={t.filters}
+          title={t.filters}
+        >
+          {isDocked ? "⏷" : `⏷ ${t.filters}`}
+        </button>
+        {!showSearchInput ? (
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setShowSearchInput(true)}
+            aria-label={t.search}
+            title={t.search}
+          >
+            {isDocked ? "🔍" : `🔍 ${t.search}`}
+          </button>
+        ) : (
+          <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""}`}>
+            <button
+              type="button"
+              className="toolbar-search-icon-btn"
+              onClick={() => setShowSearchInput(false)}
+              aria-label={t.search}
+            >
+              🔍
+            </button>
+            <input
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder={t.search}
+              className="toolbar-search-input"
+              autoFocus
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1419,7 +1496,13 @@ export function App() {
             ) : null}
           </div>
         </div>
+        {activeTopTab === "offers" && dockOfferToolsToHeader ? (
+          <div className="header-docked-tools">{renderOfferTools(true)}</div>
+        ) : null}
       </header>
+      {activeTopTab === "offers" && dockOfferToolsToHeader ? (
+        <div className="header-docked-spacer" aria-hidden="true" />
+      ) : null}
 
       {showStatus ? (
         <p className={`status status--${statusTone}`}>
@@ -1439,53 +1522,8 @@ export function App() {
         <section className="card offers-card" id="offers-list">
           <div className="offers-head">
             <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
-            <div className="offers-toolbar">
-              <div className="offers-toolbar-right">
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => setCompactView((prev) => !prev)}
-                  aria-label={t.viewMode}
-                >
-                  👁 {t.viewMode}: {compactView ? t.viewCompact : t.viewFull}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => setShowFilters((prev) => !prev)}
-                  aria-label={t.filters}
-                >
-                  ⏷ {t.filters}
-                </button>
-                {!showSearchInput ? (
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => setShowSearchInput(true)}
-                    aria-label={t.search}
-                  >
-                    🔍 {t.search}
-                  </button>
-                ) : (
-                  <div className="toolbar-search-box">
-                    <button
-                      type="button"
-                      className="toolbar-search-icon-btn"
-                      onClick={() => setShowSearchInput(false)}
-                      aria-label={t.search}
-                    >
-                      🔍
-                    </button>
-                    <input
-                      value={filterText}
-                      onChange={(event) => setFilterText(event.target.value)}
-                      placeholder={t.search}
-                      className="toolbar-search-input"
-                      autoFocus
-                    />
-                  </div>
-                )}
-              </div>
+            <div className="offers-toolbar" ref={offersToolbarRef}>
+              {!dockOfferToolsToHeader ? renderOfferTools(false) : null}
             </div>
           </div>
 
@@ -1701,7 +1739,7 @@ export function App() {
               X
             </button>
             <h3>{t.addOfferTitle}</h3>
-            <div className="row">
+            <div className="row add-offer-mode">
               <button
                 type="button"
                 className={addOfferMode === "link" ? "" : "ghost-btn"}

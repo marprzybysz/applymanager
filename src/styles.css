@@ -141,6 +141,17 @@ body {
   gap: 0.55rem;
 }
 
+.header-docked-tools {
+  position: absolute;
+  right: 1rem;
+  top: calc(100% + 0.35rem);
+  z-index: 26;
+}
+
+.header-docked-spacer {
+  height: 2.6rem;
+}
+
 .add-offer-btn {
   background: #16a34a;
   border-color: #16a34a;
@@ -290,6 +301,11 @@ body {
   gap: 0.55rem;
 }
 
+.offers-toolbar-right--docked .ghost-btn {
+  min-width: 38px;
+  padding: 0.48rem 0.58rem;
+}
+
 .toolbar-search-input {
   min-width: 240px;
 }
@@ -320,6 +336,10 @@ body {
   border: 0;
   padding: 0.2rem 0;
   min-width: 220px;
+}
+
+.toolbar-search-box--docked .toolbar-search-input {
+  min-width: 160px;
 }
 
 .toolbar-search-box .toolbar-search-input:focus {
@@ -576,6 +596,17 @@ button:disabled {
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
 }
 
+#add-offer.modal {
+  overflow-x: hidden;
+  overflow-y: visible;
+  max-height: none;
+}
+
+.add-offer-mode {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
 .modal h3 {
   margin: 0 0 0.85rem;
   padding-right: 2rem;
@@ -778,6 +809,22 @@ button:disabled {
   .offers-toolbar-right {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .offers-toolbar-right--docked {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .header-docked-tools {
+    right: 1rem;
+    left: 1rem;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .header-docked-spacer {
+    height: 3rem;
   }
 
   .toolbar-search-input {
