@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Offer = {
   id?: number;
@@ -63,6 +63,20 @@ type ImportTarget = "offers" | "preferences";
 type ImportFormat = "xlsx" | "json";
 type ExportTarget = "offers" | "preferences" | "all";
 type ExportFormat = "xlsx" | "json";
+type TopTab = "offers" | "stats";
+type PeriodFilter = "all" | "month" | "quarter" | "year";
+type SortDirection = "none" | "asc" | "desc";
+type SortType = "text" | "date" | "number";
+type SortColumn =
+  | "role"
+  | "company"
+  | "status"
+  | "location"
+  | "appliedAt"
+  | "datePosted"
+  | "expiresAt"
+  | "daysToExpire"
+  | "source";
 
 const I18N = {
   pl: {
@@ -149,7 +163,21 @@ const I18N = {
     supportedColumns:
       "Obslugiwane kolumny: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (lub warianty company/role/date/url).",
     yesApplied: "applied",
-    noApplied: "not applied"
+    noApplied: "not applied",
+    viewMode: "Widok",
+    viewCompact: "Prosty",
+    viewFull: "Zaawansowany",
+    filters: "Filtry",
+    search: "Szukaj",
+    all: "Wszystkie",
+    noFilterResults: "Brak wynikow dla aktualnych filtrow.",
+    filterByStatus: "Filtr statusu",
+    filterBySource: "Filtr zrodla",
+    filterByPeriod: "Zakres czasu",
+    periodAll: "Wszystko",
+    periodMonth: "Tylko ten miesiac",
+    periodQuarter: "Tylko ten kwartal",
+    periodYear: "Tylko ten rok"
   },
   en: {
     ready: "Ready",
@@ -235,7 +263,21 @@ const I18N = {
     supportedColumns:
       "Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).",
     yesApplied: "applied",
-    noApplied: "not applied"
+    noApplied: "not applied",
+    viewMode: "View",
+    viewCompact: "Simple",
+    viewFull: "Advanced",
+    filters: "Filters",
+    search: "Search",
+    all: "All",
+    noFilterResults: "No results for current filters.",
+    filterByStatus: "Filter by status",
+    filterBySource: "Filter by source",
+    filterByPeriod: "Time range",
+    periodAll: "All",
+    periodMonth: "This month",
+    periodQuarter: "This quarter",
+    periodYear: "This year"
   }
 } as const;
 
@@ -338,6 +380,7 @@ export function App() {
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
   const [addOfferMode, setAddOfferMode] = useState<AddOfferMode>("link");
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [importTarget, setImportTarget] = useState<ImportTarget>("offers");
@@ -347,6 +390,15 @@ export function App() {
   const [showPreferences, setShowPreferences] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>("offers");
+  const [compactView, setCompactView] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterText, setFilterText] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterSource, setFilterSource] = useState("all");
+  const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("none");
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -375,6 +427,114 @@ export function App() {
     setMessage(nextMessage);
     setShowStatus(true);
   }
+
+  const statusFilterOptions = useMemo(
+    () =>
+      Array.from(new Set(offers.map((offer) => offer.status).filter(Boolean))).sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+      ),
+    [offers]
+  );
+
+  const sourceFilterOptions = useMemo(
+    () =>
+      Array.from(new Set(offers.map((offer) => offer.source || "manual").filter(Boolean))).sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+      ),
+    [offers]
+  );
+
+  function toggleSort(nextColumn: SortColumn, type: SortType) {
+    const cycle: SortDirection[] = type === "date" ? ["desc", "asc", "none"] : ["asc", "desc", "none"];
+    if (sortColumn !== nextColumn) {
+      setSortColumn(nextColumn);
+      setSortDirection(cycle[0]);
+      return;
+    }
+    const index = cycle.indexOf(sortDirection);
+    const nextDirection = cycle[(index + 1) % cycle.length];
+    if (nextDirection === "none") {
+      setSortColumn(null);
+      setSortDirection("none");
+      return;
+    }
+    setSortDirection(nextDirection);
+  }
+
+  function getSortValue(offer: Offer, column: SortColumn) {
+    if (column === "daysToExpire") return offer.daysToExpire ?? Number.MAX_SAFE_INTEGER;
+    if (column === "appliedAt" || column === "datePosted" || column === "expiresAt") {
+      const raw = offer[column];
+      return raw ? Date.parse(raw) || 0 : 0;
+    }
+    const raw = offer[column];
+    return String(raw || "").toLowerCase();
+  }
+
+  function getSortIndicator(column: SortColumn) {
+    if (sortColumn !== column || sortDirection === "none") return "";
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  }
+
+  function resolveOfferPeriodDate(offer: Offer) {
+    return offer.appliedAt || offer.datePosted || null;
+  }
+
+  function matchesPeriodFilter(offer: Offer, period: PeriodFilter) {
+    if (period === "all") return true;
+    const raw = resolveOfferPeriodDate(offer);
+    if (!raw) return false;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    if (period === "year") {
+      return date.getFullYear() === currentYear;
+    }
+    if (period === "month") {
+      return date.getFullYear() === currentYear && date.getMonth() === now.getMonth();
+    }
+
+    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+    const dateQuarterStartMonth = Math.floor(date.getMonth() / 3) * 3;
+    return date.getFullYear() === currentYear && dateQuarterStartMonth === quarterStartMonth;
+  }
+
+  const visibleOffers = useMemo(() => {
+    const textQuery = filterText.trim().toLowerCase();
+    const filtered = offers.filter((offer) => {
+      if (filterStatus !== "all" && (offer.status || "") !== filterStatus) return false;
+      if (filterSource !== "all" && (offer.source || "manual") !== filterSource) return false;
+      if (!matchesPeriodFilter(offer, filterPeriod)) return false;
+      if (!textQuery) return true;
+
+      const haystack = [
+        offer.role,
+        offer.company,
+        offer.location,
+        offer.notes,
+        offer.status,
+        offer.source,
+        offer.sourceUrl,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(textQuery);
+    });
+
+    if (!sortColumn || sortDirection === "none") return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const aValue = getSortValue(a, sortColumn);
+      const bValue = getSortValue(b, sortColumn);
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection]);
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -939,39 +1099,19 @@ export function App() {
         </a>
 
         <nav className="top-nav" aria-label="Sekcje">
-          <a href="#offers-list">{t.offers}</a>
-          <a href="#stats">{t.stats}</a>
           <button
             type="button"
-            className="ghost-btn nav-btn"
-            onClick={() => {
-              setShowPreferences(true);
-              setShowSettingsMenu(false);
-            }}
+            className={`ghost-btn nav-btn ${activeTopTab === "offers" ? "nav-btn--active" : ""}`}
+            onClick={() => setActiveTopTab("offers")}
           >
-            {t.preferences}
+            {t.offers}
           </button>
           <button
             type="button"
-            className="ghost-btn nav-btn"
-            onClick={() => {
-              setShowImportModal(true);
-              setShowExportModal(false);
-              setShowSettingsMenu(false);
-            }}
+            className={`ghost-btn nav-btn ${activeTopTab === "stats" ? "nav-btn--active" : ""}`}
+            onClick={() => setActiveTopTab("stats")}
           >
-            {t.importMenu}
-          </button>
-          <button
-            type="button"
-            className="ghost-btn nav-btn"
-            onClick={() => {
-              setShowExportModal(true);
-              setShowImportModal(false);
-              setShowSettingsMenu(false);
-            }}
-          >
-            {t.exportMenu}
+            {t.stats}
           </button>
         </nav>
 
@@ -989,6 +1129,7 @@ export function App() {
               className="ghost-btn icon-btn"
               onClick={() => {
                 setShowSettingsMenu((prev) => !prev);
+                setShowUserMenu(false);
                 setShowImportModal(false);
                 setShowExportModal(false);
               }}
@@ -1020,7 +1161,56 @@ export function App() {
               </div>
             ) : null}
           </div>
-          <button type="button" className="ghost-btn">{t.user}</button>
+          <div className="menu-wrap">
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                setShowUserMenu((prev) => !prev);
+                setShowSettingsMenu(false);
+              }}
+            >
+              {t.user}
+            </button>
+            {showUserMenu ? (
+              <div className="menu-panel">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowPreferences(true);
+                    setShowImportModal(false);
+                    setShowExportModal(false);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {t.preferences}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowImportModal(true);
+                    setShowExportModal(false);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {t.importMenu}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowExportModal(true);
+                    setShowImportModal(false);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {t.exportMenu}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -1038,105 +1228,223 @@ export function App() {
         </p>
       ) : null}
 
-      <section className="card offers-card" id="offers-list">
-        <h2>{t.offers} ({offers.length})</h2>
-        {offers.length === 0 ? (
-          <p className="hint">{t.noOffers}</p>
-        ) : (
-          <div className="offers-table-wrap">
-            <table className="offers-table">
-              <thead>
-                <tr>
-                  <th>{t.role}</th>
-                  <th>{t.company}</th>
-                  <th>{t.status}</th>
-                  <th>{t.applied}</th>
-                  <th>{t.location}</th>
-                  <th>{t.appliedAt}</th>
-                  <th>Data publikacji</th>
-                  <th>Wygasa</th>
-                  <th>Dni do końca</th>
-                  <th>{t.source}</th>
-                  <th>{t.offerLink}</th>
-                  <th>{t.contractTypes}</th>
-                  <th>{t.workTimes}</th>
-                  <th>{t.workModes}</th>
-                  <th>{t.shiftCounts}</th>
-                  <th>{t.workHoursRange}</th>
-                  <th>{t.notes}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {offers.map((offer, index) => (
-                  <tr key={`${offer.id || "offer"}-${index}`}>
-                    <td>{offer.role || "-"}</td>
-                    <td>{offer.company || "-"}</td>
-                    <td>{offer.status || "-"}</td>
-                    <td>{offer.applied ? t.yesApplied : t.noApplied}</td>
-                    <td>{offer.location || "-"}</td>
-                    <td>{offer.appliedAt || "-"}</td>
-                    <td>{offer.datePosted || "-"}</td>
-                    <td>{offer.expiresAt || "-"}</td>
-                    <td>
-                      {offer.daysToExpire === null || offer.daysToExpire === undefined
-                        ? "-"
-                        : offer.daysToExpire}
-                    </td>
-                    <td>{offer.source || "manual"}</td>
-                    <td>
-                      {offer.sourceUrl ? (
-                        <a href={offer.sourceUrl} target="_blank" rel="noreferrer">
-                          link
-                        </a>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td>{(offer.employmentTypes || []).join(", ") || "-"}</td>
-                    <td>{offer.workTime || "-"}</td>
-                    <td>{offer.workMode || "-"}</td>
-                    <td>{offer.shiftCount || "-"}</td>
-                    <td>{offer.workingHours || "-"}</td>
-                    <td>{offer.notes || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {activeTopTab === "offers" ? (
+        <section className="card offers-card" id="offers-list">
+          <div className="offers-head">
+            <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+            <div className="offers-toolbar">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setCompactView((prev) => !prev)}
+                aria-label={t.viewMode}
+              >
+                👁 {t.viewMode}: {compactView ? t.viewCompact : t.viewFull}
+              </button>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowFilters((prev) => !prev)}
+                aria-label={t.filters}
+              >
+                ⏷ {t.filters}
+              </button>
+            </div>
           </div>
-        )}
-      </section>
 
-      <section className="card" id="stats">
-        <h2>{t.stats}</h2>
-        <div className="stats-grid">
-          <article className="stats-box"><strong>{stats.totalOffers}</strong><span>{t.totalOffers}</span></article>
-          <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
-          <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
-          <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
-          <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
-          <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
-        </div>
-        <div className="stats-grid">
-          <article className="card">
-            <h3>{t.statusBreakdown}</h3>
-            <div className="list">
-              {Object.entries(stats.statusCounts).map(([name, count]) => (
-                <p key={name}>{name}: {count}</p>
-              ))}
-              {Object.keys(stats.statusCounts).length === 0 ? <p className="hint">-</p> : null}
+          {showFilters ? (
+            <div className="offers-filters">
+              <label className="form-field">
+                <span>{t.search}</span>
+                <input
+                  value={filterText}
+                  onChange={(event) => setFilterText(event.target.value)}
+                  placeholder={t.search}
+                />
+              </label>
+              <label className="form-field">
+                <span>{t.filterByStatus}</span>
+                <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+                  <option value="all">{t.all}</option>
+                  {statusFilterOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>{t.filterBySource}</span>
+                <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
+                  <option value="all">{t.all}</option>
+                  {sourceFilterOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>{t.filterByPeriod}</span>
+                <select
+                  value={filterPeriod}
+                  onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
+                >
+                  <option value="all">{t.periodAll}</option>
+                  <option value="month">{t.periodMonth}</option>
+                  <option value="quarter">{t.periodQuarter}</option>
+                  <option value="year">{t.periodYear}</option>
+                </select>
+              </label>
             </div>
-          </article>
-          <article className="card">
-            <h3>{t.sourceBreakdown}</h3>
-            <div className="list">
-              {Object.entries(stats.sourceCounts).map(([name, count]) => (
-                <p key={name}>{name}: {count}</p>
-              ))}
-              {Object.keys(stats.sourceCounts).length === 0 ? <p className="hint">-</p> : null}
+          ) : null}
+
+          {visibleOffers.length === 0 ? (
+            <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
+          ) : (
+            <div className="offers-table-wrap">
+              <table className="offers-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("role", "text")}>
+                        {t.role}{getSortIndicator("role")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("company", "text")}>
+                        {t.company}{getSortIndicator("company")}
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("status", "text")}>
+                        {t.status}{getSortIndicator("status")}
+                      </button>
+                    </th>
+                    <th>{t.applied}</th>
+                    {!compactView ? (
+                      <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("location", "text")}>
+                        {t.location}{getSortIndicator("location")}
+                      </button>
+                      </th>
+                    ) : null}
+                    <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("appliedAt", "date")}>
+                        {t.appliedAt}{getSortIndicator("appliedAt")}
+                      </button>
+                    </th>
+                    {!compactView ? (
+                      <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("datePosted", "date")}>
+                        Data publikacji{getSortIndicator("datePosted")}
+                      </button>
+                      </th>
+                    ) : null}
+                    {!compactView ? (
+                      <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("expiresAt", "date")}>
+                        Wygasa{getSortIndicator("expiresAt")}
+                      </button>
+                      </th>
+                    ) : null}
+                    {!compactView ? (
+                      <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("daysToExpire", "number")}>
+                        Dni do końca{getSortIndicator("daysToExpire")}
+                      </button>
+                      </th>
+                    ) : null}
+                    {!compactView ? (
+                      <th>
+                      <button type="button" className="sort-btn" onClick={() => toggleSort("source", "text")}>
+                        {t.source}{getSortIndicator("source")}
+                      </button>
+                      </th>
+                    ) : null}
+                    <th>{t.offerLink}</th>
+                    {!compactView ? <th>{t.contractTypes}</th> : null}
+                    {!compactView ? <th>{t.workTimes}</th> : null}
+                    {!compactView ? <th>{t.workModes}</th> : null}
+                    {!compactView ? <th>{t.shiftCounts}</th> : null}
+                    {!compactView ? <th>{t.workHoursRange}</th> : null}
+                    {!compactView ? <th>{t.notes}</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleOffers.map((offer, index) => (
+                    <tr key={`${offer.id || "offer"}-${index}`}>
+                      <td>{offer.role || "-"}</td>
+                      <td>{offer.company || "-"}</td>
+                      <td>{offer.status || "-"}</td>
+                      <td>{offer.applied ? t.yesApplied : t.noApplied}</td>
+                      {!compactView ? <td>{offer.location || "-"}</td> : null}
+                      <td>{offer.appliedAt || "-"}</td>
+                      {!compactView ? <td>{offer.datePosted || "-"}</td> : null}
+                      {!compactView ? <td>{offer.expiresAt || "-"}</td> : null}
+                      {!compactView ? (
+                        <td>
+                          {offer.daysToExpire === null || offer.daysToExpire === undefined
+                            ? "-"
+                            : offer.daysToExpire}
+                        </td>
+                      ) : null}
+                      {!compactView ? <td>{offer.source || "manual"}</td> : null}
+                      <td>
+                        {offer.sourceUrl ? (
+                          <a href={offer.sourceUrl} target="_blank" rel="noreferrer">
+                            link
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      {!compactView ? <td>{(offer.employmentTypes || []).join(", ") || "-"}</td> : null}
+                      {!compactView ? <td>{offer.workTime || "-"}</td> : null}
+                      {!compactView ? <td>{offer.workMode || "-"}</td> : null}
+                      {!compactView ? <td>{offer.shiftCount || "-"}</td> : null}
+                      {!compactView ? <td>{offer.workingHours || "-"}</td> : null}
+                      {!compactView ? <td>{offer.notes || "-"}</td> : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </article>
-        </div>
-      </section>
+          )}
+        </section>
+      ) : (
+        <section className="card" id="stats">
+          <h2>{t.stats}</h2>
+          <div className="stats-grid">
+            <article className="stats-box"><strong>{stats.totalOffers}</strong><span>{t.totalOffers}</span></article>
+            <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
+            <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
+            <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
+            <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
+            <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
+          </div>
+          <div className="stats-grid">
+            <article className="card">
+              <h3>{t.statusBreakdown}</h3>
+              <div className="list">
+                {Object.entries(stats.statusCounts).map(([name, count]) => (
+                  <p key={name}>{name}: {count}</p>
+                ))}
+                {Object.keys(stats.statusCounts).length === 0 ? <p className="hint">-</p> : null}
+              </div>
+            </article>
+            <article className="card">
+              <h3>{t.sourceBreakdown}</h3>
+              <div className="list">
+                {Object.entries(stats.sourceCounts).map(([name, count]) => (
+                  <p key={name}>{name}: {count}</p>
+                ))}
+                {Object.keys(stats.sourceCounts).length === 0 ? <p className="hint">-</p> : null}
+              </div>
+            </article>
+          </div>
+        </section>
+      )}
 
       {showAddOffer ? (
         <div className="modal-backdrop">
