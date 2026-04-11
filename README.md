@@ -1,145 +1,33 @@
 # ApplyManager
 
-Starter scaffold for web app plus Docker test environment.
-
-Project docs: `docs/`
+ApplyManager to aplikacja do śledzenia ofert pracy i procesu aplikowania.
+Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, import/eksport danych oraz środowiska Docker (dev/prod).
 
 ## Stack
 
-- React + TypeScript (UI)
-- Vite (frontend tooling)
-- FastAPI (Python backend)
-- Qt 6 + C++ (local UI scaffold)
-- PostgreSQL (test DB in Docker)
+- Frontend: React 18 + TypeScript + Vite
+- Backend: Python 3 + FastAPI
+- Baza danych: PostgreSQL 16
+- Scraping: requests + parsery HTML/JSON-LD (własne moduły)
+- Desktop scaffold: Qt6 + C++ (`local/`)
+- Konteneryzacja: Docker Compose
 
-## Run (development)
+## Szybki start (Docker Dev)
 
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Start app:
-
-```bash
-npm run dev:full
-```
-
-## React Dev Mode (with API)
-
-1. Start database (once per session):
-
-```bash
-npm run dev:db
-```
-
-2. Install Python backend dependencies (local):
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-3. Run frontend + backend together:
-
-```bash
-npm run dev:full
-```
-
-Open: `http://localhost:1420`
-
-Notes:
-
-- Vite now proxies `/api/*` to `http://localhost:3000`.
-- If dependencies changed, run `npm install` again.
-- For backend changes, keep `.venv` activated while running `npm run dev:api` or `npm run dev:full`.
-
-## Docker (frontend + backend + db)
-
-Start containers:
-
-```bash
-docker compose up --build
-```
-
-Or use helper script:
-
-```bash
-./scripts/run-all.sh up
-```
-
-Services:
-
-- App: `http://localhost:3000`
-- API health: `http://localhost:3000/api/health`
-- API greet: `http://localhost:3000/api/greet?name=Marcin`
-- API supported sources: `GET /api/scrape/sources`
-- API scrape jobs: `POST /api/scrape`
-- API scrape single link: `POST /api/scrape/link`
-- API offers list: `GET /api/offers`
-- API add offer: `POST /api/offers`
-- API import Excel: `POST /api/offers/import-excel` (`multipart/form-data`, file field: `file`)
-- API export Excel: `GET /api/offers/export-excel`
-- PostgreSQL: `localhost:5432`
-
-Example scrape request:
-
-```bash
-curl -X POST http://localhost:3000/api/scrape \
-  -H "Content-Type: application/json" \
-  -d '{"query":"frontend react","sources":["justjoinit","nofluffjobs"],"limitPerSource":10}'
-```
-
-Example URL scrape via the same endpoint:
-
-```bash
-curl -X POST http://localhost:3000/api/scrape \
-  -H "Content-Type: application/json" \
-  -d '{"query":"https://www.pracuj.pl/praca/..."}'
-```
-
-Notes:
-
-- Scraping selectors can change when job portals update their HTML.
-- Always verify portal Terms of Service and legal requirements before production use.
-- Excel import reads first sheet and maps columns like `company/firma`, `role/stanowisko`, `status`, `location`, `notes`, `date`, `source`, `url`.
-
-Stop containers:
-
-```bash
-docker compose down
-```
-
-Helper commands:
-
-```bash
-./scripts/run-all.sh down
-./scripts/run-all.sh logs
-./scripts/run-all.sh restart
-./scripts/run-all.sh ports
-./scripts/run-all.sh images
-./scripts/run-all.sh clean-images
-```
-
-## Docker Dev (hot reload)
-
-Use this mode during development. Frontend (`Vite`) and backend (`FastAPI`) reload automatically after file changes.
-
-Start dev stack:
+Najwygodniejszy tryb podczas developmentu:
 
 ```bash
 ./scripts/run-dev.sh up
 ```
 
-Services:
+Porty:
 
 - Web (Vite): `http://localhost:1420`
-- API: `http://localhost:3000`
+- API (FastAPI): `http://localhost:3000`
+- Health: `http://localhost:3000/api/health`
 - DB: `localhost:5432`
 
-Other commands:
+Zarządzanie:
 
 ```bash
 ./scripts/run-dev.sh restart
@@ -150,15 +38,128 @@ Other commands:
 ./scripts/run-dev.sh clean-images
 ```
 
-## Build frontend
+## Szybki start (Docker Prod)
 
 ```bash
-npm run build
+./scripts/run-all.sh up
 ```
 
-## Local Qt UI Scaffold
+Porty:
 
-Minimalny interfejs lokalny (zgodny sekcjami z webowym: header/status/offers) znajduje się w `local/`.
+- App (frontend build + backend): `http://localhost:3000`
+- Health: `http://localhost:3000/api/health`
+- DB: `localhost:5432`
+
+Zarządzanie:
+
+```bash
+./scripts/run-all.sh restart
+./scripts/run-all.sh logs
+./scripts/run-all.sh down
+./scripts/run-all.sh ports
+./scripts/run-all.sh images
+./scripts/run-all.sh clean-images
+```
+
+## Uruchomienie lokalne (bez Dockera)
+
+1. Node dependencies:
+
+```bash
+npm install
+```
+
+2. Python venv + dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+3. Uruchom backend + frontend:
+
+```bash
+npm run dev:full
+```
+
+## Najważniejsze endpointy API
+
+### Core
+
+- `GET /api/health`
+- `GET /api/greet?name=...`
+- `GET /api/modules`
+- `GET /api/local/health`
+- `GET /api/local/modules`
+
+### Oferty
+
+- `GET /api/offers` - lista ofert
+- `GET /api/offers/stats` - statystyki
+- `POST /api/offers` - dodanie oferty
+- `PUT /api/offers/{offer_id}` - edycja oferty
+- `DELETE /api/offers/{offer_id}` - usunięcie oferty
+- `POST /api/offers/import-excel` - import `.xlsx/.xls`
+- `GET /api/offers/export-excel` - eksport `.xlsx`
+
+### Preferencje
+
+- `GET /api/preferences`
+- `PUT /api/preferences`
+
+### Scraping
+
+- `GET /api/scrape/sources`
+- `POST /api/scrape` - query tekstowe lub URL
+- `POST /api/scrape/link` - pojedynczy URL
+
+Obsługiwane źródła scrapera:
+
+- `pracuj`
+- `olx`
+- `nofluffjobs`
+- `rocketjobs`
+- `indeed`
+- `justjoinit`
+
+## Aktualne funkcje UI
+
+- zakładki `Oferty` i `Statystyki`
+- tabela ofert z sortowaniem po kolumnach
+- filtry: status, źródło, okres (miesiąc/kwartał/rok/wszystko)
+- tryb widoku: prosty / zaawansowany
+- wyszukiwarka z rozwijanym polem
+- statusy kolorowane (np. wysłano, in progress, rozmowa, odrzucenie)
+- szczegóły oferty w modalu:
+  - edycja i zapis
+  - usuwanie z osobnym potwierdzeniem
+- import/eksport + preferencje dostępne z menu użytkownika
+
+## Struktura projektu
+
+- `src/` - web frontend
+- `server/main.py` - bootstrap FastAPI i serwowanie SPA
+- `server/web/` - routery API web (`/api/*`)
+- `server/local/` - routery lokalne (`/api/local/*`)
+- `server/modules/` - logika domenowa (offers, preferences, db, scrape)
+- `server/scrapers/` - providerzy i parsery źródeł
+- `db/init/001_init.sql` - schema DB
+- `scripts/` - skrypty uruchamiania dev/prod
+- `docs/` - dokumentacja techniczna
+- `local/` - desktop scaffold Qt6/C++
+
+## Dokumentacja
+
+Pełna dokumentacja techniczna jest w katalogu `docs/`:
+
+- `docs/PROJECT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/WORKLOG.md`
+
+## Qt local scaffold
+
+`local/` zawiera bazowy interfejs Qt6/C++ (scaffold).
 
 Build:
 
@@ -172,16 +173,3 @@ Run:
 ```bash
 ./build/local/applymanager_local
 ```
-
-## Backend Module Split
-
-Backend jest podzielony na:
-
-- `server/web/` - endpointy webowe (`/api/*`)
-- `server/local/` - endpointy lokalne (`/api/local/*`)
-- `server/modules/` - logika współdzielona (db/offers/scrape/common/registry)
-
-Szybki podgląd wykorzystania modułów:
-
-- `GET /api/modules`
-- `GET /api/local/modules`
