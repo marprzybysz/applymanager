@@ -45,6 +45,7 @@ body,
   margin: 0;
   padding: 0;
   background: var(--page-bg);
+  overflow-x: hidden;
 }
 
 body {
@@ -62,6 +63,7 @@ body {
   gap: 1rem;
   min-height: 100vh;
   align-content: start;
+  min-width: 0;
 }
 
 .header {
@@ -117,6 +119,19 @@ body {
   border-color: var(--input-border);
 }
 
+.top-nav .nav-btn {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.top-nav .nav-btn:hover {
+  color: var(--text-main);
+  border-color: var(--input-border);
+}
+
 .header h1 {
   margin: 0;
 }
@@ -168,8 +183,13 @@ body {
 }
 
 .icon-btn {
-  width: 38px;
-  padding: 0.45rem;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0.62rem 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .status {
@@ -236,6 +256,12 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1rem;
+  min-width: 0;
+}
+
+.offers-card {
+  width: calc(100vw - 2rem);
+  margin-left: calc(50% - 50vw + 1rem);
 }
 
 .card h2 {
@@ -316,6 +342,77 @@ button:disabled {
 .hint {
   color: var(--text-soft);
   margin: 0.25rem 0 0;
+}
+
+.offers-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.offers-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1160px;
+}
+
+.offers-table th,
+.offers-table td {
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 0.9rem;
+}
+
+.offers-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.offers-table td {
+  color: var(--text-muted);
+}
+
+.offers-table td a {
+  color: var(--link);
+  text-decoration: none;
+  display: inline-block;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-bottom: 0.75rem;
+}
+
+.stats-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.stats-box strong {
+  font-size: 1.25rem;
+}
+
+.stats-box span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
 .modal-backdrop {
@@ -401,6 +498,31 @@ button:disabled {
   width: auto;
   padding: 0;
   margin: 0;
+}
+
+.preference-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.preference-chip {
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--input-border);
+  font-size: 0.9rem;
+}
+
+.preference-chip--inactive {
+  background: #6b7280;
+  border-color: #6b7280;
+  color: #ffffff;
+}
+
+.preference-chip--active {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
 }
 
 .checkbox-field {
