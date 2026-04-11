@@ -496,6 +496,12 @@ button:disabled {
   color: #bbf7d0;
 }
 
+.offer-status-pill--red {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+}
+
 .offer-status-pill--neutral {
   background: var(--surface-2);
   border-color: var(--border);
@@ -549,10 +555,12 @@ button:disabled {
   position: fixed;
   inset: 0;
   background: var(--overlay);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1rem;
-  z-index: 20;
+  overflow-y: auto;
+  z-index: 60;
 }
 
 .modal {
@@ -562,6 +570,10 @@ button:disabled {
   border-radius: 14px;
   padding: 1rem;
   position: relative;
+  margin: 1rem 0;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
 }
 
 .modal h3 {
@@ -678,6 +690,36 @@ button:disabled {
   background: var(--surface);
   color: var(--text-main);
   border-color: var(--input-border);
+}
+
+.danger-btn {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+.danger-btn:hover {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+.danger-btn--keep-color-disabled:disabled {
+  opacity: 0.55;
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+.warning-btn {
+  background: #facc15;
+  border-color: #facc15;
+  color: #111111;
+}
+
+.warning-btn:hover {
+  background: #eab308;
+  border-color: #eab308;
+  color: #111111;
 }
 
 .item-actions {

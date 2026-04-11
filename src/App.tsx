@@ -77,7 +77,7 @@ type SortColumn =
   | "expiresAt"
   | "daysToExpire"
   | "source";
-type StatusTone = "blue" | "yellow" | "green" | "neutral";
+type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral";
 
 const I18N = {
   pl: {
@@ -184,6 +184,11 @@ const I18N = {
     edit: "Edytuj",
     save: "Zapisz",
     delete: "Usun",
+    cancel: "Anuluj",
+    confirmDeleteTitle: "Potwierdzenie usuniecia",
+    confirmDeleteText: "Czy na pewno chcesz usunac:",
+    confirmDeleteYes: "Tak",
+    confirmDeleteNo: "Nie",
     deleted: "Oferta usunieta",
     updated: "Oferta zaktualizowana",
     deleteConfirm: "Czy na pewno chcesz usunac te oferte?"
@@ -292,6 +297,11 @@ const I18N = {
     edit: "Edit",
     save: "Save",
     delete: "Delete",
+    cancel: "Cancel",
+    confirmDeleteTitle: "Delete confirmation",
+    confirmDeleteText: "Are you sure you want to delete:",
+    confirmDeleteYes: "Yes",
+    confirmDeleteNo: "No",
     deleted: "Offer deleted",
     updated: "Offer updated",
     deleteConfirm: "Are you sure you want to delete this offer?"
@@ -381,6 +391,56 @@ function serializeWorkingHoursSelection(values: string[]): string {
   return values.join(", ");
 }
 
+function normalizeDateForInput(value: string | null | undefined): string {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const dotted = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (dotted) {
+    const day = dotted[1].padStart(2, "0");
+    const month = dotted[2].padStart(2, "0");
+    const year = dotted[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = Date.parse(text);
+  if (!Number.isNaN(parsed)) {
+    return new Date(parsed).toISOString().slice(0, 10);
+  }
+
+  return "";
+}
+
+function normalizeOfferForEdit(offer: Offer): Offer {
+  return {
+    ...offer,
+    company: String(offer.company || ""),
+    role: String(offer.role || ""),
+    status: String(offer.status || "saved"),
+    location: offer.location || "",
+    notes: offer.notes || "",
+    appliedAt: normalizeDateForInput(offer.appliedAt),
+    datePosted: normalizeDateForInput(offer.datePosted),
+    expiresAt: normalizeDateForInput(offer.expiresAt),
+    source: offer.source || "",
+    sourceUrl: offer.sourceUrl || "",
+    employmentTypes: [...(offer.employmentTypes || [])],
+    workTime: offer.workTime || "",
+    workMode: offer.workMode || "",
+    shiftCount: offer.shiftCount || "",
+    workingHours: offer.workingHours || "",
+  };
+}
+
+function inferAppliedFromStatus(status: string | null | undefined): boolean {
+  const normalized = String(status || "").trim().toLowerCase();
+  return normalized !== "saved";
+}
+
 export function App() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
@@ -408,7 +468,7 @@ export function App() {
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("offers");
-  const [compactView, setCompactView] = useState(false);
+  const [compactView, setCompactView] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [showSearchInput, setShowSearchInput] = useState(false);
@@ -420,6 +480,7 @@ export function App() {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -443,6 +504,12 @@ export function App() {
     : /error|failed|invalid|http\s*\d+/i.test(message)
       ? "error"
       : "success";
+  const isSelectedOfferDirty = useMemo(() => {
+    if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
+    const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
+    const current = JSON.stringify(normalizeOfferForEdit(selectedOfferDraft));
+    return baseline !== current;
+  }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
 
   function setStatusMessage(nextMessage: string) {
     setMessage(nextMessage);
@@ -520,6 +587,13 @@ export function App() {
     }
     if (["offer", "umowienie na rozmowe", "umówienie na rozmowę", "rozmowa", "rozmowa umowiona"].includes(normalized)) {
       return "green";
+    }
+    if (
+      normalized.includes("rejected") ||
+      normalized.includes("odrzu") ||
+      normalized.includes("odmow")
+    ) {
+      return "red";
     }
     return "neutral";
   }
@@ -601,11 +675,9 @@ export function App() {
   }
 
   function openOfferDetails(offer: Offer) {
-    setSelectedOffer(offer);
-    setSelectedOfferDraft({
-      ...offer,
-      employmentTypes: [...(offer.employmentTypes || [])],
-    });
+    const normalized = normalizeOfferForEdit(offer);
+    setSelectedOffer(normalized);
+    setSelectedOfferDraft(normalized);
     setEditingSelectedOffer(false);
   }
 
@@ -613,6 +685,7 @@ export function App() {
     setSelectedOffer(null);
     setSelectedOfferDraft(null);
     setEditingSelectedOffer(false);
+    setShowDeleteConfirm(false);
   }
 
   function closeAddOfferModal() {
@@ -790,10 +863,14 @@ export function App() {
     setLoading(true);
 
     try {
+      const payload = {
+        ...offerForm,
+        applied: inferAppliedFromStatus(offerForm.status),
+      };
       const response = await fetch("/api/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(offerForm)
+        body: JSON.stringify(payload)
       });
 
       const data = (await response.json()) as { ok: boolean; error?: string };
@@ -1138,10 +1215,14 @@ export function App() {
 
     setLoading(true);
     try {
+      const payload = {
+        ...pendingOffer,
+        applied: inferAppliedFromStatus(pendingOffer.status),
+      };
       const response = await fetch("/api/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pendingOffer)
+        body: JSON.stringify(payload)
       });
 
       const data = (await response.json()) as { ok: boolean; error?: string };
@@ -1167,18 +1248,21 @@ export function App() {
 
     setLoading(true);
     try {
+      const payload = normalizeOfferForEdit(selectedOfferDraft);
+      payload.applied = inferAppliedFromStatus(payload.status);
       const response = await fetch(`/api/offers/${selectedOfferDraft.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(selectedOfferDraft),
+        body: JSON.stringify(payload),
       });
       const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
       if (!data.ok || !data.offer) {
         throw new Error(data.error || t.offerAddFailed);
       }
       await Promise.all([fetchOffers(), fetchStats()]);
-      setSelectedOffer(data.offer);
-      setSelectedOfferDraft(data.offer);
+      const normalized = normalizeOfferForEdit(data.offer);
+      setSelectedOffer(normalized);
+      setSelectedOfferDraft(normalized);
       setEditingSelectedOffer(false);
       setStatusMessage(t.updated);
     } catch (error) {
@@ -1189,8 +1273,11 @@ export function App() {
   }
 
   async function handleDeleteOfferDetails() {
+    setShowDeleteConfirm(true);
+  }
+
+  async function confirmDeleteOfferDetails() {
     if (!selectedOffer?.id) return;
-    if (!window.confirm(t.deleteConfirm)) return;
 
     setLoading(true);
     try {
@@ -1468,7 +1555,6 @@ export function App() {
                         {t.status}{getSortIndicator("status")}
                       </button>
                     </th>
-                    <th>{t.applied}</th>
                     {!compactView ? (
                       <th>
                       <button type="button" className="sort-btn" onClick={() => toggleSort("location", "text")}>
@@ -1532,7 +1618,6 @@ export function App() {
                           {offer.status || "-"}
                         </span>
                       </td>
-                      <td>{offer.applied ? t.yesApplied : t.noApplied}</td>
                       {!compactView ? <td>{offer.location || "-"}</td> : null}
                       <td>{offer.appliedAt || "-"}</td>
                       {!compactView ? <td>{offer.datePosted || "-"}</td> : null}
@@ -1691,20 +1776,6 @@ export function App() {
                     <option value="offer">offer</option>
                     <option value="rejected">rejected</option>
                   </select>
-                </label>
-                <label className="form-field checkbox-field">
-                  <span>{t.applied}</span>
-                  <input
-                    type="checkbox"
-                    checked={offerForm.applied}
-                    onChange={(event) =>
-                      setOfferForm((prev) => ({
-                        ...prev,
-                        applied: event.target.checked,
-                        status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
-                      }))
-                    }
-                  />
                 </label>
                 <label className="form-field">
                   <span>{t.location}</span>
@@ -1867,19 +1938,6 @@ export function App() {
                   <option value="rejected">rejected</option>
                 </select>
               </label>
-              <label className="form-field checkbox-field">
-                <span>{t.applied}</span>
-                <input
-                  type="checkbox"
-                  checked={Boolean(selectedOfferDraft.applied)}
-                  onChange={(event) =>
-                    setSelectedOfferDraft((prev) =>
-                      prev ? { ...prev, applied: event.target.checked } : prev
-                    )
-                  }
-                  disabled={!editingSelectedOffer}
-                />
-              </label>
               <label className="form-field">
                 <span>{t.location}</span>
                 <input
@@ -1992,23 +2050,76 @@ export function App() {
                 />
               </label>
               <div className="modal-actions span-2">
-                <button type="button" className="ghost-btn" onClick={closeOfferDetails}>
-                  {t.close}
-                </button>
                 {!editingSelectedOffer ? (
-                  <button type="button" className="ghost-btn" onClick={() => setEditingSelectedOffer(true)}>
+                  <button type="button" className="warning-btn" onClick={() => setEditingSelectedOffer(true)}>
                     {t.edit}
                   </button>
                 ) : (
-                  <button type="submit" disabled={loading}>
-                    {t.save}
+                  <button
+                    type="button"
+                    className="danger-btn"
+                    onClick={() => {
+                      setSelectedOfferDraft(selectedOffer ? normalizeOfferForEdit(selectedOffer) : null);
+                      setEditingSelectedOffer(false);
+                    }}
+                    disabled={loading}
+                  >
+                    {t.cancel}
                   </button>
                 )}
-                <button type="button" onClick={handleDeleteOfferDetails} disabled={loading}>
+                {editingSelectedOffer ? (
+                  <button type="submit" disabled={loading || !isSelectedOfferDirty}>
+                    {t.save}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="danger-btn danger-btn--keep-color-disabled"
+                  onClick={handleDeleteOfferDetails}
+                  disabled={loading || (editingSelectedOffer && !isSelectedOfferDirty)}
+                >
                   {t.delete}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showDeleteConfirm && selectedOffer ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="delete-confirm-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowDeleteConfirm(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.confirmDeleteTitle}</h3>
+            <p>{t.confirmDeleteText}</p>
+            <p>
+              <strong>{selectedOffer.company || "-"}</strong> - <strong>{selectedOffer.role || "-"}</strong>
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={loading}
+              >
+                {t.confirmDeleteNo}
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={confirmDeleteOfferDetails}
+                disabled={loading}
+              >
+                {t.confirmDeleteYes}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -2046,24 +2157,6 @@ export function App() {
                 onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, status: event.target.value } : prev))}
                 placeholder="Status"
               />
-              <label>
-                <input
-                  type="checkbox"
-                  checked={pendingOffer.applied}
-                  onChange={(event) =>
-                    setPendingOffer((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            applied: event.target.checked,
-                            status: event.target.checked ? prev.status || "applied" : prev.status || "saved"
-                          }
-                        : prev
-                    )
-                  }
-                />
-                Aplikowano
-              </label>
               <input
                 value={pendingOffer.location || ""}
                 onChange={(event) => setPendingOffer((prev) => (prev ? { ...prev, location: event.target.value } : prev))}
