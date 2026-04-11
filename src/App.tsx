@@ -11,6 +11,11 @@ type Offer = {
   appliedAt?: string | null;
   source?: string | null;
   sourceUrl?: string | null;
+  employmentTypes?: string[] | null;
+  workTime?: string | null;
+  workMode?: string | null;
+  shiftCount?: string | null;
+  workingHours?: string | null;
 };
 
 type ScrapedJob = {
@@ -20,6 +25,19 @@ type ScrapedJob = {
   location: string | null;
   url: string | null;
   datePosted: string | null;
+  employmentTypes?: string[] | null;
+  workTime?: string | null;
+  workMode?: string | null;
+  shiftCount?: string | null;
+  workingHours?: string | null;
+};
+
+type UserPreferences = {
+  preferredContractTypes: string[];
+  preferredWorkTimes: string[];
+  preferredWorkModes: string[];
+  preferredShiftCounts: string[];
+  preferredWorkingHours: string;
 };
 
 type ThemeMode = "auto" | "light" | "dark";
@@ -40,6 +58,16 @@ const I18N = {
     hideImport: "Ukryj Import Excel",
     showImport: "Pokaz Import Excel",
     exportExcel: "Eksportuj Oferty do Excel",
+    preferences: "Preferencje",
+    savePreferences: "Zapisz preferencje",
+    preferencesSaved: "Preferencje zapisane",
+    preferencesLoadFailed: "Nie udalo sie pobrac preferencji",
+    preferencesSaveFailed: "Nie udalo sie zapisac preferencji",
+    contractTypes: "Typ umowy",
+    workTimes: "Czas pracy",
+    workModes: "Forma pracy",
+    shiftCounts: "Ilosc zmian",
+    workHoursRange: "Zakres czasu pracy",
     importExcel: "Import Excel",
     import: "Import",
     noOffers: "Nie masz jeszcze dodanych ofert.",
@@ -92,6 +120,16 @@ const I18N = {
     hideImport: "Hide Excel Import",
     showImport: "Show Excel Import",
     exportExcel: "Export Offers to Excel",
+    preferences: "Preferences",
+    savePreferences: "Save preferences",
+    preferencesSaved: "Preferences saved",
+    preferencesLoadFailed: "Failed to fetch preferences",
+    preferencesSaveFailed: "Failed to save preferences",
+    contractTypes: "Contract types",
+    workTimes: "Working time",
+    workModes: "Work mode",
+    shiftCounts: "Shifts count",
+    workHoursRange: "Working hours range",
     importExcel: "Import Excel",
     import: "Import",
     noOffers: "You don't have any offers yet.",
@@ -133,6 +171,18 @@ const I18N = {
   }
 } as const;
 
+const CONTRACT_TYPES = [
+  "umowa o pracę",
+  "umowa b2b",
+  "umowa zlecenie",
+  "umowa o dzieło",
+  "umowa agencyjna",
+  "samozatrudnienie",
+];
+const WORK_TIMES = ["pełny etat", "pół etatu"];
+const WORK_MODES = ["stacjonarna", "hybrydowa", "zdalna"];
+const SHIFT_COUNTS = ["jedna zmiana", "dwie zmiany", "trzy zmiany"];
+
 function isAbsoluteHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -156,7 +206,22 @@ function createDefaultOffer(): Offer {
     notes: "",
     appliedAt: getTodayDate(),
     source: "manual",
-    sourceUrl: ""
+    sourceUrl: "",
+    employmentTypes: [],
+    workTime: "",
+    workMode: "",
+    shiftCount: "",
+    workingHours: "",
+  };
+}
+
+function createDefaultPreferences(): UserPreferences {
+  return {
+    preferredContractTypes: [],
+    preferredWorkTimes: [],
+    preferredWorkModes: [],
+    preferredShiftCounts: [],
+    preferredWorkingHours: "",
   };
 }
 
@@ -178,6 +243,8 @@ export function App() {
   const [showImportExcel, setShowImportExcel] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -240,13 +307,63 @@ export function App() {
     setOffers(data.offers || []);
   }
 
+  async function fetchPreferences() {
+    const response = await fetch("/api/preferences");
+    const data = (await response.json()) as {
+      ok: boolean;
+      preferences?: Partial<UserPreferences>;
+      error?: string;
+    };
+    if (!data.ok) {
+      throw new Error(data.error || t.preferencesLoadFailed);
+    }
+
+    const prefs = data.preferences || {};
+    setPreferences({
+      preferredContractTypes: Array.isArray(prefs.preferredContractTypes) ? prefs.preferredContractTypes : [],
+      preferredWorkTimes: Array.isArray(prefs.preferredWorkTimes) ? prefs.preferredWorkTimes : [],
+      preferredWorkModes: Array.isArray(prefs.preferredWorkModes) ? prefs.preferredWorkModes : [],
+      preferredShiftCounts: Array.isArray(prefs.preferredShiftCounts) ? prefs.preferredShiftCounts : [],
+      preferredWorkingHours: String(prefs.preferredWorkingHours || ""),
+    });
+  }
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchOffers()])
+    Promise.all([fetchOffers(), fetchPreferences()])
       .then(() => setStatusMessage(t.dataLoaded))
       .catch((error) => setStatusMessage(String(error)))
       .finally(() => setLoading(false));
   }, [language]);
+
+  function handleSingleSelectChange(field: keyof Omit<UserPreferences, "preferredWorkingHours">, value: string) {
+    setPreferences((prev) => ({
+      ...prev,
+      [field]: value ? [value] : [],
+    }));
+  }
+
+  async function handleSavePreferences(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const response = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(preferences),
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!data.ok) {
+        throw new Error(data.error || t.preferencesSaveFailed);
+      }
+      setStatusMessage(t.preferencesSaved);
+      setShowPreferences(false);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -329,6 +446,11 @@ export function App() {
           company?: string | null;
           location?: string | null;
           url?: string | null;
+          employmentTypes?: string[] | null;
+          workTime?: string | null;
+          workMode?: string | null;
+          shiftCount?: string | null;
+          workingHours?: string | null;
         };
       };
       if (!data.ok || !data.job) {
@@ -341,7 +463,12 @@ export function App() {
         role: data.job?.title || prev.role,
         location: data.job?.location || prev.location || "",
         source: data.job?.source || prev.source || "manual",
-        sourceUrl: data.job?.url || addOfferUrl
+        sourceUrl: data.job?.url || addOfferUrl,
+        employmentTypes: data.job?.employmentTypes || prev.employmentTypes || [],
+        workTime: data.job?.workTime || prev.workTime || "",
+        workMode: data.job?.workMode || prev.workMode || "",
+        shiftCount: data.job?.shiftCount || prev.shiftCount || "",
+        workingHours: data.job?.workingHours || prev.workingHours || "",
       }));
       setShowAddOfferForm(true);
       setStatusMessage(t.linkFetched);
@@ -426,7 +553,12 @@ export function App() {
           notes: "",
           appliedAt: new Date().toISOString().slice(0, 10),
           source: jobs[0].source,
-          sourceUrl: jobs[0].url
+          sourceUrl: jobs[0].url,
+          employmentTypes: jobs[0].employmentTypes || [],
+          workTime: jobs[0].workTime || "",
+          workMode: jobs[0].workMode || "",
+          shiftCount: jobs[0].shiftCount || "",
+          workingHours: jobs[0].workingHours || "",
         });
         setPendingScrapedIndex(0);
       }
@@ -447,7 +579,12 @@ export function App() {
       notes: "",
       appliedAt: new Date().toISOString().slice(0, 10),
       source: job.source,
-      sourceUrl: job.url
+      sourceUrl: job.url,
+      employmentTypes: job.employmentTypes || [],
+      workTime: job.workTime || "",
+      workMode: job.workMode || "",
+      shiftCount: job.shiftCount || "",
+      workingHours: job.workingHours || "",
     });
     setPendingScrapedIndex(index);
   }
@@ -592,6 +729,16 @@ export function App() {
                 </button>
                 <button
                   type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowPreferences(true);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {t.preferences}
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     exportExcel();
                     setShowUserMenu(false);
@@ -654,6 +801,11 @@ export function App() {
                   </a>
                 ) : null}
                 {offer.notes ? <p>{offer.notes}</p> : null}
+                {offer.employmentTypes?.length || offer.workTime || offer.workMode || offer.shiftCount || offer.workingHours ? (
+                  <p>
+                    {(offer.employmentTypes || []).join(", ") || "-"} | {offer.workTime || "-"} | {offer.workMode || "-"} | {offer.shiftCount || "-"} | {offer.workingHours || "-"}
+                  </p>
+                ) : null}
               </div>
             </article>
           ))}
@@ -797,6 +949,51 @@ export function App() {
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, notes: event.target.value }))}
                   />
                 </label>
+                <label className="form-field span-2">
+                  <span>{t.contractTypes}</span>
+                  <input
+                    value={(offerForm.employmentTypes || []).join(", ")}
+                    onChange={(event) =>
+                      setOfferForm((prev) => ({
+                        ...prev,
+                        employmentTypes: event.target.value
+                          .split(",")
+                          .map((v) => v.trim())
+                          .filter(Boolean),
+                      }))
+                    }
+                    placeholder="umowa o pracę, umowa b2b"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>{t.workTimes}</span>
+                  <input
+                    value={offerForm.workTime || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, workTime: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>{t.workModes}</span>
+                  <input
+                    value={offerForm.workMode || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, workMode: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>{t.shiftCounts}</span>
+                  <input
+                    value={offerForm.shiftCount || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, shiftCount: event.target.value }))}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>{t.workHoursRange}</span>
+                  <input
+                    value={offerForm.workingHours || ""}
+                    onChange={(event) => setOfferForm((prev) => ({ ...prev, workingHours: event.target.value }))}
+                    placeholder="08:00-16:00"
+                  />
+                </label>
                 <div className="modal-actions span-2">
                   <button
                     type="button"
@@ -916,6 +1113,111 @@ export function App() {
                 </button>
                 <button type="submit" disabled={loading}>
                   Save To Database
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showPreferences ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="preferences-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowPreferences(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.preferences}</h3>
+            <form className="grid" onSubmit={handleSavePreferences}>
+              <label className="form-field span-2">
+                <span>{t.contractTypes}</span>
+                <select
+                  value={preferences.preferredContractTypes[0] || ""}
+                  onChange={(event) =>
+                    handleSingleSelectChange("preferredContractTypes", event.target.value)
+                  }
+                >
+                  <option value="">-</option>
+                  {CONTRACT_TYPES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field span-2">
+                <span>{t.workTimes}</span>
+                <select
+                  value={preferences.preferredWorkTimes[0] || ""}
+                  onChange={(event) =>
+                    handleSingleSelectChange("preferredWorkTimes", event.target.value)
+                  }
+                >
+                  <option value="">-</option>
+                  {WORK_TIMES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field span-2">
+                <span>{t.workModes}</span>
+                <select
+                  value={preferences.preferredWorkModes[0] || ""}
+                  onChange={(event) =>
+                    handleSingleSelectChange("preferredWorkModes", event.target.value)
+                  }
+                >
+                  <option value="">-</option>
+                  {WORK_MODES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field span-2">
+                <span>{t.shiftCounts}</span>
+                <select
+                  value={preferences.preferredShiftCounts[0] || ""}
+                  onChange={(event) =>
+                    handleSingleSelectChange("preferredShiftCounts", event.target.value)
+                  }
+                >
+                  <option value="">-</option>
+                  {SHIFT_COUNTS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field span-2">
+                <span>{t.workHoursRange}</span>
+                <input
+                  value={preferences.preferredWorkingHours}
+                  onChange={(event) =>
+                    setPreferences((prev) => ({ ...prev, preferredWorkingHours: event.target.value }))
+                  }
+                  placeholder="np. 08:00-16:00"
+                />
+              </label>
+
+              <div className="modal-actions span-2">
+                <button type="button" className="ghost-btn" onClick={() => setShowPreferences(false)} disabled={loading}>
+                  {t.close}
+                </button>
+                <button type="submit" disabled={loading}>
+                  {t.savePreferences}
                 </button>
               </div>
             </form>

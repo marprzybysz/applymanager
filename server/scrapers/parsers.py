@@ -8,6 +8,30 @@ from bs4 import BeautifulSoup
 
 JSON_LD_SELECTOR = "script[type='application/ld+json']"
 JOB_POSTING_TYPE = "JobPosting"
+CONTRACT_KEYWORDS = [
+    "umowa o prace",
+    "umowa b2b",
+    "b2b",
+    "umowa zlecenie",
+    "umowa o dzielo",
+    "umowa agencyjna",
+    "samozatrudnienie",
+]
+WORK_TIME_KEYWORDS = [
+    "pelny etat",
+    "pol etatu",
+    "czesc etatu",
+]
+WORK_MODE_KEYWORDS = [
+    "stacjonarna",
+    "hybrydowa",
+    "zdalna",
+]
+SHIFT_KEYWORDS = [
+    "jedna zmiana",
+    "dwie zmiany",
+    "trzy zmiany",
+]
 
 
 def clean_text(value: Any) -> str | None:
@@ -117,6 +141,52 @@ def _extract_pracuj_employer_name_from_html(html: str, source: str) -> str | Non
     return clean_text(decoded)
 
 
+def _normalize_keyword(value: str) -> str:
+    return (
+        value.lower()
+        .replace("ą", "a")
+        .replace("ć", "c")
+        .replace("ę", "e")
+        .replace("ł", "l")
+        .replace("ń", "n")
+        .replace("ó", "o")
+        .replace("ś", "s")
+        .replace("ż", "z")
+        .replace("ź", "z")
+    )
+
+
+def _extract_pracuj_conditions_from_html(html: str, source: str) -> dict[str, Any]:
+    if source != "pracuj":
+        return {}
+
+    text = _normalize_keyword(re.sub(r"\s+", " ", html))
+
+    contracts: list[str] = []
+    for keyword in CONTRACT_KEYWORDS:
+        if keyword in text:
+            label = keyword
+            if keyword == "b2b":
+                label = "umowa b2b"
+            if label not in contracts:
+                contracts.append(label)
+
+    work_time = next((keyword for keyword in WORK_TIME_KEYWORDS if keyword in text), None)
+    work_mode = next((keyword for keyword in WORK_MODE_KEYWORDS if keyword in text), None)
+    shift_count = next((keyword for keyword in SHIFT_KEYWORDS if keyword in text), None)
+
+    working_hours_match = re.search(r"\b(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})\b", text)
+    working_hours = clean_text(working_hours_match.group(1)) if working_hours_match else None
+
+    return {
+        "employmentTypes": contracts,
+        "workTime": work_time,
+        "workMode": work_mode,
+        "shiftCount": shift_count,
+        "workingHours": working_hours,
+    }
+
+
 def parse_jobs_from_json_ld(html: str, source: str) -> list[dict[str, Any]]:
     soup = BeautifulSoup(html, "html.parser")
     json_ld = _read_json_ld_objects(soup)
@@ -168,6 +238,7 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
     parsed_pracuj = _parse_pracuj_title_meta(doc_title, source)
     parsed_role = parsed_rocket.get("role") or parsed_pracuj.get("role")
     parsed_company = parsed_rocket.get("company") or parsed_pracuj.get("company")
+    pracuj_conditions = _extract_pracuj_conditions_from_html(html, source)
 
     pracuj_employer = _extract_pracuj_employer_name_from_html(html, source)
     title = og_title or parsed_role
@@ -189,5 +260,10 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
         "datePosted": None,
         "validThrough": None,
         "salary": None,
+        "employmentTypes": pracuj_conditions.get("employmentTypes"),
+        "workTime": pracuj_conditions.get("workTime"),
+        "workMode": pracuj_conditions.get("workMode"),
+        "shiftCount": pracuj_conditions.get("shiftCount"),
+        "workingHours": pracuj_conditions.get("workingHours"),
         "raw": {"from": "meta"},
     }

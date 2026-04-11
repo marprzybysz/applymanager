@@ -44,4 +44,30 @@ def ensure_schema() -> None:
             cur.execute("ALTER TABLE applications ALTER COLUMN applied SET NOT NULL")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source TEXT")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source_url TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_types TEXT[]")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS work_time TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS work_mode TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS shift_count TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS working_hours TEXT")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                  id SMALLINT PRIMARY KEY DEFAULT 1,
+                  preferred_contract_types TEXT[] NOT NULL DEFAULT '{}',
+                  preferred_work_times TEXT[] NOT NULL DEFAULT '{}',
+                  preferred_work_modes TEXT[] NOT NULL DEFAULT '{}',
+                  preferred_shift_counts TEXT[] NOT NULL DEFAULT '{}',
+                  preferred_working_hours TEXT,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                INSERT INTO user_preferences (id)
+                VALUES (1)
+                ON CONFLICT (id) DO NOTHING
+                """
+            )
         conn.commit()

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse, Response
 from server.modules.common import to_non_empty_string
 from server.modules.db import get_connection
 from server.modules.offers import export_offers_to_excel_bytes, import_offers_from_excel, insert_offer, list_offers, map_offer_for_insert_from_request
+from server.modules.preferences import get_preferences, save_preferences
 from server.modules.registry import get_module_usage
 from server.modules.scrape import list_sources, normalize_scrape_url, scrape_query_or_link, scrape_single_url
 
@@ -33,6 +34,24 @@ def health():
 @router.get("/modules")
 def modules_overview():
     return {"ok": True, **get_module_usage()}
+
+
+@router.get("/preferences")
+def read_preferences():
+    try:
+        return {"ok": True, "preferences": get_preferences()}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.put("/preferences")
+async def update_preferences(request: Request):
+    try:
+        body = await request.json()
+        saved = save_preferences(body or {})
+        return {"ok": True, "preferences": saved}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
 
 @router.get("/offers")

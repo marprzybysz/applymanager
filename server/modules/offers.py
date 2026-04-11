@@ -46,6 +46,11 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
         "appliedAt": body.get("appliedAt"),
         "source": to_non_empty_string(body.get("source")),
         "sourceUrl": to_non_empty_string(body.get("sourceUrl")),
+        "employmentTypes": [str(v).strip() for v in (body.get("employmentTypes") or []) if str(v).strip()],
+        "workTime": to_non_empty_string(body.get("workTime")),
+        "workMode": to_non_empty_string(body.get("workMode")),
+        "shiftCount": to_non_empty_string(body.get("shiftCount")),
+        "workingHours": to_non_empty_string(body.get("workingHours")),
     }
 
 
@@ -114,6 +119,11 @@ def list_offers() -> list[dict[str, Any]]:
                     applied_at AS "appliedAt",
                     source,
                     source_url AS "sourceUrl",
+                    employment_types AS "employmentTypes",
+                    work_time AS "workTime",
+                    work_mode AS "workMode",
+                    shift_count AS "shiftCount",
+                    working_hours AS "workingHours",
                     created_at AS "createdAt"
                 FROM applications
                 ORDER BY created_at DESC
@@ -129,10 +139,16 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                INSERT INTO applications (company, role, applied, status, location, notes, applied_at, source, source_url)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO applications (
+                    company, role, applied, status, location, notes, applied_at, source, source_url,
+                    employment_types, work_time, work_mode, shift_count, working_hours
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, company, role, applied, status, location, notes,
-                          applied_at AS "appliedAt", source, source_url AS "sourceUrl", created_at AS "createdAt"
+                          applied_at AS "appliedAt", source, source_url AS "sourceUrl",
+                          employment_types AS "employmentTypes", work_time AS "workTime",
+                          work_mode AS "workMode", shift_count AS "shiftCount",
+                          working_hours AS "workingHours", created_at AS "createdAt"
                 """,
                 (
                     offer["company"],
@@ -144,6 +160,11 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
                     safe_date(offer.get("appliedAt")),
                     offer.get("source") or None,
                     offer.get("sourceUrl") or None,
+                    offer.get("employmentTypes") or None,
+                    offer.get("workTime") or None,
+                    offer.get("workMode") or None,
+                    offer.get("shiftCount") or None,
+                    offer.get("workingHours") or None,
                 ),
             )
             row = cur.fetchone()
@@ -173,7 +194,23 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
     worksheet = workbook.active
     worksheet.title = "applications"
 
-    headers = ["company", "role", "applied", "status", "location", "notes", "appliedAt", "source", "sourceUrl", "createdAt"]
+    headers = [
+        "company",
+        "role",
+        "applied",
+        "status",
+        "location",
+        "notes",
+        "appliedAt",
+        "source",
+        "sourceUrl",
+        "employmentTypes",
+        "workTime",
+        "workMode",
+        "shiftCount",
+        "workingHours",
+        "createdAt",
+    ]
     worksheet.append(headers)
 
     for offer in offers:
@@ -188,6 +225,11 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
                 safe_date(offer.get("appliedAt")) or "",
                 offer.get("source") or "",
                 offer.get("sourceUrl") or "",
+                ", ".join(offer.get("employmentTypes") or []),
+                offer.get("workTime") or "",
+                offer.get("workMode") or "",
+                offer.get("shiftCount") or "",
+                offer.get("workingHours") or "",
                 str(offer.get("createdAt") or ""),
             ]
         )

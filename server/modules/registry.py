@@ -17,6 +17,11 @@ MODULES = [
         "usedIn": {"web": True, "local": True},
     },
     {
+        "name": "preferences",
+        "description": "Preferencje użytkownika (typ umowy, czas i forma pracy, zmiany)",
+        "usedIn": {"web": True, "local": True},
+    },
+    {
         "name": "static-web-build",
         "description": "Serwowanie React dist przez FastAPI",
         "usedIn": {"web": True, "local": False},

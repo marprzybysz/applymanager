@@ -102,6 +102,11 @@ def normalize_job(job: dict[str, Any], source: str) -> dict[str, Any]:
         "datePosted": normalize_date_only(job.get("datePosted")),
         "expiresAt": normalize_date_only(job.get("validThrough") or job.get("expiresAt")),
         "salary": job.get("salary"),
+        "employmentTypes": job.get("employmentTypes") if isinstance(job.get("employmentTypes"), list) else [],
+        "workTime": normalize_text(job.get("workTime")),
+        "workMode": normalize_text(job.get("workMode")),
+        "shiftCount": normalize_text(job.get("shiftCount")),
+        "workingHours": normalize_text(job.get("workingHours")),
         "raw": job.get("raw"),
     }
     return with_recruitment_window(normalized)
@@ -188,6 +193,11 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
     merged["datePosted"] = normalize_date_only((from_json_ld_first or {}).get("datePosted")) or normalize_date_only((from_meta or {}).get("datePosted"))
     merged["expiresAt"] = normalize_date_only((from_json_ld_first or {}).get("validThrough")) or normalize_date_only((from_meta or {}).get("validThrough"))
     merged["salary"] = (from_json_ld_first or {}).get("salary") or (from_meta or {}).get("salary")
+    merged["employmentTypes"] = (from_json_ld_first or {}).get("employmentTypes") or (from_meta or {}).get("employmentTypes") or []
+    merged["workTime"] = (from_json_ld_first or {}).get("workTime") or (from_meta or {}).get("workTime")
+    merged["workMode"] = (from_json_ld_first or {}).get("workMode") or (from_meta or {}).get("workMode")
+    merged["shiftCount"] = (from_json_ld_first or {}).get("shiftCount") or (from_meta or {}).get("shiftCount")
+    merged["workingHours"] = (from_json_ld_first or {}).get("workingHours") or (from_meta or {}).get("workingHours")
     merged["raw"] = (from_json_ld_first or {}).get("raw") or (from_meta or {}).get("raw")
 
     return with_recruitment_window(
@@ -200,6 +210,11 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
             "datePosted": normalize_date_only(merged.get("datePosted")),
             "expiresAt": normalize_date_only(merged.get("expiresAt")),
             "salary": merged.get("salary"),
+            "employmentTypes": merged.get("employmentTypes"),
+            "workTime": normalize_text(merged.get("workTime")),
+            "workMode": normalize_text(merged.get("workMode")),
+            "shiftCount": normalize_text(merged.get("shiftCount")),
+            "workingHours": normalize_text(merged.get("workingHours")),
             "raw": merged.get("raw"),
         }
     )
