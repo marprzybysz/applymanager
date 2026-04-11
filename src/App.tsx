@@ -23,6 +23,7 @@ type ScrapedJob = {
 };
 
 type ThemeMode = "auto" | "light" | "dark";
+type AddOfferMode = "link" | "manual";
 
 function isAbsoluteHttpUrl(value: string) {
   try {
@@ -33,21 +34,27 @@ function isAbsoluteHttpUrl(value: string) {
   }
 }
 
-const DEFAULT_OFFER: Offer = {
-  company: "",
-  role: "",
-  applied: true,
-  status: "applied",
-  location: "",
-  notes: "",
-  appliedAt: "",
-  source: "manual",
-  sourceUrl: ""
-};
+function getTodayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function createDefaultOffer(): Offer {
+  return {
+    company: "",
+    role: "",
+    applied: true,
+    status: "applied",
+    location: "",
+    notes: "",
+    appliedAt: getTodayDate(),
+    source: "manual",
+    sourceUrl: ""
+  };
+}
 
 export function App() {
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [offerForm, setOfferForm] = useState<Offer>(DEFAULT_OFFER);
+  const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
   const [scrapeQuery, setScrapeQuery] = useState("frontend react");
   const [scrapedJobs, setScrapedJobs] = useState<ScrapedJob[]>([]);
   const [pendingOffer, setPendingOffer] = useState<Offer | null>(null);
@@ -59,6 +66,7 @@ export function App() {
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [addOfferUrl, setAddOfferUrl] = useState("");
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
+  const [addOfferMode, setAddOfferMode] = useState<AddOfferMode>("link");
   const [showImportExcel, setShowImportExcel] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -83,6 +91,30 @@ export function App() {
   function setStatusMessage(nextMessage: string) {
     setMessage(nextMessage);
     setShowStatus(true);
+  }
+
+  function openAddOfferModal() {
+    setShowAddOffer(true);
+    setShowAddOfferForm(false);
+    setAddOfferMode("link");
+    setAddOfferUrl("");
+    setOfferForm(createDefaultOffer());
+    setShowUserMenu(false);
+    setShowSettingsMenu(false);
+  }
+
+  function closeAddOfferModal() {
+    setShowAddOffer(false);
+    setShowAddOfferForm(false);
+    setAddOfferUrl("");
+  }
+
+  function toggleAddOfferModal() {
+    if (showAddOffer) {
+      closeAddOfferModal();
+      return;
+    }
+    openAddOfferModal();
   }
 
   async function fetchOffers() {
@@ -136,7 +168,7 @@ export function App() {
         throw new Error(data.error || "Failed to add offer");
       }
 
-      setOfferForm(DEFAULT_OFFER);
+      setOfferForm(createDefaultOffer());
       setAddOfferUrl("");
       setShowAddOfferForm(false);
       setShowAddOffer(false);
@@ -364,14 +396,7 @@ export function App() {
           <button
             type="button"
             className="add-offer-btn"
-            onClick={() => {
-              setShowAddOffer(true);
-              setShowAddOfferForm(false);
-              setAddOfferUrl("");
-              setOfferForm(DEFAULT_OFFER);
-              setShowUserMenu(false);
-              setShowSettingsMenu(false);
-            }}
+            onClick={toggleAddOfferModal}
           >
             Dodaj
           </button>
@@ -419,13 +444,7 @@ export function App() {
                 <button
                   type="button"
                   className="ghost-btn"
-                  onClick={() => {
-                    setShowAddOffer(true);
-                    setShowAddOfferForm(false);
-                    setAddOfferUrl("");
-                    setOfferForm(DEFAULT_OFFER);
-                    setShowUserMenu(false);
-                  }}
+                  onClick={openAddOfferModal}
                 >
                   Dodaj oferte
                 </button>
@@ -513,20 +532,59 @@ export function App() {
       {showAddOffer ? (
         <div className="modal-backdrop">
           <div className="modal" id="add-offer">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={closeAddOfferModal}
+              aria-label="Zamknij okno dodawania oferty"
+            >
+              X
+            </button>
             <h3>Dodaj Oferte</h3>
-            <form className="row" onSubmit={handleScrapeAddOfferLink}>
-              <input
-                value={addOfferUrl}
-                onChange={(event) => setAddOfferUrl(event.target.value)}
-                placeholder="Wklej link do oferty (np. pracuj.pl)"
-                required
-              />
-              <button type="submit" disabled={loading}>
-                Pobierz
+            <div className="row">
+              <button
+                type="button"
+                className={addOfferMode === "link" ? "" : "ghost-btn"}
+                onClick={() => {
+                  setAddOfferMode("link");
+                  setShowAddOfferForm(false);
+                }}
+              >
+                Wklej link
               </button>
-            </form>
+              <button
+                type="button"
+                className={addOfferMode === "manual" ? "" : "ghost-btn"}
+                onClick={() => {
+                  setAddOfferMode("manual");
+                  setOfferForm((prev) => ({
+                    ...prev,
+                    source: prev.source || "manual",
+                    sourceUrl: prev.sourceUrl || addOfferUrl || ""
+                  }));
+                }}
+              >
+                Manualnie
+              </button>
+            </div>
 
-            {showAddOfferForm ? (
+            {addOfferMode === "link" ? (
+              <form className="row" onSubmit={handleScrapeAddOfferLink}>
+                <input
+                  value={addOfferUrl}
+                  onChange={(event) => setAddOfferUrl(event.target.value)}
+                  placeholder="Wklej link do oferty (np. pracuj.pl)"
+                  required
+                />
+                <button type="submit" disabled={loading}>
+                  Pobierz
+                </button>
+              </form>
+            ) : (
+              <p className="hint">Tryb manualny: uzupelnij pola ponizej i zapisz oferte.</p>
+            )}
+
+            {showAddOfferForm || addOfferMode === "manual" ? (
               <form className="grid" onSubmit={handleAddOffer}>
                 <label className="form-field">
                   <span>Firma</span>
@@ -598,7 +656,6 @@ export function App() {
                   <input
                     value={offerForm.sourceUrl || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
-                    required
                   />
                 </label>
                 <label className="form-field span-2">
@@ -612,11 +669,7 @@ export function App() {
                   <button
                     type="button"
                     className="ghost-btn"
-                    onClick={() => {
-                      setShowAddOffer(false);
-                      setShowAddOfferForm(false);
-                      setAddOfferUrl("");
-                    }}
+                    onClick={closeAddOfferModal}
                     disabled={loading}
                   >
                     Zamknij
@@ -634,6 +687,17 @@ export function App() {
       {pendingOffer ? (
         <div className="modal-backdrop">
           <div className="modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => {
+                setPendingOffer(null);
+                setPendingScrapedIndex(null);
+              }}
+              aria-label="Zamknij okno zapisu oferty"
+            >
+              X
+            </button>
             <h3>Confirm And Save Offer</h3>
             <form className="grid" onSubmit={confirmSavePendingOffer}>
               <input

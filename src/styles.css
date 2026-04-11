@@ -334,10 +334,31 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1rem;
+  position: relative;
 }
 
 .modal h3 {
   margin: 0 0 0.85rem;
+  padding-right: 2rem;
+}
+
+.modal-close {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.7rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  padding: 0;
+  line-height: 1;
+  font-weight: 700;
+  background: var(--surface-2);
+  border-color: var(--input-border);
+  color: var(--text-main);
+}
+
+.modal-close:hover {
+  background: var(--surface);
 }
 
 .form-field {
