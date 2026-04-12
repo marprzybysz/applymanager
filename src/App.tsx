@@ -703,6 +703,8 @@ export function App() {
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
+  const [sortAnimating, setSortAnimating] = useState(false);
+  const sortAnimationTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
@@ -827,6 +829,11 @@ export function App() {
   function getSortIndicator(column: SortColumn) {
     if (sortColumn !== column || sortDirection === "none") return "";
     return sortDirection === "asc" ? " ↑" : " ↓";
+  }
+
+  function getSortButtonClass(column: SortColumn) {
+    const isActive = sortColumn === column && sortDirection !== "none";
+    return `sort-btn${isActive ? " sort-btn--active" : ""}${isActive && sortAnimating ? " sort-btn--animating" : ""}`;
   }
 
   function getOfferStatusTone(status: string | null | undefined): StatusTone {
@@ -1173,6 +1180,27 @@ export function App() {
       searchInputRef.current?.focus();
     });
   }, [showSearchInput, dockOfferToolsToHeader]);
+
+  useEffect(() => {
+    if (!sortColumn || sortDirection === "none") return;
+    if (sortAnimationTimerRef.current !== null) {
+      window.clearTimeout(sortAnimationTimerRef.current);
+    }
+    setSortAnimating(true);
+    sortAnimationTimerRef.current = window.setTimeout(() => {
+      setSortAnimating(false);
+      sortAnimationTimerRef.current = null;
+    }, 220);
+  }, [sortColumn, sortDirection]);
+
+  useEffect(
+    () => () => {
+      if (sortAnimationTimerRef.current !== null) {
+        window.clearTimeout(sortAnimationTimerRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (activeTopTab !== "offers") {
@@ -2231,56 +2259,56 @@ export function App() {
                 <thead>
                   <tr>
                     <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("role", "text")}>
+                      <button type="button" className={getSortButtonClass("role")} onClick={() => toggleSort("role", "text")}>
                         {t.role}{getSortIndicator("role")}
                       </button>
                     </th>
                     <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("company", "text")}>
+                      <button type="button" className={getSortButtonClass("company")} onClick={() => toggleSort("company", "text")}>
                         {t.company}{getSortIndicator("company")}
                       </button>
                     </th>
                     <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("status", "text")}>
+                      <button type="button" className={getSortButtonClass("status")} onClick={() => toggleSort("status", "text")}>
                         {t.status}{getSortIndicator("status")}
                       </button>
                     </th>
                     {!compactView ? (
                       <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("location", "text")}>
+                      <button type="button" className={getSortButtonClass("location")} onClick={() => toggleSort("location", "text")}>
                         {t.location}{getSortIndicator("location")}
                       </button>
                       </th>
                     ) : null}
                     <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("appliedAt", "date")}>
+                      <button type="button" className={getSortButtonClass("appliedAt")} onClick={() => toggleSort("appliedAt", "date")}>
                         {t.appliedAt}{getSortIndicator("appliedAt")}
                       </button>
                     </th>
                     {!compactView ? (
                       <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("datePosted", "date")}>
+                      <button type="button" className={getSortButtonClass("datePosted")} onClick={() => toggleSort("datePosted", "date")}>
                         Data publikacji{getSortIndicator("datePosted")}
                       </button>
                       </th>
                     ) : null}
                     {!compactView ? (
                       <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("expiresAt", "date")}>
+                      <button type="button" className={getSortButtonClass("expiresAt")} onClick={() => toggleSort("expiresAt", "date")}>
                         Wygasa{getSortIndicator("expiresAt")}
                       </button>
                       </th>
                     ) : null}
                     {!compactView ? (
                       <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("daysToExpire", "number")}>
+                      <button type="button" className={getSortButtonClass("daysToExpire")} onClick={() => toggleSort("daysToExpire", "number")}>
                         Dni do końca{getSortIndicator("daysToExpire")}
                       </button>
                       </th>
                     ) : null}
                     {!compactView ? (
                       <th>
-                      <button type="button" className="sort-btn" onClick={() => toggleSort("source", "text")}>
+                      <button type="button" className={getSortButtonClass("source")} onClick={() => toggleSort("source", "text")}>
                         {t.source}{getSortIndicator("source")}
                       </button>
                       </th>
@@ -2293,7 +2321,7 @@ export function App() {
                     {!compactView ? <th>{t.notes}</th> : null}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
                   {visibleOffers.map((offer, index) => (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
