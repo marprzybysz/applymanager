@@ -264,6 +264,7 @@ const I18N = {
     cancel: "Anuluj",
     confirmDeleteTitle: "Potwierdzenie usuniecia",
     confirmDeleteText: "Czy na pewno chcesz usunac:",
+    confirmBulkDeleteText: "Czy na pewno chcesz usunac zaznaczone oferty:",
     confirmDeleteYes: "Tak",
     confirmDeleteNo: "Nie",
     deleted: "Oferta usunieta",
@@ -423,6 +424,7 @@ const I18N = {
     cancel: "Cancel",
     confirmDeleteTitle: "Delete confirmation",
     confirmDeleteText: "Are you sure you want to delete:",
+    confirmBulkDeleteText: "Are you sure you want to delete selected offers:",
     confirmDeleteYes: "Yes",
     confirmDeleteNo: "No",
     deleted: "Offer deleted",
@@ -735,6 +737,7 @@ export function App() {
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
   const offersToolbarRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -1001,6 +1004,28 @@ export function App() {
     setPinnedOfferIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [id, ...prev]));
   }
 
+  function pinSelectedOffers() {
+    const ids = selectedRowIds.filter((id) => typeof id === "number");
+    if (!ids.length) return;
+    if (sortColumn && sortDirection !== "none") {
+      setStatusMessage(t.pinNeedsNoSort);
+      return;
+    }
+    setPinnedOfferIds((prev) => {
+      const prevSet = new Set(prev);
+      const allSelectedPinned = ids.every((id) => prevSet.has(id));
+
+      if (allSelectedPinned) {
+        const selectedSet = new Set(ids);
+        return prev.filter((id) => !selectedSet.has(id));
+      }
+
+      const newIds = ids.filter((id) => !prevSet.has(id));
+      if (!newIds.length) return prev;
+      return [...newIds, ...prev];
+    });
+  }
+
   async function updateOfferStatusQuick(offer: Offer, status: CanonicalStatus) {
     const id = getOfferId(offer);
     if (id === null) return;
@@ -1060,6 +1085,7 @@ export function App() {
     setSelectedOfferDraft(null);
     setEditingSelectedOffer(false);
     setShowDeleteConfirm(false);
+    setShowBulkDeleteConfirm(false);
   }
 
   function closeAddOfferModal() {
@@ -1372,6 +1398,7 @@ export function App() {
     if (!editorMode) return null;
     const hasSelection = selectedRowIds.length > 0;
     const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
+    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
     return (
       <div className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"}`}>
         <div className="editor-selection-bar">
@@ -1379,12 +1406,12 @@ export function App() {
             type="button"
             className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
             onClick={() => {
-              if (firstSelected) togglePinOffer(firstSelected);
+              pinSelectedOffers();
             }}
-            title={t.pin}
+            title={allSelectedPinned ? t.unpin : t.pin}
           >
             <span className="row-action-btn__icon">📌</span>
-            <span className="row-action-btn__label">{t.pin}</span>
+            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
           </button>
           <button
             type="button"
@@ -1401,7 +1428,7 @@ export function App() {
             type="button"
             className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
             onClick={() => {
-              if (firstSelected) openDeleteFromRow(firstSelected);
+              openBulkDeleteConfirm();
             }}
             title={t.delete}
           >
@@ -2112,6 +2139,44 @@ export function App() {
       }
       await Promise.all([fetchOffers(), fetchStats()]);
       closeOfferDetails();
+      setStatusMessage(t.deleted);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openBulkDeleteConfirm() {
+    if (selectedRowIds.length === 0) return;
+    setShowBulkDeleteConfirm(true);
+  }
+
+  async function confirmDeleteSelectedOffers() {
+    const ids = selectedRowIds.filter((id) => typeof id === "number");
+    if (!ids.length) {
+      setShowBulkDeleteConfirm(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map(async (id) => {
+          const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
+          const data = (await response.json()) as { ok: boolean; error?: string };
+          if (!data.ok) {
+            throw new Error(data.error || t.offerAddFailed);
+          }
+        })
+      );
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length > 0) {
+        const reason = (failed[0] as PromiseRejectedResult).reason;
+        throw new Error(reason instanceof Error ? reason.message : String(reason));
+      }
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setSelectedRowIds([]);
+      setShowBulkDeleteConfirm(false);
       setStatusMessage(t.deleted);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
@@ -3119,6 +3184,53 @@ export function App() {
                 type="button"
                 className="danger-btn"
                 onClick={confirmDeleteOfferDetails}
+                disabled={loading}
+              >
+                {t.confirmDeleteYes}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBulkDeleteConfirm ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="delete-bulk-confirm-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowBulkDeleteConfirm(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.confirmDeleteTitle}</h3>
+            <p>{t.confirmBulkDeleteText}</p>
+            <div className="list">
+              {selectedRowIds
+                .map((id) => findOfferById(id))
+                .filter((offer): offer is Offer => Boolean(offer))
+                .slice(0, 5)
+                .map((offer) => (
+                  <p key={offer.id || `${offer.company}-${offer.role}`}>
+                    <strong>{offer.company || "-"}</strong> - <strong>{offer.role || "-"}</strong>
+                  </p>
+                ))}
+              {selectedRowIds.length > 5 ? <p>... +{selectedRowIds.length - 5}</p> : null}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={loading}
+              >
+                {t.confirmDeleteNo}
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={confirmDeleteSelectedOffers}
                 disabled={loading}
               >
                 {t.confirmDeleteYes}
