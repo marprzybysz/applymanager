@@ -652,6 +652,8 @@ function formatDaysToExpire(daysToExpire: number | null | undefined): string {
 }
 
 export function App() {
+  const headerRef = useRef<HTMLElement | null>(null);
+  const offersSectionRef = useRef<HTMLElement | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
   const [scrapeQuery, setScrapeQuery] = useState("frontend react");
@@ -707,6 +709,7 @@ export function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
   const offersToolbarRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -1165,6 +1168,13 @@ export function App() {
   }, [showExportAssistant, activeAssistantIndex]);
 
   useEffect(() => {
+    if (!showSearchInput) return;
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+  }, [showSearchInput, dockOfferToolsToHeader]);
+
+  useEffect(() => {
     if (activeTopTab !== "offers") {
       setDockOfferToolsToHeader(false);
       setShowSearchInput(false);
@@ -1175,12 +1185,23 @@ export function App() {
       return;
     }
     const target = offersToolbarRef.current;
-    if (!target) return;
+    const offersSection = offersSectionRef.current;
+    if (!target || !offersSection) {
+      setDockOfferToolsToHeader(false);
+      return;
+    }
 
     const syncDockState = () => {
       const rect = target.getBoundingClientRect();
-      const headerBottomOffset = 88;
-      setDockOfferToolsToHeader(rect.top <= headerBottomOffset);
+      const sectionRect = offersSection.getBoundingClientRect();
+      const headerBottom = headerRef.current?.getBoundingClientRect().bottom ?? 88;
+      const dockOnOffset = 28;
+      const dockOffOffset = 120;
+      const dynamicDockThreshold = headerBottom + (dockOfferToolsToHeader ? dockOffOffset : dockOnOffset);
+      const sectionStillVisible = sectionRect.bottom > headerBottom + 16;
+      const scrolledEnough = window.scrollY > 32;
+      const shouldDock = scrolledEnough && rect.top <= dynamicDockThreshold && sectionStillVisible;
+      setDockOfferToolsToHeader(shouldDock);
     };
 
     syncDockState();
@@ -1191,7 +1212,7 @@ export function App() {
       window.removeEventListener("scroll", syncDockState);
       window.removeEventListener("resize", syncDockState);
     };
-  }, [activeTopTab, offers.length]);
+  }, [activeTopTab, offers.length, dockOfferToolsToHeader]);
 
   function renderOfferTools(isDocked: boolean) {
     const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
@@ -1217,18 +1238,17 @@ export function App() {
         >
           {filtersLabel}
         </button>
-        {!showSearchInput ? (
+        <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
           <button
             type="button"
-            className="ghost-btn"
+            className="ghost-btn toolbar-search-trigger"
             onClick={() => setShowSearchInput(true)}
             aria-label={t.search}
             title={t.search}
           >
             {searchLabel}
           </button>
-        ) : (
-          <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""}`}>
+          <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
             <button
               type="button"
               className="toolbar-search-icon-btn"
@@ -1242,10 +1262,10 @@ export function App() {
               onChange={(event) => setFilterText(event.target.value)}
               placeholder={t.search}
               className="toolbar-search-input"
-              autoFocus
+              ref={searchInputRef}
             />
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -1893,7 +1913,7 @@ export function App() {
 
   return (
     <main className="app" id="top">
-      <header className="header app-bar">
+      <header className="header app-bar" ref={headerRef}>
         <a className="brand brand-link" href="#top">
           ApplyManager
         </a>
@@ -2098,11 +2118,9 @@ export function App() {
         </div>
         {activeTopTab === "offers" && offers.length > 0 && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
           <>
-            {showFilters ? (
-              <div className="header-docked-filters">
-                {renderOfferFilters("offers-filters offers-filters--docked-island")}
-              </div>
-            ) : null}
+            <div className={`header-docked-filters ${showFilters ? "is-open" : "is-closed"}`}>
+              {renderOfferFilters("offers-filters offers-filters--docked-island")}
+            </div>
             <div className={`header-docked-tools ${showFilters ? "header-docked-tools--below-filters" : ""}`}>
               {renderOfferTools(true)}
             </div>
@@ -2117,7 +2135,11 @@ export function App() {
       ) : null}
 
       {visibleCenterNotifications.length > 0 ? (
-        <div className="toast-stack toast-stack--center" aria-live="assertive" aria-atomic="false">
+        <div
+          className="toast-stack toast-stack--center"
+          aria-live="assertive"
+          aria-atomic="false"
+        >
           {visibleCenterNotifications.map((item) => (
             <div key={`center-${item.id}`} className={`toast toast--${item.tone} ${item.closing ? "toast--closing" : ""}`}>
               <div>
@@ -2187,7 +2209,7 @@ export function App() {
             </div>
           </section>
         ) : (
-        <section className="card offers-card" id="offers-list">
+        <section className="card offers-card" id="offers-list" ref={offersSectionRef}>
           <div className="offers-head">
             <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
             <div className="offers-toolbar" ref={offersToolbarRef}>
@@ -2195,7 +2217,11 @@ export function App() {
             </div>
           </div>
 
-          {showFilters && !dockOfferToolsToHeader ? renderOfferFilters() : null}
+          {!dockOfferToolsToHeader ? (
+            <div className={`offers-filters-inline ${showFilters ? "is-open" : "is-closed"}`}>
+              {renderOfferFilters()}
+            </div>
+          ) : null}
 
           {visibleOffers.length === 0 ? (
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
