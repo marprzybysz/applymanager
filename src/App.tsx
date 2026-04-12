@@ -101,7 +101,7 @@ type SortColumn =
   | "expiresAt"
   | "daysToExpire"
   | "source";
-type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral";
+type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral" | "pink";
 type CanonicalStatus =
   | "Zapisano"
   | "Wyslano"
@@ -117,6 +117,8 @@ type AppNotification = {
   text: string;
   tone: NotificationTone;
   read: boolean;
+  visible: boolean;
+  kind: "operational";
 };
 
 const I18N = {
@@ -142,6 +144,7 @@ const I18N = {
     dataManagement: "Zarzadzanie danymi",
     notifications: "Powiadomienia",
     noNotifications: "Brak powiadomien.",
+    notificationKindOperational: "Operacyjne",
     unsupportedImportCombo: "Ten typ importu nie jest obslugiwany",
     unsupportedExportCombo: "Ten typ eksportu nie jest obslugiwany",
     importSuccess: "Import zakonczony",
@@ -285,6 +288,7 @@ const I18N = {
     dataManagement: "Data management",
     notifications: "Notifications",
     noNotifications: "No notifications.",
+    notificationKindOperational: "Operational",
     unsupportedImportCombo: "This import type is not supported",
     unsupportedExportCombo: "This export type is not supported",
     importSuccess: "Import completed",
@@ -595,6 +599,13 @@ function normalizeStatusKey(status: string | null | undefined): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function getNotificationAutoHideMs(tone: NotificationTone): number | null {
+  if (tone === "success") return 5000;
+  if (tone === "warning") return 30000;
+  if (tone === "error") return null;
+  return 10000;
+}
+
 function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
   const normalized = normalizeStatusKey(status);
   if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
@@ -705,6 +716,14 @@ export function App() {
     () => notifications.filter((item) => !item.read).length,
     [notifications]
   );
+  const visibleInlineNotifications = useMemo(
+    () => notifications.filter((item) => item.visible && (item.tone === "warning" || item.tone === "error")).slice(0, 3),
+    [notifications]
+  );
+  const visibleToastNotifications = useMemo(
+    () => notifications.filter((item) => item.visible && (item.tone === "success" || item.tone === "neutral")).slice(0, 4),
+    [notifications]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -720,17 +739,22 @@ export function App() {
         : /warning|uwaga|pominieto|skipped/i.test(nextMessage)
           ? "warning"
           : "success";
-    setNotifications((prev) =>
-      [
-        {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          text: nextMessage,
-          tone,
-          read: false,
-        },
-        ...prev,
-      ].slice(0, 80)
-    );
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const notification: AppNotification = {
+      id,
+      text: nextMessage,
+      tone,
+      read: false,
+      visible: true,
+      kind: "operational",
+    };
+    setNotifications((prev) => [notification, ...prev].slice(0, 80));
+    const hideAfterMs = getNotificationAutoHideMs(tone);
+    if (hideAfterMs !== null) {
+      window.setTimeout(() => {
+        setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, visible: false } : item)));
+      }, hideAfterMs);
+    }
   }
 
   const statusFilterOptions = useMemo(
@@ -783,10 +807,16 @@ export function App() {
 
   function getOfferStatusTone(status: string | null | undefined): StatusTone {
     const normalized = normalizeOfferStatus(status);
-    if (["Wyslano", "Zapisano"].includes(normalized)) {
+    if (normalized === "Wyslano") {
       return "blue";
     }
-    if (["Odczytano", "W trakcie"].includes(normalized)) {
+    if (normalized === "Zapisano") {
+      return "neutral";
+    }
+    if (normalized === "Odczytano") {
+      return "pink";
+    }
+    if (normalized === "W trakcie") {
       return "yellow";
     }
     if (["Rozmowa", "Oferta"].includes(normalized)) {
@@ -1855,8 +1885,10 @@ export function App() {
             type="button"
             className="add-offer-btn"
             onClick={toggleAddOfferModal}
+            data-tooltip={t.addOffer}
+            aria-label={t.addOffer}
           >
-            {t.addOffer}
+            +
           </button>
           <div className="menu-wrap">
             <button
@@ -1887,9 +1919,12 @@ export function App() {
                 ) : (
                   <div className="notifications-list">
                     {notifications.map((item) => (
-                      <p key={item.id} className={`notification-item notification-item--${item.tone}`}>
-                        {item.text}
-                      </p>
+                      <div key={item.id} className={`notification-item notification-item--${item.tone}`}>
+                        <span className="notification-kind">
+                          {item.kind === "operational" ? t.notificationKindOperational : "-"}
+                        </span>
+                        <p>{item.text}</p>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -2021,6 +2056,54 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
+
+      {visibleInlineNotifications.length > 0 ? (
+        <div className="inline-notifications" aria-live="assertive" aria-atomic="false">
+          {visibleInlineNotifications.map((item) => (
+            <div key={`inline-${item.id}`} className={`inline-notice inline-notice--${item.tone}`}>
+              <div>
+                <span className="notification-kind">
+                  {item.kind === "operational" ? t.notificationKindOperational : "-"}
+                </span>
+                <p>{item.text}</p>
+              </div>
+              <button
+                type="button"
+                className="toast-close"
+                onClick={() =>
+                  setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
+                }
+                aria-label={t.close}
+              >
+                X
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="toast-stack" aria-live="polite" aria-atomic="false">
+        {visibleToastNotifications.map((item) => (
+            <div key={`toast-${item.id}`} className={`toast toast--${item.tone}`}>
+              <div>
+                <span className="notification-kind">
+                  {item.kind === "operational" ? t.notificationKindOperational : "-"}
+                </span>
+                <p>{item.text}</p>
+              </div>
+              <button
+                type="button"
+                className="toast-close"
+                onClick={() =>
+                  setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
+                }
+                aria-label={t.close}
+              >
+                X
+              </button>
+            </div>
+          ))}
+      </div>
 
       {activeTopTab === "offers" ? (
         <section className="card offers-card" id="offers-list">
