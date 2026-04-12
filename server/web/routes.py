@@ -79,7 +79,7 @@ def get_stats():
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
 
-@router.post("/offers")
+@router.post("/offers", status_code=201)
 async def create_offer(request: Request):
     body = await request.json()
     offer_input = map_offer_for_insert_from_request(body or {})
@@ -89,7 +89,7 @@ async def create_offer(request: Request):
 
     try:
         offer = insert_offer(offer_input)
-        return JSONResponse(status_code=201, content={"ok": True, "offer": offer})
+        return {"ok": True, "offer": offer}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 

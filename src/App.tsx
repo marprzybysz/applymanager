@@ -441,6 +441,12 @@ function inferAppliedFromStatus(status: string | null | undefined): boolean {
   return normalized !== "saved";
 }
 
+function getPrimaryLocation(location: string | null | undefined): string {
+  const text = String(location || "").trim();
+  if (!text) return "-";
+  return text.split(",")[0]?.trim() || text;
+}
+
 export function App() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
@@ -1671,7 +1677,7 @@ export function App() {
                           {offer.status || "-"}
                         </span>
                       </td>
-                      {!compactView ? <td>{offer.location || "-"}</td> : null}
+                      {!compactView ? <td>{getPrimaryLocation(offer.location)}</td> : null}
                       <td>{offer.appliedAt || "-"}</td>
                       {!compactView ? <td>{offer.datePosted || "-"}</td> : null}
                       {!compactView ? <td>{offer.expiresAt || "-"}</td> : null}
