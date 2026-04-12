@@ -189,27 +189,34 @@ body {
   border-color: #15803d;
 }
 
-.add-offer-btn::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  background: var(--surface);
-  color: var(--text-main);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.25rem 0.45rem;
-  font-size: 0.78rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-in-out;
-  z-index: 65;
+.add-offer-btn--compact {
+  min-width: 44px;
+  padding: 0.55rem 0.8rem;
 }
 
-.add-offer-btn:hover::after {
+.add-offer-btn__icon,
+.add-offer-btn__label {
+  display: inline-block;
+  transition: opacity 120ms ease-in-out, transform 120ms ease-in-out;
+}
+
+.add-offer-btn__label {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transform: translateX(-6px);
+}
+
+.add-offer-btn--compact:hover .add-offer-btn__icon {
+  opacity: 0;
+  width: 0;
+  transform: translateX(6px);
+}
+
+.add-offer-btn--compact:hover .add-offer-btn__label {
   opacity: 1;
+  width: auto;
+  transform: translateX(0);
 }
 
 .menu-wrap {
@@ -405,8 +412,9 @@ body {
 }
 
 .inline-notice--warning {
-  border-color: #d97706;
-  background: color-mix(in srgb, #fef3c7 58%, var(--surface) 42%);
+  border-color: #b45309;
+  background: #3b2a15;
+  color: #fde68a;
 }
 
 .inline-notice--error {

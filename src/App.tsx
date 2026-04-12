@@ -1155,20 +1155,28 @@ export function App() {
       setShowSearchInput(false);
       return;
     }
+    if (offers.length === 0) {
+      setDockOfferToolsToHeader(false);
+      return;
+    }
     const target = offersToolbarRef.current;
-    if (!target || typeof IntersectionObserver === "undefined") return;
+    if (!target) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        setDockOfferToolsToHeader(!entry.isIntersecting);
-      },
-      { threshold: 0.15 }
-    );
+    const syncDockState = () => {
+      const rect = target.getBoundingClientRect();
+      const headerBottomOffset = 88;
+      setDockOfferToolsToHeader(rect.top <= headerBottomOffset);
+    };
 
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [activeTopTab]);
+    syncDockState();
+    window.addEventListener("scroll", syncDockState, { passive: true });
+    window.addEventListener("resize", syncDockState);
+
+    return () => {
+      window.removeEventListener("scroll", syncDockState);
+      window.removeEventListener("resize", syncDockState);
+    };
+  }, [activeTopTab, offers.length]);
 
   function renderOfferTools(isDocked: boolean) {
     const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
@@ -1893,15 +1901,17 @@ export function App() {
         </nav>
 
         <div className="header-actions">
-          <button
-            type="button"
-            className="add-offer-btn"
-            onClick={toggleAddOfferModal}
-            data-tooltip={t.addOffer}
-            aria-label={t.addOffer}
-          >
-            +
-          </button>
+          {offers.length > 0 ? (
+            <button
+              type="button"
+              className="add-offer-btn add-offer-btn--compact"
+              onClick={toggleAddOfferModal}
+              aria-label={t.addOffer}
+            >
+              <span className="add-offer-btn__icon">+</span>
+              <span className="add-offer-btn__label">{t.addOffer}</span>
+            </button>
+          ) : null}
           <div className="menu-wrap">
             <button
               type="button"
