@@ -158,6 +158,10 @@ body {
   box-shadow: 0 10px 22px rgba(2, 6, 23, 0.24);
 }
 
+.header-docked-tools--below-filters {
+  top: calc(100% + 3.45rem);
+}
+
 .header-docked-spacer {
   height: 2.6rem;
 }
@@ -169,8 +173,8 @@ body {
 .header-docked-filters {
   position: absolute;
   right: 0.35rem;
-  top: calc(100% + 3.45rem);
-  z-index: 25;
+  top: calc(100% - 1px);
+  z-index: 27;
 }
 
 .add-offer-btn {
@@ -1117,6 +1121,10 @@ button:disabled {
     justify-content: flex-end;
   }
 
+  .header-docked-tools--below-filters {
+    top: calc(100% + 8.8rem);
+  }
+
   .header-docked-spacer {
     height: 3rem;
   }
@@ -1128,7 +1136,7 @@ button:disabled {
   .header-docked-filters {
     right: 1rem;
     left: 1rem;
-    top: calc(100% + 3.6rem);
+    top: calc(100% - 1px);
   }
 
   .toolbar-search-input {

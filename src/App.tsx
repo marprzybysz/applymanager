@@ -979,6 +979,26 @@ export function App() {
     }
   }, [showImportModal]);
 
+  useEffect(() => {
+    if (!showUserMenu) return;
+
+    const closeUserMenuOnScroll = () => {
+      setShowUserMenu(false);
+      setShowSettingsMenu(false);
+      setShowDataManagementMenu(false);
+    };
+
+    window.addEventListener("scroll", closeUserMenuOnScroll, { passive: true });
+    window.addEventListener("wheel", closeUserMenuOnScroll, { passive: true });
+    window.addEventListener("touchmove", closeUserMenuOnScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", closeUserMenuOnScroll);
+      window.removeEventListener("wheel", closeUserMenuOnScroll);
+      window.removeEventListener("touchmove", closeUserMenuOnScroll);
+    };
+  }, [showUserMenu]);
+
   function togglePreferenceChip(field: keyof Omit<UserPreferences, "preferredWorkingHours">, value: string) {
     setPreferences((prev) => {
       const current = prev[field] as string[];
@@ -1840,45 +1860,6 @@ export function App() {
           <div className="menu-wrap">
             <button
               type="button"
-              className="ghost-btn icon-btn"
-              onClick={() => {
-                setShowSettingsMenu((prev) => !prev);
-                setShowNotificationsMenu(false);
-                setShowUserMenu(false);
-                setShowImportModal(false);
-                setShowExportModal(false);
-              }}
-              aria-label={t.settings}
-            >
-              ⚙
-            </button>
-            {showSettingsMenu ? (
-              <div className="menu-panel">
-                <label htmlFor="theme-select">{t.theme}</label>
-                <select
-                  id="theme-select"
-                  value={themeMode}
-                  onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
-                >
-                  <option value="auto">Auto</option>
-                  <option value="light">Jasny</option>
-                  <option value="dark">Ciemny</option>
-                </select>
-                <label htmlFor="language-select">{t.language}</label>
-                <select
-                  id="language-select"
-                  value={language}
-                  onChange={(event) => setLanguage(event.target.value as Language)}
-                >
-                  <option value="pl">Polski</option>
-                  <option value="en">English</option>
-                </select>
-              </div>
-            ) : null}
-          </div>
-          <div className="menu-wrap">
-            <button
-              type="button"
               className="ghost-btn icon-btn notify-btn"
               onClick={() => {
                 const next = !showNotificationsMenu;
@@ -1920,8 +1901,8 @@ export function App() {
               className="ghost-btn"
               onClick={() => {
                 setShowUserMenu((prev) => !prev);
-                setShowSettingsMenu(false);
                 setShowNotificationsMenu(false);
+                setShowSettingsMenu(false);
                 setShowDataManagementMenu(false);
               }}
             >
@@ -1931,12 +1912,47 @@ export function App() {
               <div className="menu-panel">
                 <button
                   type="button"
+                  className="ghost-btn menu-toggle-btn"
+                  onClick={() => {
+                    setShowSettingsMenu((prev) => !prev);
+                    setShowDataManagementMenu(false);
+                  }}
+                >
+                  <span>{t.settings}</span>
+                  <span>{showSettingsMenu ? "▴" : "▾"}</span>
+                </button>
+                {showSettingsMenu ? (
+                  <div className="menu-subpanel">
+                    <label htmlFor="theme-select">{t.theme}</label>
+                    <select
+                      id="theme-select"
+                      value={themeMode}
+                      onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="light">Jasny</option>
+                      <option value="dark">Ciemny</option>
+                    </select>
+                    <label htmlFor="language-select">{t.language}</label>
+                    <select
+                      id="language-select"
+                      value={language}
+                      onChange={(event) => setLanguage(event.target.value as Language)}
+                    >
+                      <option value="pl">Polski</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                ) : null}
+                <button
+                  type="button"
                   className="ghost-btn"
                   onClick={() => {
                     setShowPreferences(true);
                     setShowImportModal(false);
                     setShowExportModal(false);
                     setShowUserMenu(false);
+                    setShowSettingsMenu(false);
                     setShowDataManagementMenu(false);
                   }}
                 >
@@ -1947,6 +1963,7 @@ export function App() {
                   className="ghost-btn menu-toggle-btn"
                   onClick={() => {
                     setShowDataManagementMenu((prev) => !prev);
+                    setShowSettingsMenu(false);
                   }}
                 >
                   <span>{t.dataManagement}</span>
@@ -1986,12 +2003,14 @@ export function App() {
         </div>
         {activeTopTab === "offers" && dockOfferToolsToHeader ? (
           <>
-            <div className="header-docked-tools">{renderOfferTools(true)}</div>
             {showFilters ? (
               <div className="header-docked-filters">
                 {renderOfferFilters("offers-filters offers-filters--docked-island")}
               </div>
             ) : null}
+            <div className={`header-docked-tools ${showFilters ? "header-docked-tools--below-filters" : ""}`}>
+              {renderOfferTools(true)}
+            </div>
           </>
         ) : null}
       </header>

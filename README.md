@@ -99,6 +99,26 @@ pip install -r requirements.txt
 npm run dev:full
 ```
 
+## Desktop (Electron - podstawy)
+
+Po instalacji zależności Node:
+
+```bash
+npm install
+```
+
+Uruchomienie desktop dev (frontend + backend + electron):
+
+```bash
+npm run dev:desktop
+```
+
+Build desktop (Linux AppImage):
+
+```bash
+npm run build:desktop
+```
+
 ## Najważniejsze endpointy API
 
 ### Core
