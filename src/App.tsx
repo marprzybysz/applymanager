@@ -78,6 +78,15 @@ type SortColumn =
   | "daysToExpire"
   | "source";
 type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral";
+type CanonicalStatus =
+  | "Zapisano"
+  | "Wyslano"
+  | "Odczytano"
+  | "W trakcie"
+  | "Rozmowa"
+  | "Oferta"
+  | "Odrzucono"
+  | "Odmowa";
 
 const I18N = {
   pl: {
@@ -321,6 +330,16 @@ const WORK_TIMES = ["dowolny", "pełny etat", "pół etatu"];
 const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
 const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
 const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
+const STATUS_OPTIONS: CanonicalStatus[] = [
+  "Wyslano",
+  "Zapisano",
+  "Odczytano",
+  "W trakcie",
+  "Rozmowa",
+  "Oferta",
+  "Odrzucono",
+  "Odmowa",
+];
 
 function isAbsoluteHttpUrl(value: string) {
   try {
@@ -340,7 +359,7 @@ function createDefaultOffer(): Offer {
     company: "",
     role: "",
     applied: true,
-    status: "applied",
+    status: "Wyslano",
     location: "",
     notes: "",
     appliedAt: getTodayDate(),
@@ -420,7 +439,7 @@ function normalizeOfferForEdit(offer: Offer): Offer {
     ...offer,
     company: String(offer.company || ""),
     role: String(offer.role || ""),
-    status: String(offer.status || "saved"),
+    status: normalizeOfferStatus(offer.status, offer.applied !== false),
     location: offer.location || "",
     notes: offer.notes || "",
     appliedAt: normalizeDateForInput(offer.appliedAt),
@@ -437,14 +456,38 @@ function normalizeOfferForEdit(offer: Offer): Offer {
 }
 
 function inferAppliedFromStatus(status: string | null | undefined): boolean {
-  const normalized = String(status || "").trim().toLowerCase();
-  return normalized !== "saved";
+  const normalized = normalizeStatusKey(status);
+  return normalized !== "zapisano" && normalized !== "saved";
 }
 
 function getPrimaryLocation(location: string | null | undefined): string {
   const text = String(location || "").trim();
   if (!text) return "-";
   return text.split(",")[0]?.trim() || text;
+}
+
+function normalizeStatusKey(status: string | null | undefined): string {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
+  const normalized = normalizeStatusKey(status);
+  if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
+
+  if (["applied", "wyslano", "sent", "zaaplikowano"].includes(normalized)) return "Wyslano";
+  if (["saved", "zapisano", "draft"].includes(normalized)) return "Zapisano";
+  if (["odczytano", "odczytana", "read"].includes(normalized)) return "Odczytano";
+  if (["interview", "in progress", "w trakcie", "proces"].includes(normalized)) return "W trakcie";
+  if (["rozmowa", "rozmowa umowiona", "umowienie na rozmowe"].includes(normalized)) return "Rozmowa";
+  if (["offer", "oferta"].includes(normalized)) return "Oferta";
+  if (normalized.includes("odrzu") || normalized.includes("rejected")) return "Odrzucono";
+  if (normalized.includes("odmow")) return "Odmowa";
+
+  return appliedDefault ? "Wyslano" : "Zapisano";
 }
 
 export function App() {
@@ -573,34 +616,17 @@ export function App() {
   }
 
   function getOfferStatusTone(status: string | null | undefined): StatusTone {
-    const normalized = String(status || "").trim().toLowerCase();
-    if (!normalized) return "neutral";
-
-    if (["wysłano", "wyslano", "applied", "saved"].includes(normalized)) {
+    const normalized = normalizeOfferStatus(status);
+    if (["Wyslano", "Zapisano"].includes(normalized)) {
       return "blue";
     }
-    if (
-      [
-        "interview",
-        "in progress",
-        "odczytana",
-        "odczytane",
-        "odczytano",
-        "w trakcie",
-        "proces",
-        "?",
-      ].includes(normalized)
-    ) {
+    if (["Odczytano", "W trakcie"].includes(normalized)) {
       return "yellow";
     }
-    if (["offer", "umowienie na rozmowe", "umówienie na rozmowę", "rozmowa", "rozmowa umowiona"].includes(normalized)) {
+    if (["Rozmowa", "Oferta"].includes(normalized)) {
       return "green";
     }
-    if (
-      normalized.includes("rejected") ||
-      normalized.includes("odrzu") ||
-      normalized.includes("odmow")
-    ) {
+    if (["Odrzucono", "Odmowa"].includes(normalized)) {
       return "red";
     }
     return "neutral";
@@ -716,7 +742,12 @@ export function App() {
     if (!data.ok) {
       throw new Error(data.error || t.failedFetchOffers);
     }
-    setOffers(data.offers || []);
+    setOffers(
+      (data.offers || []).map((offer) => ({
+        ...offer,
+        status: normalizeOfferStatus(offer.status, offer.applied !== false),
+      }))
+    );
   }
 
   async function fetchPreferences() {
@@ -940,6 +971,52 @@ export function App() {
             />
           </div>
         )}
+      </div>
+    );
+  }
+
+  function renderOfferFilters(className = "offers-filters") {
+    return (
+      <div className={className}>
+        <label className="form-field">
+          <span>{t.filterByStatus}</span>
+          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+            <option value="all">{t.all}</option>
+            {statusFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterBySource}</span>
+          <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
+            <option value="all">{t.all}</option>
+            {sourceFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterByPeriod}</span>
+          <select
+            value={filterPeriod}
+            onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
+          >
+            <option value="all">{t.periodAll}</option>
+            <option value="month">{t.periodMonth}</option>
+            <option value="quarter">{t.periodQuarter}</option>
+            <option value="year">{t.periodYear}</option>
+          </select>
+        </label>
+        <div className="offers-filters-actions">
+          <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
+            {t.clearFilters}
+          </button>
+        </div>
       </div>
     );
   }
@@ -1228,7 +1305,7 @@ export function App() {
           company: jobs[0].company || t.company,
           role: jobs[0].title || t.role,
           applied: true,
-          status: "applied",
+          status: "Wyslano",
           location: jobs[0].location,
           notes: "",
           appliedAt: new Date().toISOString().slice(0, 10),
@@ -1257,7 +1334,7 @@ export function App() {
       company: job.company || t.company,
       role: job.title || t.role,
       applied: true,
-      status: "applied",
+      status: "Wyslano",
       location: job.location,
       notes: "",
       appliedAt: new Date().toISOString().slice(0, 10),
@@ -1506,11 +1583,21 @@ export function App() {
           </div>
         </div>
         {activeTopTab === "offers" && dockOfferToolsToHeader ? (
-          <div className="header-docked-tools">{renderOfferTools(true)}</div>
+          <>
+            <div className="header-docked-tools">{renderOfferTools(true)}</div>
+            {showFilters ? (
+              <div className="header-docked-filters">
+                {renderOfferFilters("offers-filters offers-filters--docked-island")}
+              </div>
+            ) : null}
+          </>
         ) : null}
       </header>
       {activeTopTab === "offers" && dockOfferToolsToHeader ? (
-        <div className="header-docked-spacer" aria-hidden="true" />
+        <div
+          className={`header-docked-spacer ${showFilters ? "header-docked-spacer--with-filters" : ""}`}
+          aria-hidden="true"
+        />
       ) : null}
 
       {showStatus ? (
@@ -1536,49 +1623,7 @@ export function App() {
             </div>
           </div>
 
-          {showFilters ? (
-            <div className="offers-filters">
-              <label className="form-field">
-                <span>{t.filterByStatus}</span>
-                <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
-                  <option value="all">{t.all}</option>
-                  {statusFilterOptions.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                <span>{t.filterBySource}</span>
-                <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
-                  <option value="all">{t.all}</option>
-                  {sourceFilterOptions.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                <span>{t.filterByPeriod}</span>
-                <select
-                  value={filterPeriod}
-                  onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
-                >
-                  <option value="all">{t.periodAll}</option>
-                  <option value="month">{t.periodMonth}</option>
-                  <option value="quarter">{t.periodQuarter}</option>
-                  <option value="year">{t.periodYear}</option>
-                </select>
-              </label>
-              <div className="offers-filters-actions">
-                <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
-                  {t.clearFilters}
-                </button>
-              </div>
-            </div>
-          ) : null}
+          {showFilters && !dockOfferToolsToHeader ? renderOfferFilters() : null}
 
           {visibleOffers.length === 0 ? (
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
@@ -1815,11 +1860,11 @@ export function App() {
                     value={offerForm.status}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
                   >
-                    <option value="applied">applied</option>
-                    <option value="saved">saved</option>
-                    <option value="interview">interview</option>
-                    <option value="offer">offer</option>
-                    <option value="rejected">rejected</option>
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className="form-field">
@@ -1972,15 +2017,15 @@ export function App() {
               <label className="form-field">
                 <span>{t.status}</span>
                 <select
-                  value={selectedOfferDraft.status || "saved"}
+                  value={normalizeOfferStatus(selectedOfferDraft.status, selectedOfferDraft.applied !== false)}
                   onChange={(event) => setSelectedOfferDraft((prev) => (prev ? { ...prev, status: event.target.value } : prev))}
                   disabled={!editingSelectedOffer}
                 >
-                  <option value="applied">applied</option>
-                  <option value="saved">saved</option>
-                  <option value="interview">interview</option>
-                  <option value="offer">offer</option>
-                  <option value="rejected">rejected</option>
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="form-field">

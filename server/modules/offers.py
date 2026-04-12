@@ -32,6 +32,35 @@ def pick_first_value(row: dict[str, Any], candidates: list[str]) -> str | None:
     return None
 
 
+def _normalize_status_key(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def normalize_offer_status(status_value: Any, applied_default: bool = True) -> str:
+    normalized = _normalize_status_key(status_value)
+    if not normalized:
+        return "Wyslano" if applied_default else "Zapisano"
+
+    if normalized in {"applied", "wyslano", "wysłano", "sent", "zaaplikowano"}:
+        return "Wyslano"
+    if normalized in {"saved", "zapisano", "draft"}:
+        return "Zapisano"
+    if normalized in {"odczytano", "odczytana", "read"}:
+        return "Odczytano"
+    if normalized in {"interview", "in progress", "w trakcie", "proces"}:
+        return "W trakcie"
+    if normalized in {"rozmowa", "rozmowa umowiona", "umowienie na rozmowe", "umówienie na rozmowę"}:
+        return "Rozmowa"
+    if normalized in {"offer", "oferta"}:
+        return "Oferta"
+    if "rejected" in normalized or "odrzu" in normalized:
+        return "Odrzucono"
+    if "odmow" in normalized:
+        return "Odmowa"
+
+    return "Wyslano" if applied_default else "Zapisano"
+
+
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
@@ -40,7 +69,7 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
         "company": to_non_empty_string(body.get("company")) or "",
         "role": to_non_empty_string(body.get("role")) or "",
         "applied": applied_value,
-        "status": to_non_empty_string(body.get("status")) or ("applied" if applied_value else "saved"),
+        "status": normalize_offer_status(body.get("status"), applied_value),
         "location": to_non_empty_string(body.get("location")),
         "notes": to_non_empty_string(body.get("notes")),
         "appliedAt": body.get("appliedAt"),
@@ -72,7 +101,7 @@ def map_excel_row_to_offer(row: dict[str, Any]) -> dict[str, Any] | None:
         "company": company,
         "role": role,
         "applied": applied_value,
-        "status": explicit_status or ("applied" if applied_value else "saved"),
+        "status": normalize_offer_status(explicit_status, applied_value),
         "location": pick_first_value(row, EXCEL_FIELDS["location"]),
         "notes": pick_first_value(row, EXCEL_FIELDS["notes"]),
         "appliedAt": safe_date(pick_first_value(row, EXCEL_FIELDS["appliedAt"])),
@@ -167,7 +196,7 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
                     offer["company"],
                     offer["role"],
                     offer.get("applied", True),
-                    offer.get("status") or ("saved" if offer.get("applied") is False else "applied"),
+                    normalize_offer_status(offer.get("status"), offer.get("applied") is not False),
                     offer.get("location") or None,
                     offer.get("notes") or None,
                     safe_date(offer.get("appliedAt")),
@@ -227,7 +256,7 @@ def update_offer(offer_id: int, offer: dict[str, Any]) -> dict[str, Any] | None:
                     offer["company"],
                     offer["role"],
                     offer.get("applied", True),
-                    offer.get("status") or ("saved" if offer.get("applied") is False else "applied"),
+                    normalize_offer_status(offer.get("status"), offer.get("applied") is not False),
                     offer.get("location") or None,
                     offer.get("notes") or None,
                     safe_date(offer.get("appliedAt")),
