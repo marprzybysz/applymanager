@@ -73,3 +73,7 @@
 ### Dokumentacja
 
 - Zaktualizowano `README.md` i dokumenty w `docs/` do aktualnej architektury i funkcji.
+- Dodano wpis roadmapy dla planowanej funkcji akcji zbiorczych:
+  - zaznaczanie wielu ofert,
+  - przenoszenie do archiwum,
+  - usuwanie zaznaczonych rekordów.

@@ -54,3 +54,8 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
 2. Rozszerzenie raportowania i statystyk.
 3. Lepsza normalizacja danych importowanych.
 4. Rozbudowa klienta desktop (Qt) jako równoległego interfejsu.
+5. Akcje zbiorcze na ofertach:
+   - zaznaczanie wielu rekordów (checkboxy + "zaznacz wszystko"),
+   - operacje zbiorcze: `Usuń` i `Archiwizuj`,
+   - osobny widok/filtr `Archiwum`,
+   - backendowe endpointy bulk (`/api/offers/bulk/*`).
