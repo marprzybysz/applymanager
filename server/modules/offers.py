@@ -32,6 +32,16 @@ def pick_first_value(row: dict[str, Any], candidates: list[str]) -> str | None:
     return None
 
 
+def _json_safe_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
 def _normalize_status_key(value: Any) -> str:
     return str(value or "").strip().lower()
 
@@ -85,11 +95,11 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def map_excel_row_to_offer(row: dict[str, Any], import_source: str = "import_excel") -> dict[str, Any] | None:
+def map_excel_row_to_offer(
+    row: dict[str, Any], import_source: str = "import_excel"
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     company = pick_first_value(row, EXCEL_FIELDS["company"])
     role = pick_first_value(row, EXCEL_FIELDS["role"])
-    if not company or not role:
-        return None
 
     direct_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrl"])
     linked_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrlLink"])
@@ -97,7 +107,7 @@ def map_excel_row_to_offer(row: dict[str, Any], import_source: str = "import_exc
     applied_value = True if applied is None else applied
     explicit_status = pick_first_value(row, EXCEL_FIELDS["status"])
 
-    return {
+    mapped_offer = {
         "company": company,
         "role": role,
         "applied": applied_value,
@@ -109,6 +119,34 @@ def map_excel_row_to_offer(row: dict[str, Any], import_source: str = "import_exc
         "sourceUrl": direct_source_url if is_absolute_http_url(direct_source_url) else (linked_source_url or None),
     }
 
+    missing_fields: list[str] = []
+    if not company:
+        missing_fields.append("company")
+    if not role:
+        missing_fields.append("role")
+
+    issue = None
+    if missing_fields:
+        issue = {
+            "rowNumber": row.get("__rowNumber"),
+            "missingFields": missing_fields,
+            "parsed": {
+                "company": mapped_offer.get("company"),
+                "role": mapped_offer.get("role"),
+                "status": mapped_offer.get("status"),
+                "location": mapped_offer.get("location"),
+                "appliedAt": mapped_offer.get("appliedAt"),
+                "source": mapped_offer.get("source"),
+                "sourceUrl": mapped_offer.get("sourceUrl"),
+                "notes": mapped_offer.get("notes"),
+            },
+            "raw": {k: _json_safe_value(v) for k, v in row.items() if not str(k).startswith("__link__")},
+        }
+
+    if missing_fields:
+        return None, issue
+    return mapped_offer, issue
+
 
 def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
     workbook = load_workbook(io.BytesIO(content), data_only=False)
@@ -118,8 +156,9 @@ def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
     headers = [to_non_empty_string(cell.value) or "" for cell in header_cells]
     rows: list[dict[str, Any]] = []
 
-    for row in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
+    for row_index, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row), start=2):
         item: dict[str, Any] = {}
+        item["__rowNumber"] = row_index
         for idx, cell in enumerate(row):
             if idx >= len(headers):
                 continue
@@ -288,19 +327,25 @@ def delete_offer(offer_id: int) -> bool:
 
 def import_offers_from_excel(content: bytes) -> dict[str, Any]:
     rows = read_excel_rows_with_hyperlinks(content)
-    mapped_offers = [
-        offer for offer in (map_excel_row_to_offer(row, import_source="import_excel") for row in rows) if offer
-    ]
 
     saved: list[dict[str, Any]] = []
-    for offer in mapped_offers:
-        saved.append(insert_offer(offer))
+    issues: list[dict[str, Any]] = []
+    skipped = 0
+    for row in rows:
+        mapped_offer, issue = map_excel_row_to_offer(row, import_source="import_excel")
+        if mapped_offer:
+            saved.append(insert_offer(mapped_offer))
+        else:
+            skipped += 1
+            if issue:
+                issues.append(issue)
 
     return {
         "ok": True,
         "imported": len(saved),
-        "skipped": len(rows) - len(saved),
+        "skipped": skipped,
         "offers": saved,
+        "issues": issues,
     }
 
 
