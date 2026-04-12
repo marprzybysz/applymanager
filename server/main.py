@@ -32,12 +32,30 @@ def startup_event() -> None:
 
 
 if os.path.isdir(DIST_DIR):
-    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="dist")
+    assets_dir = os.path.join(DIST_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+
+def _serve_index():
+    index_file = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(
+            index_file,
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    raise HTTPException(status_code=404, detail="Frontend build not found")
+
+
+@app.get("/")
+def spa_root():
+    return _serve_index()
 
 
 @app.get("/{full_path:path}")
 def spa_fallback(full_path: str):
-    index_file = os.path.join(DIST_DIR, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    raise HTTPException(status_code=404, detail=f"Not found: {full_path}")
+    return _serve_index()
