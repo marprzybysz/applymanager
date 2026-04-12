@@ -11,9 +11,9 @@ services:
       PORT: 3000
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: applymanager
-      DB_PASSWORD: applymanager
-      DB_NAME: applymanager
+      DB_USER: ${DB_USER:-applymanager}
+      DB_PASSWORD: ${DB_PASSWORD:-applymanager}
+      DB_NAME: ${DB_NAME:-applymanager}
     depends_on:
       db:
         condition: service_healthy
@@ -26,13 +26,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: applymanager
-      POSTGRES_PASSWORD: applymanager
-      POSTGRES_DB: applymanager
+      POSTGRES_USER: ${POSTGRES_USER:-${DB_USER:-applymanager}}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-applymanager}}
+      POSTGRES_DB: ${POSTGRES_DB:-${DB_NAME:-applymanager}}
     volumes:
       - applymanager-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U applymanager -d applymanager"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 3s
       retries: 10

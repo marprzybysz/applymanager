@@ -61,6 +61,22 @@ Zarządzanie:
 ./scripts/run-all.sh clean-images
 ```
 
+## Konfiguracja serwera (.env)
+
+Na serwerze najlepiej wygenerować własne hasła DB:
+
+```bash
+./scripts/setup-server-env.sh
+```
+
+To utworzy lokalny plik `.env` (ignorowany przez git) z bezpiecznym `DB_PASSWORD`.
+
+Po zmianie konfiguracji:
+
+```bash
+./scripts/run-all.sh restart
+```
+
 ## Uruchomienie lokalne (bez Dockera)
 
 1. Node dependencies:

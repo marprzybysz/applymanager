@@ -8,3 +8,5 @@ Akcja CV.xlsx
 __pycache__/
 *.pyc
 .venv/
+.env
+.env.local
