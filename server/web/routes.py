@@ -142,8 +142,8 @@ def remove_offer(offer_id: int):
     try:
         deleted = delete_offer(offer_id)
         if not deleted:
-            return JSONResponse(status_code=404, content={"ok": False, "error": "offer not found"})
-        return {"ok": True}
+            return {"ok": True, "deleted": False}
+        return {"ok": True, "deleted": True}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 

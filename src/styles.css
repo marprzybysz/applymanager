@@ -80,8 +80,8 @@ body {
 }
 
 .app-bar {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr);
   align-items: center;
   gap: 1rem;
 }
@@ -102,6 +102,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  justify-self: center;
 }
 
 .top-nav .nav-btn {
@@ -139,6 +140,34 @@ body {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  justify-self: end;
+}
+
+.header-actions .ghost-btn,
+.header-actions .add-offer-btn:not(.add-offer-btn--compact),
+.header-actions .edit-offer-btn:not(.edit-offer-btn--compact) {
+  min-height: 40px;
+  padding: 0.55rem 0.8rem;
+}
+
+.header-actions .icon-btn {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+}
+
+.user-menu-trigger {
+  min-width: 122px;
+  justify-content: center;
+}
+
+.header-actions .add-offer-btn--compact,
+.header-actions .edit-offer-btn--compact {
+  min-height: 36px;
+  height: 36px;
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
 }
 
 .header-docked-tools {
@@ -190,33 +219,93 @@ body {
 }
 
 .add-offer-btn--compact {
-  min-width: 44px;
-  padding: 0.55rem 0.8rem;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 10px;
 }
 
-.add-offer-btn__icon,
-.add-offer-btn__label {
-  display: inline-block;
+.edit-offer-btn {
+  background: #facc15;
+  border-color: #facc15;
+  color: #111111;
+}
+
+.edit-offer-btn:hover {
+  background: #eab308;
+  border-color: #eab308;
+}
+
+.edit-offer-btn--compact {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.action-mini-btn {
+  position: relative;
+  overflow: hidden;
+  transition: width 130ms ease-in-out, min-width 130ms ease-in-out;
+}
+
+.action-mini-btn:hover {
+  width: 78px;
+  min-width: 78px;
+}
+
+.action-mini-content {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   transition: opacity 120ms ease-in-out, transform 120ms ease-in-out;
 }
 
-.add-offer-btn__label {
-  opacity: 0;
-  width: 0;
-  overflow: hidden;
-  transform: translateX(-6px);
-}
-
-.add-offer-btn--compact:hover .add-offer-btn__icon {
-  opacity: 0;
-  width: 0;
-  transform: translateX(6px);
-}
-
-.add-offer-btn--compact:hover .add-offer-btn__label {
+.action-mini-content--icon {
   opacity: 1;
-  width: auto;
-  transform: translateX(0);
+}
+
+.action-mini-content--label {
+  opacity: 0;
+  transform: translate(-50%, -35%);
+  white-space: nowrap;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.action-mini-btn:hover .action-mini-content--icon {
+  opacity: 0;
+  transform: translate(-50%, -65%);
+}
+
+.action-mini-btn:hover .action-mini-content--label {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.action-mini-plus {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.action-mini-icon {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .menu-wrap {
@@ -386,6 +475,39 @@ body {
   padding: 0;
   border-radius: 7px;
   line-height: 1;
+  font-weight: 700;
+  border: 1px solid transparent;
+  color: #f8fafc;
+}
+
+.toast-close--success {
+  background: #166534;
+  border-color: #22c55e;
+  color: #dcfce7;
+}
+
+.toast-close--success:hover {
+  background: #14532d;
+}
+
+.toast-close--warning {
+  background: #92400e;
+  border-color: #f59e0b;
+  color: #fef3c7;
+}
+
+.toast-close--warning:hover {
+  background: #78350f;
+}
+
+.toast-close--error {
+  background: #991b1b;
+  border-color: #ef4444;
+  color: #fee2e2;
+}
+
+.toast-close--error:hover {
+  background: #7f1d1d;
 }
 
 .inline-notifications {
@@ -418,8 +540,9 @@ body {
 }
 
 .inline-notice--error {
-  border-color: #b64a4a;
-  background: color-mix(in srgb, #fee2e2 58%, var(--surface) 42%);
+  border-color: #dc2626;
+  background: #3a171a;
+  color: #fecaca;
 }
 
 .status {
@@ -1227,6 +1350,7 @@ button:disabled {
 
 @media (max-width: 860px) {
   .app-bar {
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
   }

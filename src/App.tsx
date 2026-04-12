@@ -267,7 +267,9 @@ const I18N = {
     confirmDeleteNo: "Nie",
     deleted: "Oferta usunieta",
     updated: "Oferta zaktualizowana",
-    deleteConfirm: "Czy na pewno chcesz usunac te oferte?"
+    deleteConfirm: "Czy na pewno chcesz usunac te oferte?",
+    pickOfferToEdit: "Wybierz oferte z tabeli, aby ja edytowac.",
+    serviceTemporarilyUnavailable: "Uwaga: usluga tymczasowo niedostepna."
   },
   en: {
     ready: "Ready",
@@ -414,7 +416,9 @@ const I18N = {
     confirmDeleteNo: "No",
     deleted: "Offer deleted",
     updated: "Offer updated",
-    deleteConfirm: "Are you sure you want to delete this offer?"
+    deleteConfirm: "Are you sure you want to delete this offer?",
+    pickOfferToEdit: "Choose an offer from the table to edit it.",
+    serviceTemporarilyUnavailable: "Warning: service temporarily unavailable."
   }
 } as const;
 
@@ -1112,7 +1116,7 @@ export function App() {
       setStatusMessage(t.preferencesSaved);
       setShowPreferences(false);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -1625,7 +1629,7 @@ export function App() {
       await Promise.all([fetchOffers(), fetchStats()]);
       setStatusMessage(t.exportAssistantSaved.replace("{count}", String(savedCount)));
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -1870,7 +1874,7 @@ export function App() {
       closeOfferDetails();
       setStatusMessage(t.deleted);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -1902,15 +1906,37 @@ export function App() {
 
         <div className="header-actions">
           {offers.length > 0 ? (
-            <button
-              type="button"
-              className="add-offer-btn add-offer-btn--compact"
-              onClick={toggleAddOfferModal}
-              aria-label={t.addOffer}
-            >
-              <span className="add-offer-btn__icon">+</span>
-              <span className="add-offer-btn__label">{t.addOffer}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="edit-offer-btn edit-offer-btn--compact action-mini-btn"
+                onClick={() => setStatusMessage(t.serviceTemporarilyUnavailable)}
+                aria-label={t.edit}
+              >
+                <span className="action-mini-content action-mini-content--icon" aria-hidden="true">
+                  <svg className="action-mini-icon" viewBox="0 0 24 24">
+                    <path
+                      d="M21.2 18.4 15 12.2a5.6 5.6 0 0 1-7.2-7.2l2.7 2.7 2.7-2.7L10.5 2.3a5.6 5.6 0 0 1 7.2 7.2l6.2 6.2a1.9 1.9 0 0 1-2.7 2.7Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="action-mini-content action-mini-content--label">{t.edit}</span>
+              </button>
+              <button
+                type="button"
+                className="add-offer-btn add-offer-btn--compact action-mini-btn"
+                onClick={toggleAddOfferModal}
+                aria-label={t.addOffer}
+              >
+                <span className="action-mini-content action-mini-content--icon action-mini-plus">+</span>
+                <span className="action-mini-content action-mini-content--label">{t.addOffer}</span>
+              </button>
+            </>
           ) : null}
           <div className="menu-wrap">
             <button
@@ -1956,7 +1982,7 @@ export function App() {
           <div className="menu-wrap">
             <button
               type="button"
-              className="ghost-btn"
+              className="ghost-btn user-menu-trigger"
               onClick={() => {
                 setShowUserMenu((prev) => !prev);
                 setShowNotificationsMenu(false);
@@ -2091,7 +2117,7 @@ export function App() {
               </div>
               <button
                 type="button"
-                className="toast-close"
+                className={`toast-close toast-close--${item.tone}`}
                 onClick={() =>
                   setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
                 }
@@ -2115,7 +2141,7 @@ export function App() {
               </div>
               <button
                 type="button"
-                className="toast-close"
+                className={`toast-close toast-close--${item.tone}`}
                 onClick={() =>
                   setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
                 }
