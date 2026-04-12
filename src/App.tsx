@@ -1369,53 +1369,53 @@ export function App() {
   }, [activeTopTab, offers.length, dockOfferToolsToHeader]);
 
   function renderEditorSelectionBar() {
-    if (!(editorMode && selectedRowIds.length > 0)) return null;
+    if (!editorMode) return null;
+    const hasSelection = selectedRowIds.length > 0;
+    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
     return (
-      <div className="editor-selection-bar editor-selection-bar--mirror">
-        <span className="editor-selection-summary">{t.selectedRows}: {selectedRowIds.length}</span>
-        <button
-          type="button"
-          className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
-          onClick={() => {
-            const first = findOfferById(selectedRowIds[0]);
-            if (first) togglePinOffer(first);
-          }}
-          title={t.pin}
-        >
-          <span className="row-action-btn__icon">📌</span>
-          <span className="row-action-btn__label">{t.pin}</span>
-        </button>
-        <button
-          type="button"
-          className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
-          onClick={() => {
-            const first = findOfferById(selectedRowIds[0]);
-            if (first) openQuickStatus(first);
-          }}
-          title={t.quickStatus}
-        >
-          <span className="row-action-btn__icon">?</span>
-          <span className="row-action-btn__label">{t.quickStatus}</span>
-        </button>
-        <button
-          type="button"
-          className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
-          onClick={() => {
-            const first = findOfferById(selectedRowIds[0]);
-            if (first) openDeleteFromRow(first);
-          }}
-          title={t.delete}
-        >
-          <span className="row-action-btn__icon">🗑️</span>
-          <span className="row-action-btn__label">{t.delete}</span>
-        </button>
-        <button
-          type="button"
-          className="ghost-btn selection-clear-btn"
-          onClick={() => setSelectedRowIds([])}
-        >
-          {t.clearSelectionRows}
-        </button>
+      <div className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"}`}>
+        <div className="editor-selection-bar">
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) togglePinOffer(firstSelected);
+            }}
+            title={t.pin}
+          >
+            <span className="row-action-btn__icon">📌</span>
+            <span className="row-action-btn__label">{t.pin}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) openQuickStatus(firstSelected);
+            }}
+            title={t.quickStatus}
+          >
+            <span className="row-action-btn__icon">?</span>
+            <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) openDeleteFromRow(firstSelected);
+            }}
+            title={t.delete}
+          >
+            <span className="row-action-btn__icon">🗑️</span>
+            <span className="row-action-btn__label">{t.delete}</span>
+          </button>
+          <button
+            type="button"
+            className="ghost-btn selection-clear-btn"
+            onClick={() => setSelectedRowIds([])}
+          >
+            {t.clearSelectionRows}
+          </button>
+        </div>
       </div>
     );
   }
@@ -2428,6 +2428,11 @@ export function App() {
           <div className="offers-head">
             <div className="offers-head-left">
               <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+              {editorMode && selectedRowIds.length > 0 ? (
+                <div className="offers-selection-summary-left">
+                  {t.selectedRows}: {selectedRowIds.length}
+                </div>
+              ) : null}
             </div>
             <div className="offers-toolbar" ref={offersToolbarRef}>
               {!dockOfferToolsToHeader ? renderOfferTools(false) : null}
