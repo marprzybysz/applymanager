@@ -2378,7 +2378,7 @@ export function App() {
                   <span className="editor-selection-summary">{t.selectedRows}: {selectedRowIds.length}</span>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--pin selection-action-btn"
+                    className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) togglePinOffer(first);
@@ -2386,10 +2386,11 @@ export function App() {
                     title={t.pin}
                   >
                     <span className="row-action-btn__icon">📌</span>
+                    <span className="row-action-btn__label">{t.pin}</span>
                   </button>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--status selection-action-btn"
+                    className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openQuickStatus(first);
@@ -2397,21 +2398,23 @@ export function App() {
                     title={t.quickStatus}
                   >
                     <span className="row-action-btn__icon">?</span>
+                    <span className="row-action-btn__label">{t.quickStatus}</span>
                   </button>
                   <button
                     type="button"
-                    className="danger-btn selection-delete-btn selection-action-btn"
+                    className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openDeleteFromRow(first);
                     }}
                     title={t.delete}
                   >
-                    🗑️ {t.delete}
+                    <span className="row-action-btn__icon">🗑️</span>
+                    <span className="row-action-btn__label">{t.delete}</span>
                   </button>
                   <button
                     type="button"
-                    className="ghost-btn"
+                    className="ghost-btn selection-clear-btn"
                     onClick={() => setSelectedRowIds([])}
                   >
                     {t.clearSelectionRows}
