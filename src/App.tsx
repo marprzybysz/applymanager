@@ -2378,47 +2378,39 @@ export function App() {
                   <span>{t.selectedRows}: {selectedRowIds.length}</span>
                   <button
                     type="button"
-                    className="ghost-btn row-action-btn row-action-btn--pin"
+                    className="row-action-btn row-action-btn--pin row-action-btn--expand"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) togglePinOffer(first);
                     }}
                     title={t.pin}
                   >
-                    📌
+                    <span className="row-action-btn__icon">📌</span>
+                    <span className="row-action-btn__label">{t.pin}</span>
                   </button>
                   <button
                     type="button"
-                    className="ghost-btn row-action-btn row-action-btn--edit"
-                    onClick={() => {
-                      const first = findOfferById(selectedRowIds[0]);
-                      if (first) openOfferDetails(first);
-                    }}
-                    title={t.edit}
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn row-action-btn row-action-btn--status"
+                    className="row-action-btn row-action-btn--status row-action-btn--expand"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openQuickStatus(first);
                     }}
                     title={t.quickStatus}
                   >
-                    ?
+                    <span className="row-action-btn__icon">?</span>
+                    <span className="row-action-btn__label">{t.quickStatus}</span>
                   </button>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--delete"
+                    className="row-action-btn row-action-btn--delete row-action-btn--expand"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openDeleteFromRow(first);
                     }}
                     title={t.delete}
                   >
-                    🗑️
+                    <span className="row-action-btn__icon">🗑️</span>
+                    <span className="row-action-btn__label">{t.delete}</span>
                   </button>
                   <button
                     type="button"
@@ -2565,35 +2557,41 @@ export function App() {
                             <div className="editor-hover-bar">
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn row-action-btn--pin"
+                                className="row-action-btn row-action-btn--pin row-action-btn--expand"
                                 onClick={() => togglePinOffer(offer)}
                                 title={pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
                               >
-                                📌
+                                <span className="row-action-btn__icon">📌</span>
+                                <span className="row-action-btn__label">
+                                  {pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                </span>
                               </button>
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn row-action-btn--edit"
+                                className="row-action-btn row-action-btn--edit row-action-btn--expand"
                                 onClick={() => openOfferDetails(offer)}
                                 title={t.edit}
                               >
-                                ✏️
+                                <span className="row-action-btn__icon">✏️</span>
+                                <span className="row-action-btn__label">{t.edit}</span>
                               </button>
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn row-action-btn--status"
+                                className="row-action-btn row-action-btn--status row-action-btn--expand"
                                 onClick={() => openQuickStatus(offer)}
                                 title={t.quickStatus}
                               >
-                                ?
+                                <span className="row-action-btn__icon">?</span>
+                                <span className="row-action-btn__label">{t.quickStatus}</span>
                               </button>
                               <button
                                 type="button"
-                                className="row-action-btn row-action-btn--delete"
+                                className="row-action-btn row-action-btn--delete row-action-btn--expand"
                                 onClick={() => openDeleteFromRow(offer)}
                                 title={t.delete}
                               >
-                                🗑️
+                                <span className="row-action-btn__icon">🗑️</span>
+                                <span className="row-action-btn__label">{t.delete}</span>
                               </button>
                             </div>
                             {quickStatusOfferId === rowId ? (
