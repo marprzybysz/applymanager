@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from openpyxl import Workbook, load_workbook
@@ -58,6 +58,7 @@ EXCEL_FIELDS = {
     "sourceUrl": ["url", "URL", "link", "Link", "hyperlink", "Hyperlink"],
     "sourceUrlLink": ["__link__url", "__link__URL", "__link__link", "__link__Link", "__link__hyperlink", "__link__Hyperlink"],
 }
+DEFAULT_OFFER_DURATION_DAYS = 30
 
 
 def pick_first_value(row: dict[str, Any], candidates: list[str]) -> str | None:
@@ -124,11 +125,28 @@ def normalize_offer_status(status_value: Any, applied_default: bool = True) -> s
     return "Wyslano" if applied_default else "Zapisano"
 
 
+def apply_default_offer_dates(offer: dict[str, Any]) -> dict[str, Any]:
+    date_posted = safe_date(offer.get("datePosted"))
+    expires_at = safe_date(offer.get("expiresAt"))
+
+    # If closing date is provided but published date is missing, infer published date as 30 days earlier.
+    if not date_posted and expires_at:
+        try:
+            inferred = date.fromisoformat(expires_at) - timedelta(days=DEFAULT_OFFER_DURATION_DAYS)
+            date_posted = inferred.isoformat()
+        except Exception:
+            date_posted = None
+
+    offer["datePosted"] = date_posted
+    offer["expiresAt"] = expires_at
+    return offer
+
+
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
 
-    return {
+    mapped_offer = {
         "company": to_non_empty_string(body.get("company")) or "",
         "role": to_non_empty_string(body.get("role")) or "",
         "applied": applied_value,
@@ -146,6 +164,7 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
         "shiftCount": to_non_empty_string(body.get("shiftCount")),
         "workingHours": to_non_empty_string(body.get("workingHours")),
     }
+    return apply_default_offer_dates(mapped_offer)
 
 
 def map_excel_row_to_offer(
@@ -177,6 +196,7 @@ def map_excel_row_to_offer(
         "source": pick_first_value(row, EXCEL_FIELDS["source"]) or import_source,
         "sourceUrl": direct_source_url if is_absolute_http_url(direct_source_url) else (linked_source_url or None),
     }
+    mapped_offer = apply_default_offer_dates(mapped_offer)
 
     missing_fields: list[str] = []
     if not company:

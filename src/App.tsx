@@ -553,6 +553,22 @@ function normalizeOfferStatus(status: string | null | undefined, appliedDefault 
   return appliedDefault ? "Wyslano" : "Zapisano";
 }
 
+function getExpiryTone(daysToExpire: number | null | undefined): StatusTone | "expired" {
+  if (daysToExpire === null || daysToExpire === undefined) return "neutral";
+  if (daysToExpire < 0) return "expired";
+  if (daysToExpire >= 21) return "green";
+  if (daysToExpire >= 10) return "yellow";
+  return "red";
+}
+
+function formatDaysToExpire(daysToExpire: number | null | undefined): string {
+  if (daysToExpire === null || daysToExpire === undefined) return "-";
+  if (daysToExpire < 0) return "Wygaslo";
+  if (daysToExpire === 0) return "0 dni";
+  if (daysToExpire === 1) return "1 dzien";
+  return `${daysToExpire} dni`;
+}
+
 export function App() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
@@ -1905,9 +1921,9 @@ export function App() {
                       {!compactView ? <td>{offer.expiresAt || "-"}</td> : null}
                       {!compactView ? (
                         <td>
-                          {offer.daysToExpire === null || offer.daysToExpire === undefined
-                            ? "-"
-                            : offer.daysToExpire}
+                          <span className={`offer-status-pill offer-status-pill--${getExpiryTone(offer.daysToExpire)}`}>
+                            {formatDaysToExpire(offer.daysToExpire)}
+                          </span>
                         </td>
                       ) : null}
                       {!compactView ? <td>{offer.source || "manual"}</td> : null}

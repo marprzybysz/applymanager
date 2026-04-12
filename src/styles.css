@@ -573,6 +573,12 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.offer-status-pill--expired {
+  background: #0b0f14;
+  border-color: #111827;
+  color: #facc15;
+}
+
 .offers-table .clickable-row {
   cursor: pointer;
 }
