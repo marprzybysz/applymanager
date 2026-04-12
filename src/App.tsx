@@ -167,6 +167,9 @@ const I18N = {
     importExcel: "Import Excel",
     import: "Import",
     noOffers: "Nie masz jeszcze dodanych ofert.",
+    noOffersLandingTitle: "Nie masz jeszcze zadnych ofert pracy do sledzenia.",
+    noOffersLandingBody: "Dodaj oferte do sledzenia lub skorzystaj z ExportManager.",
+    openExportManager: "ExportManager",
     close: "Zamknij",
     addOfferTitle: "Dodaj Oferte",
     pasteLink: "Wklej link",
@@ -311,6 +314,9 @@ const I18N = {
     importExcel: "Import Excel",
     import: "Import",
     noOffers: "You don't have any offers yet.",
+    noOffersLandingTitle: "You don't have any job offers to track yet.",
+    noOffersLandingBody: "Add an offer to track or use ExportManager.",
+    openExportManager: "ExportManager",
     close: "Close",
     addOfferTitle: "Add Offer",
     pasteLink: "Paste Link",
@@ -1009,6 +1015,12 @@ export function App() {
       setImportOperationMessage("");
     }
   }, [showImportModal]);
+
+  useEffect(() => {
+    if (offers.length === 0) {
+      setDockOfferToolsToHeader(false);
+    }
+  }, [offers.length]);
 
   useEffect(() => {
     if (!showUserMenu) return;
@@ -2037,7 +2049,7 @@ export function App() {
             ) : null}
           </div>
         </div>
-        {activeTopTab === "offers" && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
+        {activeTopTab === "offers" && offers.length > 0 && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
           <>
             {showFilters ? (
               <div className="header-docked-filters">
@@ -2050,7 +2062,7 @@ export function App() {
           </>
         ) : null}
       </header>
-      {activeTopTab === "offers" && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
+      {activeTopTab === "offers" && offers.length > 0 && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
         <div
           className={`header-docked-spacer ${showFilters ? "header-docked-spacer--with-filters" : ""}`}
           aria-hidden="true"
@@ -2106,6 +2118,32 @@ export function App() {
       </div>
 
       {activeTopTab === "offers" ? (
+        offers.length === 0 ? (
+          <section className="empty-state-landing" id="offers-empty">
+            <div className="empty-state-card">
+              <h2>{t.noOffersLandingTitle}</h2>
+              <p>{t.noOffersLandingBody}</p>
+              <div className="empty-state-actions">
+                <button type="button" className="add-offer-btn" onClick={openAddOfferModal}>
+                  {t.addOffer}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setImportTarget("offers");
+                    setImportFormat("xlsx");
+                    setShowImportModal(true);
+                    setShowExportModal(false);
+                    setShowUserMenu(false);
+                  }}
+                >
+                  {t.openExportManager}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : (
         <section className="card offers-card" id="offers-list">
           <div className="offers-head">
             <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
@@ -2238,6 +2276,7 @@ export function App() {
             </div>
           )}
         </section>
+        )
       ) : (
         <section className="card" id="stats">
           <h2>{t.stats}</h2>

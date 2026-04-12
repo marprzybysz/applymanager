@@ -498,6 +498,39 @@ body {
   margin-left: calc(50% - 50vw + 1rem);
 }
 
+.empty-state-landing {
+  min-height: calc(100vh - 220px);
+  display: grid;
+  place-items: center;
+  padding: 1rem 0;
+}
+
+.empty-state-card {
+  width: min(760px, calc(100vw - 2rem));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--surface) 80%, #1d4ed8 20%), var(--surface));
+  padding: 1.2rem;
+  text-align: center;
+}
+
+.empty-state-card h2 {
+  margin: 0 0 0.55rem;
+}
+
+.empty-state-card p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.empty-state-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .offers-head {
   display: flex;
   justify-content: space-between;
