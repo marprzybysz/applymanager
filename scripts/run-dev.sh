@@ -18,16 +18,20 @@ require_cmd docker
 
 show_ports() {
   echo
-  echo "ApplyManager container map (dev compose):"
+  echo "==============================================="
+  echo "ApplyManager READY (dev compose)"
+  echo "==============================================="
   echo "Frontend (web/Vite):    http://localhost:1420"
   echo "Backend (api/FastAPI):  http://localhost:3000"
+  echo "Backend base:           http://localhost:3000/api"
   echo "Backend health:         http://localhost:3000/api/health"
   echo "Database (PostgreSQL):  localhost:5432"
   echo
-  echo "Containers:"
+  echo "Containers running:"
   echo "- applymanager-web-dev"
   echo "- applymanager-api-dev"
   echo "- applymanager-db-dev"
+  echo "==============================================="
 }
 
 show_images() {

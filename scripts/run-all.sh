@@ -22,15 +22,19 @@ fi
 
 show_ports() {
   echo
-  echo "ApplyManager container map (production compose):"
-  echo "Frontend+Backend (app): http://localhost:3000"
+  echo "==============================================="
+  echo "ApplyManager READY (production compose)"
+  echo "==============================================="
+  echo "Frontend (UI):          http://localhost:3000"
+  echo "Backend (API):          http://localhost:3000/api"
   echo "Backend health:         http://localhost:3000/api/health"
   echo "Backend sources:        http://localhost:3000/api/scrape/sources"
   echo "Database (PostgreSQL):  localhost:5432"
   echo
-  echo "Containers:"
+  echo "Containers running:"
   echo "- applymanager-app"
   echo "- applymanager-db"
+  echo "==============================================="
 }
 
 show_images() {
