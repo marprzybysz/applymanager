@@ -125,28 +125,21 @@ def normalize_offer_status(status_value: Any, applied_default: bool = True) -> s
     return "Wyslano" if applied_default else "Zapisano"
 
 
-def apply_default_offer_dates(offer: dict[str, Any]) -> dict[str, Any]:
-    date_posted = safe_date(offer.get("datePosted"))
-    expires_at = safe_date(offer.get("expiresAt"))
-
-    # If closing date is provided but published date is missing, infer published date as 30 days earlier.
-    if not date_posted and expires_at:
-        try:
-            inferred = date.fromisoformat(expires_at) - timedelta(days=DEFAULT_OFFER_DURATION_DAYS)
-            date_posted = inferred.isoformat()
-        except Exception:
-            date_posted = None
-
-    offer["datePosted"] = date_posted
-    offer["expiresAt"] = expires_at
-    return offer
+def infer_date_posted_from_expires_at(expires_at: str | None) -> str | None:
+    if not expires_at:
+        return None
+    try:
+        inferred = date.fromisoformat(expires_at) - timedelta(days=DEFAULT_OFFER_DURATION_DAYS)
+        return inferred.isoformat()
+    except Exception:
+        return None
 
 
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
 
-    mapped_offer = {
+    return {
         "company": to_non_empty_string(body.get("company")) or "",
         "role": to_non_empty_string(body.get("role")) or "",
         "applied": applied_value,
@@ -164,7 +157,6 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
         "shiftCount": to_non_empty_string(body.get("shiftCount")),
         "workingHours": to_non_empty_string(body.get("workingHours")),
     }
-    return apply_default_offer_dates(mapped_offer)
 
 
 def map_excel_row_to_offer(
@@ -196,7 +188,6 @@ def map_excel_row_to_offer(
         "source": pick_first_value(row, EXCEL_FIELDS["source"]) or import_source,
         "sourceUrl": direct_source_url if is_absolute_http_url(direct_source_url) else (linked_source_url or None),
     }
-    mapped_offer = apply_default_offer_dates(mapped_offer)
 
     missing_fields: list[str] = []
     if not company:
@@ -463,6 +454,15 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
     worksheet.append(headers)
 
     for offer in offers:
+        raw_date_posted = safe_date(offer.get("datePosted"))
+        raw_expires_at = safe_date(offer.get("expiresAt"))
+        export_date_posted = raw_date_posted
+        # Infer only for export preview/file generation when only closing date exists.
+        source_value = str(offer.get("source") or "").strip().lower()
+        is_manual_source = source_value in {"", "manual"}
+        if not export_date_posted and raw_expires_at and is_manual_source:
+            export_date_posted = infer_date_posted_from_expires_at(raw_expires_at)
+
         worksheet.append(
             [
                 offer.get("company") or "",
@@ -472,8 +472,8 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
                 offer.get("location") or "",
                 offer.get("notes") or "",
                 safe_date(offer.get("appliedAt")) or "",
-                safe_date(offer.get("datePosted")) or "",
-                safe_date(offer.get("expiresAt")) or "",
+                export_date_posted or "",
+                raw_expires_at or "",
                 offer.get("daysToExpire") if offer.get("daysToExpire") is not None else "",
                 offer.get("source") or "",
                 offer.get("sourceUrl") or "",

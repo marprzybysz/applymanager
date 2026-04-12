@@ -22,6 +22,25 @@ from server.modules.scrape import list_sources, normalize_scrape_url, scrape_que
 router = APIRouter(prefix="/api")
 
 
+def is_manual_offer(offer_input: dict) -> bool:
+    source = (to_non_empty_string(offer_input.get("source")) or "manual").strip().lower()
+    return source == "manual"
+
+
+def validate_manual_offer_requirements(offer_input: dict) -> None:
+    if not is_manual_offer(offer_input):
+        return
+
+    if not to_non_empty_string(offer_input.get("company")):
+        raise HTTPException(status_code=400, detail="company is required for manual offer")
+    if not to_non_empty_string(offer_input.get("location")):
+        raise HTTPException(status_code=400, detail="location is required for manual offer")
+    if not to_non_empty_string(offer_input.get("status")):
+        raise HTTPException(status_code=400, detail="status is required for manual offer")
+    if not to_non_empty_string(offer_input.get("appliedAt")):
+        raise HTTPException(status_code=400, detail="appliedAt is required for manual offer")
+
+
 @router.get("/greet")
 def greet(name: str | None = None):
     username = name.strip() if isinstance(name, str) and name.strip() else "friend"
@@ -84,8 +103,11 @@ async def create_offer(request: Request):
     body = await request.json()
     offer_input = map_offer_for_insert_from_request(body or {})
 
-    if not offer_input["company"] or not offer_input["role"]:
-        raise HTTPException(status_code=400, detail="company and role are required")
+    if not offer_input["company"]:
+        raise HTTPException(status_code=400, detail="company is required")
+    if not is_manual_offer(offer_input) and not offer_input["role"]:
+        raise HTTPException(status_code=400, detail="role is required for non-manual offer")
+    validate_manual_offer_requirements(offer_input)
 
     try:
         offer = insert_offer(offer_input)
@@ -99,8 +121,11 @@ async def edit_offer(offer_id: int, request: Request):
     body = await request.json()
     offer_input = map_offer_for_insert_from_request(body or {})
 
-    if not offer_input["company"] or not offer_input["role"]:
-        raise HTTPException(status_code=400, detail="company and role are required")
+    if not offer_input["company"]:
+        raise HTTPException(status_code=400, detail="company is required")
+    if not is_manual_offer(offer_input) and not offer_input["role"]:
+        raise HTTPException(status_code=400, detail="role is required for non-manual offer")
+    validate_manual_offer_requirements(offer_input)
 
     try:
         offer = update_offer(offer_id, offer_input)

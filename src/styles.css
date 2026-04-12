@@ -483,6 +483,12 @@ button:disabled {
   margin: 0.25rem 0 0;
 }
 
+.required-note {
+  color: var(--text-soft);
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+}
+
 .offers-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);

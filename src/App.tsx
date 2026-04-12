@@ -170,6 +170,8 @@ const I18N = {
     offerLink: "Link oferty",
     notes: "Notatki",
     addOfferSubmit: "Dodaj oferte",
+    manualRequiredFields: "W trybie manualnym wymagane sa: Firma, Lokalizacja, Status i Data aplikacji.",
+    requiredFieldsLegend: "* pola wymagane",
     copiedLinkRequired: "Wklej link do oferty",
     offerAddFailed: "Nie udalo sie dodac oferty",
     linkFetchFailed: "Nie udalo sie pobrac oferty",
@@ -296,6 +298,8 @@ const I18N = {
     offerLink: "Offer URL",
     notes: "Notes",
     addOfferSubmit: "Add offer",
+    manualRequiredFields: "In manual mode required fields are: Company, Location, Status and Application date.",
+    requiredFieldsLegend: "* required fields",
     copiedLinkRequired: "Paste offer URL first",
     offerAddFailed: "Failed to add offer",
     linkFetchFailed: "Failed to fetch offer from URL",
@@ -1118,6 +1122,16 @@ export function App() {
 
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (addOfferMode === "manual") {
+      const hasCompany = Boolean(offerForm.company?.trim());
+      const hasLocation = Boolean(offerForm.location?.trim());
+      const hasStatus = Boolean(offerForm.status?.trim());
+      const hasAppliedAt = Boolean(offerForm.appliedAt?.trim());
+      if (!hasCompany || !hasLocation || !hasStatus || !hasAppliedAt) {
+        setStatusMessage(t.manualRequiredFields);
+        return;
+      }
+    }
     setLoading(true);
 
     try {
@@ -2032,7 +2046,7 @@ export function App() {
             {showAddOfferForm || addOfferMode === "manual" ? (
               <form className="grid" onSubmit={handleAddOffer}>
                 <label className="form-field">
-                  <span>{t.company}</span>
+                  <span>{t.company}*</span>
                   <input
                     value={offerForm.company}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, company: event.target.value }))}
@@ -2040,18 +2054,19 @@ export function App() {
                   />
                 </label>
                 <label className="form-field">
-                  <span>{t.role}</span>
+                  <span>{t.role}{addOfferMode === "manual" ? "" : "*"}</span>
                   <input
                     value={offerForm.role}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, role: event.target.value }))}
-                    required
+                    required={addOfferMode !== "manual"}
                   />
                 </label>
                 <label className="form-field">
-                  <span>{t.status}</span>
+                  <span>{t.status}*</span>
                   <select
                     value={offerForm.status}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, status: event.target.value }))}
+                    required
                   >
                     {STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
@@ -2061,18 +2076,20 @@ export function App() {
                   </select>
                 </label>
                 <label className="form-field">
-                  <span>{t.location}</span>
+                  <span>{t.location}*</span>
                   <input
                     value={offerForm.location || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, location: event.target.value }))}
+                    required={addOfferMode === "manual"}
                   />
                 </label>
                 <label className="form-field">
-                  <span>{t.appliedAt}</span>
+                  <span>{t.appliedAt}*</span>
                   <input
                     type="date"
                     value={offerForm.appliedAt || ""}
                     onChange={(event) => setOfferForm((prev) => ({ ...prev, appliedAt: event.target.value }))}
+                    required={addOfferMode === "manual"}
                   />
                 </label>
                 <label className="form-field">
@@ -2157,6 +2174,7 @@ export function App() {
                     placeholder="08:00-16:00"
                   />
                 </label>
+                <p className="required-note span-2">{t.requiredFieldsLegend}</p>
                 <div className="modal-actions span-2">
                   <button
                     type="button"
