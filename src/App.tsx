@@ -698,6 +698,7 @@ export function App() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
+  const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsMenu;
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
   const unreadNotificationsCount = useMemo(
@@ -2001,7 +2002,7 @@ export function App() {
             ) : null}
           </div>
         </div>
-        {activeTopTab === "offers" && dockOfferToolsToHeader ? (
+        {activeTopTab === "offers" && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
           <>
             {showFilters ? (
               <div className="header-docked-filters">
@@ -2014,7 +2015,7 @@ export function App() {
           </>
         ) : null}
       </header>
-      {activeTopTab === "offers" && dockOfferToolsToHeader ? (
+      {activeTopTab === "offers" && dockOfferToolsToHeader && !isHeaderMenuOpen ? (
         <div
           className={`header-docked-spacer ${showFilters ? "header-docked-spacer--with-filters" : ""}`}
           aria-hidden="true"
