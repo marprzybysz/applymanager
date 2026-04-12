@@ -2378,7 +2378,7 @@ export function App() {
                   <span>{t.selectedRows}: {selectedRowIds.length}</span>
                   <button
                     type="button"
-                    className="ghost-btn row-action-btn"
+                    className="ghost-btn row-action-btn row-action-btn--pin"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) togglePinOffer(first);
@@ -2389,7 +2389,7 @@ export function App() {
                   </button>
                   <button
                     type="button"
-                    className="ghost-btn row-action-btn"
+                    className="ghost-btn row-action-btn row-action-btn--edit"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openOfferDetails(first);
@@ -2400,7 +2400,7 @@ export function App() {
                   </button>
                   <button
                     type="button"
-                    className="ghost-btn row-action-btn"
+                    className="ghost-btn row-action-btn row-action-btn--status"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openQuickStatus(first);
@@ -2411,7 +2411,7 @@ export function App() {
                   </button>
                   <button
                     type="button"
-                    className="danger-btn row-action-btn"
+                    className="row-action-btn row-action-btn--delete"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openDeleteFromRow(first);
@@ -2565,7 +2565,7 @@ export function App() {
                             <div className="editor-hover-bar">
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn"
+                                className="ghost-btn row-action-btn row-action-btn--pin"
                                 onClick={() => togglePinOffer(offer)}
                                 title={pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
                               >
@@ -2573,7 +2573,7 @@ export function App() {
                               </button>
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn"
+                                className="ghost-btn row-action-btn row-action-btn--edit"
                                 onClick={() => openOfferDetails(offer)}
                                 title={t.edit}
                               >
@@ -2581,7 +2581,7 @@ export function App() {
                               </button>
                               <button
                                 type="button"
-                                className="ghost-btn row-action-btn"
+                                className="ghost-btn row-action-btn row-action-btn--status"
                                 onClick={() => openQuickStatus(offer)}
                                 title={t.quickStatus}
                               >
@@ -2589,7 +2589,7 @@ export function App() {
                               </button>
                               <button
                                 type="button"
-                                className="danger-btn row-action-btn"
+                                className="row-action-btn row-action-btn--delete"
                                 onClick={() => openDeleteFromRow(offer)}
                                 title={t.delete}
                               >

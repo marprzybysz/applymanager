@@ -1228,6 +1228,57 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font-weight: 700;
+}
+
+.row-action-btn--pin {
+  background: #0ea5e9;
+  border-color: #0284c7;
+  color: #e0f2fe;
+}
+
+.row-action-btn--pin:hover {
+  background: #0284c7;
+  border-color: #0369a1;
+  color: #f0f9ff;
+}
+
+.row-action-btn--edit {
+  background: #facc15;
+  border-color: #eab308;
+  color: #111827;
+}
+
+.row-action-btn--edit:hover {
+  background: #eab308;
+  border-color: #ca8a04;
+  color: #0f172a;
+}
+
+.row-action-btn--status {
+  background: #a855f7;
+  border-color: #9333ea;
+  color: #f3e8ff;
+}
+
+.row-action-btn--status:hover {
+  background: #9333ea;
+  border-color: #7e22ce;
+  color: #faf5ff;
+}
+
+.row-action-btn--delete {
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #fee2e2;
+}
+
+.row-action-btn--delete:hover {
+  background: #b91c1c;
+  border-color: #991b1b;
+  color: #ffffff;
 }
 
 .quick-status-box {
