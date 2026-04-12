@@ -42,6 +42,23 @@ def _json_safe_value(value: Any) -> Any:
     return str(value)
 
 
+def _is_identifier_header(header: str) -> bool:
+    normalized = str(header or "").strip().lower()
+    return normalized in {"id", "lp", "nr", "no", "index", "row", "__rownumber"}
+
+
+def _has_meaningful_non_id_data(row: dict[str, Any]) -> bool:
+    for key, value in row.items():
+        key_text = str(key or "")
+        if key_text.startswith("__link__"):
+            continue
+        if _is_identifier_header(key_text):
+            continue
+        if to_non_empty_string(value):
+            return True
+    return False
+
+
 def _normalize_status_key(value: Any) -> str:
     return str(value or "").strip().lower()
 
@@ -98,6 +115,10 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
 def map_excel_row_to_offer(
     row: dict[str, Any], import_source: str = "import_excel"
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    # Ignore empty rows or rows that only contain an ID-like value.
+    if not _has_meaningful_non_id_data(row):
+        return None, None
+
     company = pick_first_value(row, EXCEL_FIELDS["company"])
     role = pick_first_value(row, EXCEL_FIELDS["role"])
 
@@ -331,19 +352,23 @@ def import_offers_from_excel(content: bytes) -> dict[str, Any]:
     saved: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
     skipped = 0
+    ignored = 0
     for row in rows:
         mapped_offer, issue = map_excel_row_to_offer(row, import_source="import_excel")
         if mapped_offer:
             saved.append(insert_offer(mapped_offer))
         else:
-            skipped += 1
             if issue:
+                skipped += 1
                 issues.append(issue)
+            else:
+                ignored += 1
 
     return {
         "ok": True,
         "imported": len(saved),
         "skipped": skipped,
+        "ignored": ignored,
         "offers": saved,
         "issues": issues,
     }

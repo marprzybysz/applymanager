@@ -516,6 +516,19 @@ function getPrimaryLocation(location: string | null | undefined): string {
   return text.split(",")[0]?.trim() || text;
 }
 
+function getAssistantFieldLabel(field: string): string {
+  const labels: Record<string, string> = {
+    company: "Firma",
+    role: "Stanowisko",
+    location: "Lokalizacja",
+    status: "Status",
+    source: "Zrodlo",
+    sourceUrl: "Link",
+    notes: "Notatki",
+  };
+  return labels[field] || field;
+}
+
 function normalizeStatusKey(status: string | null | undefined): string {
   return String(status || "")
     .trim()
@@ -555,6 +568,8 @@ export function App() {
   const [showExportAssistant, setShowExportAssistant] = useState(false);
   const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
   const [activeAssistantIndex, setActiveAssistantIndex] = useState(0);
+  const assistantRawWindowRef = useRef<HTMLElement | null>(null);
+  const assistantEditWindowRef = useRef<HTMLElement | null>(null);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [addOfferUrl, setAddOfferUrl] = useState("");
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
@@ -954,6 +969,14 @@ export function App() {
   }, [language]);
 
   useEffect(() => {
+    if (!showExportAssistant) return;
+    requestAnimationFrame(() => {
+      if (assistantRawWindowRef.current) assistantRawWindowRef.current.scrollTop = 0;
+      if (assistantEditWindowRef.current) assistantEditWindowRef.current.scrollTop = 0;
+    });
+  }, [showExportAssistant, activeAssistantIndex]);
+
+  useEffect(() => {
     if (activeTopTab !== "offers") {
       setDockOfferToolsToHeader(false);
       setShowSearchInput(false);
@@ -1313,6 +1336,18 @@ export function App() {
           notes: String(parsed.notes || ""),
         },
       };
+    });
+  }
+
+  function selectAssistantRow(index: number) {
+    setActiveAssistantIndex(index);
+    requestAnimationFrame(() => {
+      if (assistantRawWindowRef.current) {
+        assistantRawWindowRef.current.scrollTop = 0;
+      }
+      if (assistantEditWindowRef.current) {
+        assistantEditWindowRef.current.scrollTop = 0;
+      }
     });
   }
 
@@ -2492,112 +2527,159 @@ export function App() {
 
       {showExportAssistant ? (
         <div className="modal-backdrop">
-          <div className="modal export-assistant-modal" id="export-assistant-modal">
-            <button
-              type="button"
-              className="modal-close"
-              onClick={() => setShowExportAssistant(false)}
-              aria-label={t.close}
+          <div className="export-assistant-shell" id="export-assistant-modal">
+            <aside
+              className="modal export-assistant-window export-assistant-window--raw"
+              ref={assistantRawWindowRef}
             >
-              X
-            </button>
-            <h3>{t.exportAssistantTitle}</h3>
-            {exportAssistantRows.length === 0 ? (
-              <p className="hint">{t.exportAssistantNoRows}</p>
-            ) : (
-              <div className="export-assistant-layout">
-                <aside className="export-assistant-raw">
-                  <h4>{t.exportAssistantRaw}</h4>
+              <h3>{t.exportAssistantRaw}</h3>
+              {exportAssistantRows.length === 0 ? (
+                <p className="hint">{t.exportAssistantNoRows}</p>
+              ) : (
+                <>
                   <div className="export-assistant-list">
                     {exportAssistantRows.map((row, index) => (
                       <button
                         key={`${row.rowNumber}-${index}`}
                         type="button"
                         className={`ghost-btn export-assistant-row-btn ${index === activeAssistantIndex ? "export-assistant-row-btn--active" : ""}`}
-                        onClick={() => setActiveAssistantIndex(index)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectAssistantRow(index)}
                       >
                         #{row.rowNumber} {row.saved ? "✓" : ""}
                       </button>
                     ))}
                   </div>
-                  <pre className="export-assistant-raw-box">
-                    {JSON.stringify(exportAssistantRows[activeAssistantIndex]?.raw || {}, null, 2)}
-                  </pre>
-                </aside>
-                <section className="export-assistant-edit">
-                  <h4>{t.exportAssistantEdit}</h4>
-                  {exportAssistantRows[activeAssistantIndex] ? (
-                    <form
-                      className="grid"
-                      onSubmit={async (event) => {
-                        event.preventDefault();
-                        setLoading(true);
-                        try {
-                          await saveAssistantRow(activeAssistantIndex);
-                          await Promise.all([fetchOffers(), fetchStats()]);
-                          setStatusMessage(t.exportAssistantSaved.replace("{count}", "1"));
-                        } catch (error) {
-                          setStatusMessage(String(error));
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                    >
-                      {(["company", "role", "location", "status", "source", "sourceUrl", "notes"] as const).map((field) => {
-                        const row = exportAssistantRows[activeAssistantIndex];
-                        const missing = row.missingFields.includes(field);
-                        const value = String((row.draft as unknown as Record<string, unknown>)[field] || "");
-                        return (
-                          <label key={field} className={`form-field ${missing ? "form-field--missing" : ""}`}>
-                            <span>{field}</span>
-                            <input
-                              value={value}
-                              onChange={(event) =>
-                                setExportAssistantRows((prev) =>
-                                  prev.map((item, idx) =>
-                                    idx === activeAssistantIndex
-                                      ? {
-                                          ...item,
-                                          draft: {
-                                            ...item.draft,
-                                            [field]: event.target.value,
-                                          } as Offer,
-                                        }
-                                      : item
-                                  )
-                                )
-                              }
-                            />
-                          </label>
-                        );
-                      })}
-                      <div className="modal-actions span-2">
-                        <button
-                          type="button"
-                          className="ghost-btn"
-                          onClick={() => setShowExportAssistant(false)}
+                  <div className="export-assistant-summary">
+                    <p>
+                      <strong>Wiersz:</strong> #{exportAssistantRows[activeAssistantIndex]?.rowNumber || "-"}
+                    </p>
+                    <p>
+                      <strong>Brakujace pola:</strong>
+                    </p>
+                    <div className="export-assistant-missing-list">
+                      {(exportAssistantRows[activeAssistantIndex]?.missingFields || []).map((field) => (
+                        <span key={field} className="export-assistant-missing-chip">
+                          {getAssistantFieldLabel(field)}
+                        </span>
+                      ))}
+                      {(exportAssistantRows[activeAssistantIndex]?.missingFields || []).length === 0 ? (
+                        <span className="hint">Brak</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="export-assistant-quick-grid">
+                    {(["company", "role", "location", "status", "source"] as const).map((field) => {
+                      const row = exportAssistantRows[activeAssistantIndex];
+                      const value = String((row?.draft as unknown as Record<string, unknown>)?.[field] || "-");
+                      const isMissing = (row?.missingFields || []).includes(field);
+                      return (
+                        <div
+                          key={field}
+                          className={`export-assistant-quick-item ${isMissing ? "export-assistant-quick-item--missing" : ""}`}
                         >
-                          {t.close}
-                        </button>
-                        <button type="button" className="ghost-btn" onClick={handleSaveAllAssistantRows} disabled={loading}>
-                          {t.exportAssistantSaveAll}
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={
-                            loading ||
-                            !exportAssistantRows[activeAssistantIndex].draft.company.trim() ||
-                            !exportAssistantRows[activeAssistantIndex].draft.role.trim()
+                          <span>{getAssistantFieldLabel(field)}</span>
+                          <strong>{value || "-"}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <details className="export-assistant-raw-details">
+                    <summary>Pokaz surowy JSON</summary>
+                    <pre className="export-assistant-raw-box">
+                      {JSON.stringify(exportAssistantRows[activeAssistantIndex]?.raw || {}, null, 2)}
+                    </pre>
+                  </details>
+                </>
+              )}
+            </aside>
+
+            <section
+              className="modal export-assistant-window export-assistant-window--edit"
+              ref={assistantEditWindowRef}
+            >
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowExportAssistant(false)}
+                aria-label={t.close}
+              >
+                X
+              </button>
+              <h3>{t.exportAssistantTitle}</h3>
+              <h4>{t.exportAssistantEdit}</h4>
+              {exportAssistantRows[activeAssistantIndex] ? (
+                <form
+                  className="grid"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setLoading(true);
+                    try {
+                      await saveAssistantRow(activeAssistantIndex);
+                      await Promise.all([fetchOffers(), fetchStats()]);
+                      setStatusMessage(t.exportAssistantSaved.replace("{count}", "1"));
+                    } catch (error) {
+                      setStatusMessage(String(error));
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  {(["company", "role", "location", "status", "source", "sourceUrl", "notes"] as const).map((field) => {
+                    const row = exportAssistantRows[activeAssistantIndex];
+                    const missing = row.missingFields.includes(field);
+                    const value = String((row.draft as unknown as Record<string, unknown>)[field] || "");
+                    return (
+                      <label key={field} className={`form-field ${missing ? "form-field--missing" : ""}`}>
+                        <span>{field}</span>
+                        <input
+                          value={value}
+                          onChange={(event) =>
+                            setExportAssistantRows((prev) =>
+                              prev.map((item, idx) =>
+                                idx === activeAssistantIndex
+                                  ? {
+                                      ...item,
+                                      draft: {
+                                        ...item.draft,
+                                        [field]: event.target.value,
+                                      } as Offer,
+                                    }
+                                  : item
+                              )
+                            )
                           }
-                        >
-                          {t.exportAssistantSaveRow}
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
-                </section>
-              </div>
-            )}
+                        />
+                      </label>
+                    );
+                  })}
+                  <div className="modal-actions span-2">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => setShowExportAssistant(false)}
+                    >
+                      {t.close}
+                    </button>
+                    <button type="button" className="ghost-btn" onClick={handleSaveAllAssistantRows} disabled={loading}>
+                      {t.exportAssistantSaveAll}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        loading ||
+                        !exportAssistantRows[activeAssistantIndex].draft.company.trim() ||
+                        !exportAssistantRows[activeAssistantIndex].draft.role.trim()
+                      }
+                    >
+                      {t.exportAssistantSaveRow}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <p className="hint">{t.exportAssistantNoRows}</p>
+              )}
+            </section>
           </div>
         </div>
       ) : null}

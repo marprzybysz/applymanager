@@ -767,14 +767,23 @@ button:disabled {
   font-weight: 700;
 }
 
-.export-assistant-modal {
-  max-width: 1120px;
+.export-assistant-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(520px, 760px);
+  gap: 1rem;
+  align-items: flex-start;
+  width: min(1180px, calc(100vw - 2rem));
 }
 
-.export-assistant-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(380px, 1.2fr);
-  gap: 1rem;
+.export-assistant-window {
+  margin: 0;
+  max-height: min(86vh, 860px);
+  overflow: auto;
+}
+
+.export-assistant-window--raw {
+  position: relative;
+  left: 0;
 }
 
 .export-assistant-raw,
@@ -802,8 +811,79 @@ button:disabled {
   color: #fff;
 }
 
+.export-assistant-summary {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0.55rem;
+  margin-bottom: 0.6rem;
+}
+
+.export-assistant-summary p {
+  margin: 0 0 0.4rem;
+}
+
+.export-assistant-missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.export-assistant-missing-chip {
+  border-radius: 999px;
+  border: 1px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+:root[data-theme="dark"] .export-assistant-missing-chip {
+  background: #4a3a1f;
+  border-color: #d97706;
+  color: #fde68a;
+}
+
+.export-assistant-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.6rem;
+}
+
+.export-assistant-quick-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0.45rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.export-assistant-quick-item span {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.export-assistant-quick-item--missing {
+  border-color: #f59e0b;
+  background: color-mix(in srgb, #fef3c7 55%, var(--surface) 45%);
+}
+
+.export-assistant-raw-details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0.35rem 0.55rem;
+}
+
+.export-assistant-raw-details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
 .export-assistant-raw-box {
-  margin: 0;
+  margin: 0.5rem 0 0;
   max-height: 340px;
   overflow: auto;
   border: 1px solid var(--border);
@@ -955,7 +1035,12 @@ button:disabled {
     align-items: stretch;
   }
 
-  .export-assistant-layout {
+  .export-assistant-shell {
+    grid-template-columns: 1fr;
+    width: min(720px, calc(100vw - 1.2rem));
+  }
+
+  .export-assistant-quick-grid {
     grid-template-columns: 1fr;
   }
 }
