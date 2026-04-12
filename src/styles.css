@@ -255,7 +255,36 @@ body {
 }
 
 .edit-offer-btn.is-active {
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.35);
+  background: #b91c1c;
+  border-color: #dc2626;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.edit-offer-btn.is-active:hover {
+  background: #991b1b;
+  border-color: #b91c1c;
+}
+
+.edit-offer-btn--mode {
+  min-width: 132px !important;
+  width: 132px !important;
+  padding: 0 0.6rem !important;
+}
+
+.action-mini-btn.edit-offer-btn--mode:hover {
+  min-width: 132px;
+  width: 132px;
+}
+
+.action-mini-btn.edit-offer-btn--mode::after {
+  display: none;
+}
+
+.edit-mode-label {
+  font: inherit;
+  font-weight: 600;
+  color: #ffffff;
 }
 
 .edit-offer-btn--compact {
@@ -728,6 +757,7 @@ body {
   align-items: center;
   gap: 0.8rem;
   margin-bottom: 0.75rem;
+  position: relative;
 }
 
 .offers-head-left {
@@ -740,6 +770,17 @@ body {
 .offers-head h2 {
   margin: 0;
   white-space: nowrap;
+}
+
+.editor-hover-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0.22rem 0.35rem;
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.18);
 }
 
 .editor-selection-bar {
@@ -1158,29 +1199,24 @@ button:disabled {
   background: #2f3642;
 }
 
+.offers-table .clickable-row--editor {
+  position: relative;
+}
+
 .offers-table .clickable-row--selected {
   background: #2c3d5d;
 }
 
-.row-actions-cell {
-  width: 220px;
-  min-width: 220px;
-}
-
-.row-actions-inline {
+.row-hover-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 140ms ease, transform 140ms ease;
-  pointer-events: none;
-}
-
-.row-actions-inline.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
+  gap: 0.32rem;
 }
 
 .row-action-btn {
@@ -1217,6 +1253,14 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pinned-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.28rem;
+  font-size: 0.84rem;
+  line-height: 1;
 }
 
 .stats-grid {
@@ -1637,6 +1681,11 @@ button:disabled {
     width: 100%;
   }
 
+  .editor-hover-bar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .editor-selection-bar {
     width: 100%;
     flex-wrap: wrap;
@@ -1651,11 +1700,6 @@ button:disabled {
   .offers-toolbar-right {
     width: 100%;
     flex-wrap: wrap;
-  }
-
-  .row-actions-cell {
-    width: 100%;
-    min-width: 190px;
   }
 
   .offers-toolbar-right--docked {
