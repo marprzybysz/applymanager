@@ -172,6 +172,18 @@ const I18N = {
     addOfferSubmit: "Dodaj oferte",
     manualRequiredFields: "W trybie manualnym wymagane sa: Firma, Lokalizacja, Status i Data aplikacji.",
     requiredFieldsLegend: "* pola wymagane",
+    processingLink: "Przetwarzanie linku...",
+    savingOffer: "Zapisywanie oferty...",
+    processingImport: "Przetwarzanie importu...",
+    importSummaryTitle: "Podsumowanie importu",
+    importedRecords: "Wczytano",
+    skippedRecords: "Pominieto",
+    selectAll: "Zaznacz wszystko",
+    unselectAll: "Odznacz wszystko",
+    clearSelection: "Wyczysc zaznaczenie",
+    deleteSelectedImported: "Usun zaznaczone",
+    importNow: "Importuj",
+    noImportedRows: "Brak nowo wczytanych rekordow do wyswietlenia.",
     copiedLinkRequired: "Wklej link do oferty",
     offerAddFailed: "Nie udalo sie dodac oferty",
     linkFetchFailed: "Nie udalo sie pobrac oferty",
@@ -300,6 +312,18 @@ const I18N = {
     addOfferSubmit: "Add offer",
     manualRequiredFields: "In manual mode required fields are: Company, Location, Status and Application date.",
     requiredFieldsLegend: "* required fields",
+    processingLink: "Processing link...",
+    savingOffer: "Saving offer...",
+    processingImport: "Processing import...",
+    importSummaryTitle: "Import summary",
+    importedRecords: "Imported",
+    skippedRecords: "Skipped",
+    selectAll: "Select all",
+    unselectAll: "Unselect all",
+    clearSelection: "Clear selection",
+    deleteSelectedImported: "Delete selected",
+    importNow: "Import",
+    noImportedRows: "No newly imported records to display.",
     copiedLinkRequired: "Paste offer URL first",
     offerAddFailed: "Failed to add offer",
     linkFetchFailed: "Failed to fetch offer from URL",
@@ -427,6 +451,23 @@ function createDefaultOffer(): Offer {
     workMode: "",
     shiftCount: "",
     workingHours: "",
+  };
+}
+
+function normalizeImportEntryToOffer(entry: Partial<Offer>): Offer {
+  const normalizedStatus = normalizeOfferStatus(entry.status, entry.applied !== false);
+  return {
+    ...createDefaultOffer(),
+    ...entry,
+    company: String(entry.company || "").trim(),
+    role: String(entry.role || "").trim(),
+    status: normalizedStatus,
+    applied: inferAppliedFromStatus(normalizedStatus),
+    location: String(entry.location || "").trim(),
+    notes: String(entry.notes || ""),
+    appliedAt: entry.appliedAt || getTodayDate(),
+    source: String(entry.source || "import_excel").trim() || "import_excel",
+    sourceUrl: String(entry.sourceUrl || "").trim(),
   };
 }
 
@@ -592,11 +633,18 @@ export function App() {
   const assistantEditWindowRef = useRef<HTMLElement | null>(null);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [addOfferUrl, setAddOfferUrl] = useState("");
+  const [addOfferOperationMessage, setAddOfferOperationMessage] = useState("");
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
   const [addOfferMode, setAddOfferMode] = useState<AddOfferMode>("link");
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importOperationMessage, setImportOperationMessage] = useState("");
+  const [showImportSummaryModal, setShowImportSummaryModal] = useState(false);
+  const [importedPreviewOffers, setImportedPreviewOffers] = useState<Offer[]>([]);
+  const [selectedImportedOfferIds, setSelectedImportedOfferIds] = useState<number[]>([]);
+  const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number } | null>(null);
+  const [pendingImportIssues, setPendingImportIssues] = useState<ExcelImportIssue[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [importTarget, setImportTarget] = useState<ImportTarget>("offers");
   const [importFormat, setImportFormat] = useState<ImportFormat>("xlsx");
@@ -788,6 +836,7 @@ export function App() {
     setShowAddOfferForm(false);
     setAddOfferMode("link");
     setAddOfferUrl("");
+    setAddOfferOperationMessage("");
     setOfferForm(createDefaultOffer());
     setShowSettingsMenu(false);
   }
@@ -817,6 +866,15 @@ export function App() {
     setShowAddOffer(false);
     setShowAddOfferForm(false);
     setAddOfferUrl("");
+    setAddOfferOperationMessage("");
+  }
+
+  function openImportSummary(importedOffers: Offer[], imported: number, skipped: number, issues: ExcelImportIssue[] = []) {
+    setImportedPreviewOffers(importedOffers.map((offer) => normalizeImportEntryToOffer(offer)));
+    setImportSummary({ imported, skipped });
+    setSelectedImportedOfferIds([]);
+    setPendingImportIssues(issues);
+    setShowImportSummaryModal(true);
   }
 
   function toggleAddOfferModal() {
@@ -888,6 +946,12 @@ export function App() {
       .catch((error) => setStatusMessage(String(error)))
       .finally(() => setLoading(false));
   }, [language]);
+
+  useEffect(() => {
+    if (!showImportModal) {
+      setImportOperationMessage("");
+    }
+  }, [showImportModal]);
 
   function togglePreferenceChip(field: keyof Omit<UserPreferences, "preferredWorkingHours">, value: string) {
     setPreferences((prev) => {
@@ -1132,6 +1196,7 @@ export function App() {
         return;
       }
     }
+    setAddOfferOperationMessage(t.savingOffer);
     setLoading(true);
 
     try {
@@ -1154,6 +1219,7 @@ export function App() {
       setAddOfferUrl("");
       setShowAddOfferForm(false);
       setShowAddOffer(false);
+      setAddOfferOperationMessage("");
       await Promise.all([fetchOffers(), fetchStats()]);
       setStatusMessage(t.offerAdded);
     } catch (error) {
@@ -1162,6 +1228,7 @@ export function App() {
         ...prev,
         sourceUrl: addOfferUrl || prev.sourceUrl
       }));
+      setAddOfferOperationMessage(String(error));
       setStatusMessage(String(error));
     } finally {
       setLoading(false);
@@ -1175,6 +1242,7 @@ export function App() {
       return;
     }
 
+    setAddOfferOperationMessage(t.processingLink);
     setLoading(true);
     try {
       const response = await fetch("/api/scrape/link", {
@@ -1223,8 +1291,10 @@ export function App() {
         workingHours: data.job?.workingHours || prev.workingHours || "",
       }));
       setShowAddOfferForm(true);
+      setAddOfferOperationMessage(t.linkFetched);
       setStatusMessage(t.linkFetched);
     } catch (error) {
+      setAddOfferOperationMessage(String(error));
       setStatusMessage(String(error));
     } finally {
       setLoading(false);
@@ -1234,17 +1304,19 @@ export function App() {
   async function handleImportExcel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!importFile) {
+      setImportOperationMessage(t.fileFirst);
       setStatusMessage(t.fileFirst);
       return;
     }
 
+    setImportOperationMessage(t.processingImport);
     setLoading(true);
     try {
       if (importTarget === "offers" && importFormat === "xlsx") {
         const formData = new FormData();
         formData.append("file", importFile);
 
-        const response = await fetch("/api/offers/import-excel", {
+        const response = await fetch("/api/offers/import-excel/preview", {
           method: "POST",
           body: formData
         });
@@ -1253,6 +1325,7 @@ export function App() {
           ok: boolean;
           imported?: number;
           skipped?: number;
+          offers?: Offer[];
           issues?: ExcelImportIssue[];
           error?: string;
         };
@@ -1260,24 +1333,14 @@ export function App() {
           throw new Error(data.error || t.excelImportFailed);
         }
 
-        await Promise.all([fetchOffers(), fetchStats()]);
         setImportFile(null);
         setShowImportModal(false);
+        setImportOperationMessage("");
         const importedCount = data.imported ?? 0;
         const skippedCount = data.skipped ?? 0;
-        if (skippedCount > 0 && (data.issues || []).length > 0) {
-          setExportAssistantRows(buildExportAssistantRows(data.issues || []));
-          setActiveAssistantIndex(0);
-          setShowImportAssistantPrompt(true);
-          setStatusMessage(
-            t.importWarningSummary
-              .replace("{imported}", String(importedCount))
-              .replace("{skipped}", String(skippedCount))
-          );
-          return;
-        }
+        openImportSummary(data.offers || [], importedCount, skippedCount, data.issues || []);
         setStatusMessage(
-          t.excelImported
+          t.importWarningSummary
             .replace("{imported}", String(importedCount))
             .replace("{skipped}", String(skippedCount))
         );
@@ -1292,26 +1355,15 @@ export function App() {
           throw new Error(t.excelImportFailed);
         }
 
-        let imported = 0;
-        let skipped = 0;
-        for (const entry of entries) {
-          const response = await fetch("/api/offers", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(entry),
-          });
-          const data = (await response.json()) as { ok: boolean };
-          if (data.ok) imported += 1;
-          else skipped += 1;
-        }
-
-        await Promise.all([fetchOffers(), fetchStats()]);
         setImportFile(null);
         setShowImportModal(false);
+        setImportOperationMessage("");
+        const normalizedOffers = entries.map((entry) => normalizeImportEntryToOffer(entry as Partial<Offer>));
+        openImportSummary(normalizedOffers, normalizedOffers.length, 0, []);
         setStatusMessage(
-          t.excelImported
-            .replace("{imported}", String(imported))
-            .replace("{skipped}", String(skipped))
+          t.importWarningSummary
+            .replace("{imported}", String(normalizedOffers.length))
+            .replace("{skipped}", "0")
         );
         return;
       }
@@ -1332,12 +1384,71 @@ export function App() {
         await fetchPreferences();
         setImportFile(null);
         setShowImportModal(false);
+        setImportOperationMessage("");
         setStatusMessage(t.importSuccess);
         return;
       }
 
       throw new Error(t.unsupportedImportCombo);
     } catch (error) {
+      setImportOperationMessage(String(error));
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteSelectedImported() {
+    if (selectedImportedOfferIds.length === 0) return;
+    setImportedPreviewOffers((prev) =>
+      prev.filter((_, index) => !selectedImportedOfferIds.includes(index))
+    );
+    setSelectedImportedOfferIds([]);
+  }
+
+  async function handleConfirmImport() {
+    if (importedPreviewOffers.length === 0) {
+      setStatusMessage(t.noImportedRows);
+      return;
+    }
+    setImportOperationMessage(t.processingImport);
+    setLoading(true);
+    try {
+      let importedCount = 0;
+      let skippedCount = 0;
+      for (const offer of importedPreviewOffers) {
+        const response = await fetch("/api/offers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...offer,
+            applied: inferAppliedFromStatus(offer.status),
+          }),
+        });
+        const data = (await response.json()) as { ok: boolean };
+        if (data.ok) importedCount += 1;
+        else skippedCount += 1;
+      }
+
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setShowImportSummaryModal(false);
+      setImportedPreviewOffers([]);
+      setSelectedImportedOfferIds([]);
+      if ((pendingImportIssues || []).length > 0) {
+        setExportAssistantRows(buildExportAssistantRows(pendingImportIssues));
+        setActiveAssistantIndex(0);
+        setShowImportAssistantPrompt(true);
+      }
+      setImportOperationMessage("");
+      setPendingImportIssues([]);
+      setImportSummary(null);
+      setStatusMessage(
+        t.excelImported
+          .replace("{imported}", String(importedCount))
+          .replace("{skipped}", String(skippedCount))
+      );
+    } catch (error) {
+      setImportOperationMessage(String(error));
       setStatusMessage(String(error));
     } finally {
       setLoading(false);
@@ -2042,6 +2153,7 @@ export function App() {
             ) : (
               <p className="hint">{t.manualHint}</p>
             )}
+            {addOfferOperationMessage ? <p className="hint operation-hint">{addOfferOperationMessage}</p> : null}
 
             {showAddOfferForm || addOfferMode === "manual" ? (
               <form className="grid" onSubmit={handleAddOffer}>
@@ -2855,6 +2967,7 @@ export function App() {
               X
             </button>
             <h3>{t.importData}</h3>
+            {importOperationMessage ? <p className="hint operation-hint">{importOperationMessage}</p> : null}
             <form className="grid" onSubmit={handleImportExcel}>
               <label className="form-field">
                 <span>{t.dataToImport}</span>
@@ -2893,6 +3006,97 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showImportSummaryModal ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="import-summary-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowImportSummaryModal(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.importSummaryTitle}</h3>
+            {importOperationMessage ? <p className="hint operation-hint">{importOperationMessage}</p> : null}
+            <p className="hint">
+              {t.importedRecords}: {importSummary?.imported ?? 0} | {t.skippedRecords}: {importSummary?.skipped ?? 0}
+            </p>
+
+            {importedPreviewOffers.length > 0 ? (
+              <>
+                <div className="row">
+                  <button type="button" onClick={handleConfirmImport} disabled={loading || importedPreviewOffers.length === 0}>
+                    {t.importNow}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => setSelectedImportedOfferIds(importedPreviewOffers.map((_, index) => index))}
+                  >
+                    {t.selectAll}
+                  </button>
+                  <button type="button" className="ghost-btn" onClick={() => setSelectedImportedOfferIds([])}>
+                    {t.unselectAll}
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-btn"
+                    onClick={handleDeleteSelectedImported}
+                    disabled={loading || selectedImportedOfferIds.length === 0}
+                  >
+                    {t.deleteSelectedImported}
+                  </button>
+                </div>
+                <div className="offers-table-wrap">
+                  <table className="offers-table">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>{t.company}</th>
+                        <th>{t.role}</th>
+                        <th>{t.status}</th>
+                        <th>{t.appliedAt}</th>
+                        <th>{t.source}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importedPreviewOffers.map((offer, index) => {
+                        const checked = selectedImportedOfferIds.includes(index);
+                        return (
+                          <tr key={`import-preview-${index}`}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  if (event.target.checked) {
+                                    setSelectedImportedOfferIds((prev) => Array.from(new Set([...prev, index])));
+                                  } else {
+                                    setSelectedImportedOfferIds((prev) => prev.filter((id) => id !== index));
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td>{offer.company || "-"}</td>
+                            <td>{offer.role || "-"}</td>
+                            <td>{offer.status || "-"}</td>
+                            <td>{offer.appliedAt || "-"}</td>
+                            <td>{offer.source || "-"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="hint">{t.noImportedRows}</p>
+            )}
           </div>
         </div>
       ) : null}

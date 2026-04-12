@@ -483,6 +483,10 @@ button:disabled {
   margin: 0.25rem 0 0;
 }
 
+.operation-hint {
+  margin-top: 0.55rem;
+}
+
 .required-note {
   color: var(--text-soft);
   margin: 0.1rem 0 0;
@@ -495,6 +499,8 @@ button:disabled {
   border-radius: 10px;
   max-width: 100%;
   min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--input-border) transparent;
 }
 
 .offers-table {
@@ -651,6 +657,34 @@ button:disabled {
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: var(--input-border) transparent;
+}
+
+.modal::-webkit-scrollbar,
+.offers-table-wrap::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.modal::-webkit-scrollbar-track,
+.offers-table-wrap::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 999px;
+}
+
+.modal::-webkit-scrollbar-thumb,
+.offers-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.75);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.modal::-webkit-scrollbar-thumb:hover,
+.offers-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.9);
+  background-clip: padding-box;
 }
 
 #add-offer.modal {

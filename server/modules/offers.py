@@ -398,16 +398,34 @@ def delete_offer(offer_id: int) -> bool:
 
 
 def import_offers_from_excel(content: bytes) -> dict[str, Any]:
-    rows = read_excel_rows_with_hyperlinks(content)
+    preview = preview_offers_from_excel(content)
+    mapped_offers = preview.get("offers") or []
 
     saved: list[dict[str, Any]] = []
+    for mapped_offer in mapped_offers:
+        saved.append(insert_offer(mapped_offer))
+
+    return {
+        "ok": True,
+        "imported": len(saved),
+        "skipped": preview.get("skipped", 0),
+        "ignored": preview.get("ignored", 0),
+        "offers": saved,
+        "issues": preview.get("issues", []),
+    }
+
+
+def preview_offers_from_excel(content: bytes) -> dict[str, Any]:
+    rows = read_excel_rows_with_hyperlinks(content)
+
+    mapped_offers: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
     skipped = 0
     ignored = 0
     for row in rows:
         mapped_offer, issue = map_excel_row_to_offer(row, import_source="import_excel")
         if mapped_offer:
-            saved.append(insert_offer(mapped_offer))
+            mapped_offers.append(mapped_offer)
         else:
             if issue:
                 skipped += 1
@@ -417,10 +435,10 @@ def import_offers_from_excel(content: bytes) -> dict[str, Any]:
 
     return {
         "ok": True,
-        "imported": len(saved),
+        "imported": len(mapped_offers),
         "skipped": skipped,
         "ignored": ignored,
-        "offers": saved,
+        "offers": mapped_offers,
         "issues": issues,
     }
 

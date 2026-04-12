@@ -13,6 +13,7 @@ from server.modules.offers import (
     insert_offer,
     list_offers,
     map_offer_for_insert_from_request,
+    preview_offers_from_excel,
     update_offer,
 )
 from server.modules.preferences import get_preferences, save_preferences
@@ -152,6 +153,15 @@ async def import_excel(file: UploadFile = File(...)):
     try:
         content = await file.read()
         return import_offers_from_excel(content)
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.post("/offers/import-excel/preview")
+async def import_excel_preview(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        return preview_offers_from_excel(content)
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
