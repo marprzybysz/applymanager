@@ -118,6 +118,7 @@ type AppNotification = {
   tone: NotificationTone;
   read: boolean;
   visible: boolean;
+  closing?: boolean;
   kind: "operational";
 };
 
@@ -616,6 +617,8 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
   return 10000;
 }
 
+const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
+
 function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
   const normalized = normalizeStatusKey(status);
   if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
@@ -726,7 +729,7 @@ export function App() {
     () => notifications.filter((item) => !item.read).length,
     [notifications]
   );
-  const visibleInlineNotifications = useMemo(
+  const visibleCenterNotifications = useMemo(
     () => notifications.filter((item) => item.visible && (item.tone === "warning" || item.tone === "error")).slice(0, 3),
     [notifications]
   );
@@ -756,15 +759,23 @@ export function App() {
       tone,
       read: false,
       visible: true,
+      closing: false,
       kind: "operational",
     };
     setNotifications((prev) => [notification, ...prev].slice(0, 80));
     const hideAfterMs = getNotificationAutoHideMs(tone);
     if (hideAfterMs !== null) {
       window.setTimeout(() => {
-        setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, visible: false } : item)));
+        dismissNotification(id);
       }, hideAfterMs);
     }
+  }
+
+  function dismissNotification(id: number) {
+    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, closing: true } : item)));
+    window.setTimeout(() => {
+      setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, visible: false } : item)));
+    }, NOTIFICATION_CLOSE_ANIMATION_MS);
   }
 
   const statusFilterOptions = useMemo(
@@ -2105,10 +2116,10 @@ export function App() {
         />
       ) : null}
 
-      {visibleInlineNotifications.length > 0 ? (
-        <div className="inline-notifications" aria-live="assertive" aria-atomic="false">
-          {visibleInlineNotifications.map((item) => (
-            <div key={`inline-${item.id}`} className={`inline-notice inline-notice--${item.tone}`}>
+      {visibleCenterNotifications.length > 0 ? (
+        <div className="toast-stack toast-stack--center" aria-live="assertive" aria-atomic="false">
+          {visibleCenterNotifications.map((item) => (
+            <div key={`center-${item.id}`} className={`toast toast--${item.tone} ${item.closing ? "toast--closing" : ""}`}>
               <div>
                 <span className="notification-kind">
                   {item.kind === "operational" ? t.notificationKindOperational : "-"}
@@ -2118,9 +2129,7 @@ export function App() {
               <button
                 type="button"
                 className={`toast-close toast-close--${item.tone}`}
-                onClick={() =>
-                  setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
-                }
+                onClick={() => dismissNotification(item.id)}
                 aria-label={t.close}
               >
                 X
@@ -2132,7 +2141,7 @@ export function App() {
 
       <div className="toast-stack" aria-live="polite" aria-atomic="false">
         {visibleToastNotifications.map((item) => (
-            <div key={`toast-${item.id}`} className={`toast toast--${item.tone}`}>
+            <div key={`toast-${item.id}`} className={`toast toast--${item.tone} ${item.closing ? "toast--closing" : ""}`}>
               <div>
                 <span className="notification-kind">
                   {item.kind === "operational" ? t.notificationKindOperational : "-"}
@@ -2142,9 +2151,7 @@ export function App() {
               <button
                 type="button"
                 className={`toast-close toast-close--${item.tone}`}
-                onClick={() =>
-                  setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, visible: false } : entry)))
-                }
+                onClick={() => dismissNotification(item.id)}
                 aria-label={t.close}
               >
                 X
