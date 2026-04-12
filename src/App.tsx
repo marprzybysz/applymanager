@@ -111,6 +111,13 @@ type CanonicalStatus =
   | "Oferta"
   | "Odrzucono"
   | "Odmowa";
+type NotificationTone = "success" | "error" | "warning" | "neutral";
+type AppNotification = {
+  id: number;
+  text: string;
+  tone: NotificationTone;
+  read: boolean;
+};
 
 const I18N = {
   pl: {
@@ -132,6 +139,9 @@ const I18N = {
     allData: "Wszystkie dane",
     importData: "Importuj dane",
     exportData: "Eksportuj dane",
+    dataManagement: "Zarzadzanie danymi",
+    notifications: "Powiadomienia",
+    noNotifications: "Brak powiadomien.",
     unsupportedImportCombo: "Ten typ importu nie jest obslugiwany",
     unsupportedExportCombo: "Ten typ eksportu nie jest obslugiwany",
     importSuccess: "Import zakonczony",
@@ -272,6 +282,9 @@ const I18N = {
     allData: "All data",
     importData: "Import data",
     exportData: "Export data",
+    dataManagement: "Data management",
+    notifications: "Notifications",
+    noNotifications: "No notifications.",
     unsupportedImportCombo: "This import type is not supported",
     unsupportedExportCombo: "This export type is not supported",
     importSuccess: "Import completed",
@@ -623,8 +636,7 @@ export function App() {
   const [pendingScrapedIndex, setPendingScrapedIndex] = useState<number | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [showStatus, setShowStatus] = useState(true);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showImportAssistantPrompt, setShowImportAssistantPrompt] = useState(false);
   const [showExportAssistant, setShowExportAssistant] = useState(false);
   const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
@@ -637,7 +649,9 @@ export function App() {
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
   const [addOfferMode, setAddOfferMode] = useState<AddOfferMode>("link");
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showDataManagementMenu, setShowDataManagementMenu] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importOperationMessage, setImportOperationMessage] = useState("");
   const [showImportSummaryModal, setShowImportSummaryModal] = useState(false);
@@ -686,14 +700,10 @@ export function App() {
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
-  const statusText = loading ? t.working : message || t.ready;
-  const statusTone = loading
-    ? "neutral"
-    : /error|failed|invalid|http\s*\d+/i.test(message)
-      ? "error"
-      : /warning|uwaga|pominieto|skipped/i.test(message)
-        ? "warning"
-      : "success";
+  const unreadNotificationsCount = useMemo(
+    () => notifications.filter((item) => !item.read).length,
+    [notifications]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -702,8 +712,24 @@ export function App() {
   }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
 
   function setStatusMessage(nextMessage: string) {
-    setMessage(nextMessage);
-    setShowStatus(true);
+    if (!nextMessage?.trim()) return;
+    const tone: NotificationTone =
+      /error|failed|invalid|http\s*\d+/i.test(nextMessage)
+        ? "error"
+        : /warning|uwaga|pominieto|skipped/i.test(nextMessage)
+          ? "warning"
+          : "success";
+    setNotifications((prev) =>
+      [
+        {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          text: nextMessage,
+          tone,
+          read: false,
+        },
+        ...prev,
+      ].slice(0, 80)
+    );
   }
 
   const statusFilterOptions = useMemo(
@@ -1817,6 +1843,7 @@ export function App() {
               className="ghost-btn icon-btn"
               onClick={() => {
                 setShowSettingsMenu((prev) => !prev);
+                setShowNotificationsMenu(false);
                 setShowUserMenu(false);
                 setShowImportModal(false);
                 setShowExportModal(false);
@@ -1852,10 +1879,50 @@ export function App() {
           <div className="menu-wrap">
             <button
               type="button"
+              className="ghost-btn icon-btn notify-btn"
+              onClick={() => {
+                const next = !showNotificationsMenu;
+                setShowNotificationsMenu(next);
+                setShowSettingsMenu(false);
+                setShowUserMenu(false);
+                if (next) {
+                  setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+                }
+              }}
+              aria-label={t.notifications}
+              title={t.notifications}
+            >
+              🔔
+              {unreadNotificationsCount > 0 ? (
+                <span className="notify-badge">{unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}</span>
+              ) : null}
+            </button>
+            {showNotificationsMenu ? (
+              <div className="menu-panel notifications-panel">
+                <strong>{t.notifications}</strong>
+                {notifications.length === 0 ? (
+                  <p className="hint">{t.noNotifications}</p>
+                ) : (
+                  <div className="notifications-list">
+                    {notifications.map((item) => (
+                      <p key={item.id} className={`notification-item notification-item--${item.tone}`}>
+                        {item.text}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <div className="menu-wrap">
+            <button
+              type="button"
               className="ghost-btn"
               onClick={() => {
                 setShowUserMenu((prev) => !prev);
                 setShowSettingsMenu(false);
+                setShowNotificationsMenu(false);
+                setShowDataManagementMenu(false);
               }}
             >
               {t.user}
@@ -1870,32 +1937,49 @@ export function App() {
                     setShowImportModal(false);
                     setShowExportModal(false);
                     setShowUserMenu(false);
+                    setShowDataManagementMenu(false);
                   }}
                 >
                   {t.preferences}
                 </button>
                 <button
                   type="button"
-                  className="ghost-btn"
+                  className="ghost-btn menu-toggle-btn"
                   onClick={() => {
-                    setShowImportModal(true);
-                    setShowExportModal(false);
-                    setShowUserMenu(false);
+                    setShowDataManagementMenu((prev) => !prev);
                   }}
                 >
-                  {t.importMenu}
+                  <span>{t.dataManagement}</span>
+                  <span>{showDataManagementMenu ? "▴" : "▾"}</span>
                 </button>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => {
-                    setShowExportModal(true);
-                    setShowImportModal(false);
-                    setShowUserMenu(false);
-                  }}
-                >
-                  {t.exportMenu}
-                </button>
+                {showDataManagementMenu ? (
+                  <div className="menu-subpanel">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => {
+                        setShowImportModal(true);
+                        setShowExportModal(false);
+                        setShowUserMenu(false);
+                        setShowDataManagementMenu(false);
+                      }}
+                    >
+                      {t.importData}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => {
+                        setShowExportModal(true);
+                        setShowImportModal(false);
+                        setShowUserMenu(false);
+                        setShowDataManagementMenu(false);
+                      }}
+                    >
+                      {t.exportData}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1916,20 +2000,6 @@ export function App() {
           className={`header-docked-spacer ${showFilters ? "header-docked-spacer--with-filters" : ""}`}
           aria-hidden="true"
         />
-      ) : null}
-
-      {showStatus ? (
-        <p className={`status status--${statusTone}`}>
-          <span>{statusText}</span>
-          <button
-            type="button"
-            className="status-close"
-            onClick={() => setShowStatus(false)}
-            aria-label={t.close}
-          >
-            X
-          </button>
-        </p>
       ) : null}
 
       {activeTopTab === "offers" ? (
