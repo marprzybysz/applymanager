@@ -254,6 +254,10 @@ body {
   border-color: #eab308;
 }
 
+.edit-offer-btn.is-active {
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.35);
+}
+
 .edit-offer-btn--compact {
   width: 36px;
   min-width: 36px;
@@ -726,9 +730,32 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.offers-head-left {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
 .offers-head h2 {
   margin: 0;
   white-space: nowrap;
+}
+
+.editor-selection-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0.22rem 0.35rem;
+}
+
+.editor-selection-bar span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-right: 0.15rem;
 }
 
 .offers-toolbar {
@@ -1125,6 +1152,61 @@ button:disabled {
 
 .offers-table .clickable-row:hover {
   background: var(--surface-2);
+}
+
+.offers-table .clickable-row--editor:hover {
+  background: #2f3642;
+}
+
+.offers-table .clickable-row--selected {
+  background: #2c3d5d;
+}
+
+.row-actions-cell {
+  width: 220px;
+  min-width: 220px;
+}
+
+.row-actions-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  pointer-events: none;
+}
+
+.row-actions-inline.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.row-action-btn {
+  min-width: 32px;
+  min-height: 32px;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-status-box {
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.quick-status-box select {
+  min-width: 130px;
 }
 
 .offers-table td a {
@@ -1551,6 +1633,15 @@ button:disabled {
     align-items: flex-start;
   }
 
+  .offers-head-left {
+    width: 100%;
+  }
+
+  .editor-selection-bar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .offers-toolbar {
     width: 100%;
     flex-wrap: wrap;
@@ -1560,6 +1651,11 @@ button:disabled {
   .offers-toolbar-right {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .row-actions-cell {
+    width: 100%;
+    min-width: 190px;
   }
 
   .offers-toolbar-right--docked {

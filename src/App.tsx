@@ -270,7 +270,16 @@ const I18N = {
     updated: "Oferta zaktualizowana",
     deleteConfirm: "Czy na pewno chcesz usunac te oferte?",
     pickOfferToEdit: "Wybierz oferte z tabeli, aby ja edytowac.",
-    serviceTemporarilyUnavailable: "Uwaga: usluga tymczasowo niedostepna."
+    serviceTemporarilyUnavailable: "Uwaga: usluga tymczasowo niedostepna.",
+    editorModeEnabled: "Tryb edycji wlaczony",
+    editorModeDisabled: "Tryb edycji wylaczony",
+    rowActions: "Akcje",
+    pin: "Przypnij",
+    unpin: "Odepnij",
+    quickStatus: "Szybki status",
+    selectedRows: "Zaznaczone",
+    clearSelectionRows: "Wyczysc zaznaczenie",
+    pinNeedsNoSort: "Uwaga: przypinanie dziala tylko gdy sortowanie jest wylaczone."
   },
   en: {
     ready: "Ready",
@@ -419,7 +428,16 @@ const I18N = {
     updated: "Offer updated",
     deleteConfirm: "Are you sure you want to delete this offer?",
     pickOfferToEdit: "Choose an offer from the table to edit it.",
-    serviceTemporarilyUnavailable: "Warning: service temporarily unavailable."
+    serviceTemporarilyUnavailable: "Warning: service temporarily unavailable.",
+    editorModeEnabled: "Editor mode enabled",
+    editorModeDisabled: "Editor mode disabled",
+    rowActions: "Actions",
+    pin: "Pin",
+    unpin: "Unpin",
+    quickStatus: "Quick status",
+    selectedRows: "Selected",
+    clearSelectionRows: "Clear selection",
+    pinNeedsNoSort: "Warning: pinning works only when sorting is disabled."
   }
 } as const;
 
@@ -704,6 +722,12 @@ export function App() {
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
   const [sortAnimating, setSortAnimating] = useState(false);
+  const [editorMode, setEditorMode] = useState(false);
+  const [hoveredOfferId, setHoveredOfferId] = useState<number | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
+  const [quickStatusOfferId, setQuickStatusOfferId] = useState<number | null>(null);
+  const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
+  const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
   const sortAnimationTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
@@ -908,7 +932,14 @@ export function App() {
       return haystack.includes(textQuery);
     });
 
-    if (!sortColumn || sortDirection === "none") return filtered;
+    if (!sortColumn || sortDirection === "none") {
+      if (!pinnedOfferIds.length) return filtered;
+      const pinnedSet = new Set(pinnedOfferIds);
+      const pinned = filtered.filter((offer) => typeof offer.id === "number" && pinnedSet.has(offer.id));
+      pinned.sort((a, b) => pinnedOfferIds.indexOf(a.id as number) - pinnedOfferIds.indexOf(b.id as number));
+      const unpinned = filtered.filter((offer) => !(typeof offer.id === "number" && pinnedSet.has(offer.id)));
+      return [...pinned, ...unpinned];
+    }
 
     return [...filtered].sort((a, b) => {
       const aValue = getSortValue(a, sortColumn);
@@ -917,7 +948,7 @@ export function App() {
       if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
-  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection]);
+  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -934,6 +965,84 @@ export function App() {
     setFilterStatus("all");
     setFilterSource("all");
     setFilterPeriod("all");
+  }
+
+  function getOfferId(offer: Offer): number | null {
+    return typeof offer.id === "number" ? offer.id : null;
+  }
+
+  function findOfferById(id: number): Offer | null {
+    return offers.find((offer) => offer.id === id) || null;
+  }
+
+  function toggleEditorMode() {
+    setEditorMode((prev) => {
+      const next = !prev;
+      setStatusMessage(next ? t.editorModeEnabled : t.editorModeDisabled);
+      return next;
+    });
+  }
+
+  function toggleRowSelection(offer: Offer) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    setSelectedRowIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]));
+  }
+
+  function togglePinOffer(offer: Offer) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    if (sortColumn && sortDirection !== "none") {
+      setStatusMessage(t.pinNeedsNoSort);
+      return;
+    }
+    setPinnedOfferIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [id, ...prev]));
+  }
+
+  async function updateOfferStatusQuick(offer: Offer, status: CanonicalStatus) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    const payload = normalizeOfferForEdit(offer);
+    payload.status = status;
+    payload.applied = inferAppliedFromStatus(status);
+    const response = await fetch(`/api/offers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
+    if (!data.ok || !data.offer) {
+      throw new Error(data.error || t.offerAddFailed);
+    }
+  }
+
+  async function submitQuickStatus(offer: Offer) {
+    setLoading(true);
+    try {
+      await updateOfferStatusQuick(offer, quickStatusValue);
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setQuickStatusOfferId(null);
+      setStatusMessage(t.updated);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openQuickStatus(offer: Offer) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    setQuickStatusOfferId(id);
+    setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
+  }
+
+  function openDeleteFromRow(offer: Offer) {
+    const normalized = normalizeOfferForEdit(offer);
+    setSelectedOffer(normalized);
+    setSelectedOfferDraft(normalized);
+    setEditingSelectedOffer(false);
+    setShowDeleteConfirm(true);
   }
 
   function openOfferDetails(offer: Offer) {
@@ -1180,6 +1289,20 @@ export function App() {
       searchInputRef.current?.focus();
     });
   }, [showSearchInput, dockOfferToolsToHeader]);
+
+  useEffect(() => {
+    if (!editorMode) {
+      setSelectedRowIds([]);
+      setHoveredOfferId(null);
+      setQuickStatusOfferId(null);
+    }
+  }, [editorMode]);
+
+  useEffect(() => {
+    const existingIds = new Set(offers.map((offer) => offer.id).filter((id): id is number => typeof id === "number"));
+    setPinnedOfferIds((prev) => prev.filter((id) => existingIds.has(id)));
+    setSelectedRowIds((prev) => prev.filter((id) => existingIds.has(id)));
+  }, [offers]);
 
   useEffect(() => {
     if (!sortColumn || sortDirection === "none") return;
@@ -1968,8 +2091,8 @@ export function App() {
             <>
               <button
                 type="button"
-                className="edit-offer-btn edit-offer-btn--compact action-mini-btn"
-                onClick={() => setStatusMessage(t.serviceTemporarilyUnavailable)}
+                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${editorMode ? "is-active" : ""}`}
+                onClick={toggleEditorMode}
                 aria-label={t.edit}
               >
                 <span className="action-mini-content action-mini-content--icon" aria-hidden="true">
@@ -2239,7 +2362,65 @@ export function App() {
         ) : (
         <section className="card offers-card" id="offers-list" ref={offersSectionRef}>
           <div className="offers-head">
-            <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+            <div className="offers-head-left">
+              <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+              {editorMode && selectedRowIds.length > 0 ? (
+                <div className="editor-selection-bar">
+                  <span>{t.selectedRows}: {selectedRowIds.length}</span>
+                  <button
+                    type="button"
+                    className="ghost-btn row-action-btn"
+                    onClick={() => {
+                      const first = findOfferById(selectedRowIds[0]);
+                      if (first) togglePinOffer(first);
+                    }}
+                    title={t.pin}
+                  >
+                    📌
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn row-action-btn"
+                    onClick={() => {
+                      const first = findOfferById(selectedRowIds[0]);
+                      if (first) openOfferDetails(first);
+                    }}
+                    title={t.edit}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn row-action-btn"
+                    onClick={() => {
+                      const first = findOfferById(selectedRowIds[0]);
+                      if (first) openQuickStatus(first);
+                    }}
+                    title={t.quickStatus}
+                  >
+                    ?
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-btn row-action-btn"
+                    onClick={() => {
+                      const first = findOfferById(selectedRowIds[0]);
+                      if (first) openDeleteFromRow(first);
+                    }}
+                    title={t.delete}
+                  >
+                    🗑️
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => setSelectedRowIds([])}
+                  >
+                    {t.clearSelectionRows}
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <div className="offers-toolbar" ref={offersToolbarRef}>
               {!dockOfferToolsToHeader ? renderOfferTools(false) : null}
             </div>
@@ -2273,6 +2454,7 @@ export function App() {
                         {t.status}{getSortIndicator("status")}
                       </button>
                     </th>
+                    {editorMode ? <th>{t.rowActions}</th> : null}
                     {!compactView ? (
                       <th>
                       <button type="button" className={getSortButtonClass("location")} onClick={() => toggleSort("location", "text")}>
@@ -2325,8 +2507,25 @@ export function App() {
                   {visibleOffers.map((offer, index) => (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
-                      className="clickable-row"
-                      onClick={() => openOfferDetails(offer)}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""}`}
+                      onMouseEnter={() => setHoveredOfferId(offer.id || null)}
+                      onMouseLeave={() => setHoveredOfferId((prev) => (prev === (offer.id || null) ? null : prev))}
+                      onClick={(event) => {
+                        if (editorMode) {
+                          const target = event.target as HTMLElement;
+                          if (
+                            target.closest(".row-actions-cell") ||
+                            target.closest("button") ||
+                            target.closest("select") ||
+                            target.closest("a")
+                          ) {
+                            return;
+                          }
+                          toggleRowSelection(offer);
+                          return;
+                        }
+                        openOfferDetails(offer);
+                      }}
                     >
                       <td>
                         {offer.sourceUrl ? (
@@ -2348,6 +2547,68 @@ export function App() {
                           {offer.status || "-"}
                         </span>
                       </td>
+                      {editorMode ? (
+                        <td className="row-actions-cell">
+                          <div
+                            className={`row-actions-inline ${
+                              hoveredOfferId === (offer.id || null) || selectedRowIds.includes(offer.id || -1) ? "is-visible" : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="ghost-btn row-action-btn"
+                              onClick={() => togglePinOffer(offer)}
+                              title={pinnedOfferIds.includes(offer.id || -1) ? t.unpin : t.pin}
+                            >
+                              📌
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-btn row-action-btn"
+                              onClick={() => openOfferDetails(offer)}
+                              title={t.edit}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-btn row-action-btn"
+                              onClick={() => openQuickStatus(offer)}
+                              title={t.quickStatus}
+                            >
+                              ?
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-btn row-action-btn"
+                              onClick={() => openDeleteFromRow(offer)}
+                              title={t.delete}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                          {quickStatusOfferId === (offer.id || null) ? (
+                            <div className="quick-status-box" onClick={(event) => event.stopPropagation()}>
+                              <select
+                                value={quickStatusValue}
+                                onChange={(event) => setQuickStatusValue(event.target.value as CanonicalStatus)}
+                              >
+                                {STATUS_OPTIONS.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+                              <button type="button" onClick={() => submitQuickStatus(offer)} disabled={loading}>
+                                {t.save}
+                              </button>
+                              <button type="button" className="ghost-btn" onClick={() => setQuickStatusOfferId(null)}>
+                                {t.cancel}
+                              </button>
+                            </div>
+                          ) : null}
+                        </td>
+                      ) : null}
                       {!compactView ? <td>{getPrimaryLocation(offer.location)}</td> : null}
                       <td>{offer.appliedAt || "-"}</td>
                       {!compactView ? <td>{offer.datePosted || "-"}</td> : null}
