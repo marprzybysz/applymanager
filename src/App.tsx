@@ -2375,10 +2375,10 @@ export function App() {
               <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
               {editorMode && selectedRowIds.length > 0 ? (
                 <div className="editor-selection-bar">
-                  <span>{t.selectedRows}: {selectedRowIds.length}</span>
+                  <span className="editor-selection-summary">{t.selectedRows}: {selectedRowIds.length}</span>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--pin row-action-btn--expand"
+                    className="row-action-btn row-action-btn--pin selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) togglePinOffer(first);
@@ -2386,11 +2386,10 @@ export function App() {
                     title={t.pin}
                   >
                     <span className="row-action-btn__icon">📌</span>
-                    <span className="row-action-btn__label">{t.pin}</span>
                   </button>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--status row-action-btn--expand"
+                    className="row-action-btn row-action-btn--status selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openQuickStatus(first);
@@ -2398,19 +2397,17 @@ export function App() {
                     title={t.quickStatus}
                   >
                     <span className="row-action-btn__icon">?</span>
-                    <span className="row-action-btn__label">{t.quickStatus}</span>
                   </button>
                   <button
                     type="button"
-                    className="row-action-btn row-action-btn--delete row-action-btn--expand"
+                    className="danger-btn selection-delete-btn selection-action-btn"
                     onClick={() => {
                       const first = findOfferById(selectedRowIds[0]);
                       if (first) openDeleteFromRow(first);
                     }}
                     title={t.delete}
                   >
-                    <span className="row-action-btn__icon">🗑️</span>
-                    <span className="row-action-btn__label">{t.delete}</span>
+                    🗑️ {t.delete}
                   </button>
                   <button
                     type="button"
