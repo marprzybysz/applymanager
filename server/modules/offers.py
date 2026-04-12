@@ -85,7 +85,7 @@ def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def map_excel_row_to_offer(row: dict[str, Any]) -> dict[str, Any] | None:
+def map_excel_row_to_offer(row: dict[str, Any], import_source: str = "import_excel") -> dict[str, Any] | None:
     company = pick_first_value(row, EXCEL_FIELDS["company"])
     role = pick_first_value(row, EXCEL_FIELDS["role"])
     if not company or not role:
@@ -105,7 +105,7 @@ def map_excel_row_to_offer(row: dict[str, Any]) -> dict[str, Any] | None:
         "location": pick_first_value(row, EXCEL_FIELDS["location"]),
         "notes": pick_first_value(row, EXCEL_FIELDS["notes"]),
         "appliedAt": safe_date(pick_first_value(row, EXCEL_FIELDS["appliedAt"])),
-        "source": pick_first_value(row, EXCEL_FIELDS["source"]),
+        "source": pick_first_value(row, EXCEL_FIELDS["source"]) or import_source,
         "sourceUrl": direct_source_url if is_absolute_http_url(direct_source_url) else (linked_source_url or None),
     }
 
@@ -288,7 +288,9 @@ def delete_offer(offer_id: int) -> bool:
 
 def import_offers_from_excel(content: bytes) -> dict[str, Any]:
     rows = read_excel_rows_with_hyperlinks(content)
-    mapped_offers = [offer for offer in (map_excel_row_to_offer(row) for row in rows) if offer]
+    mapped_offers = [
+        offer for offer in (map_excel_row_to_offer(row, import_source="import_excel") for row in rows) if offer
+    ]
 
     saved: list[dict[str, Any]] = []
     for offer in mapped_offers:
