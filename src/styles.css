@@ -144,8 +144,18 @@ body {
 .header-docked-tools {
   position: absolute;
   right: 1rem;
-  top: calc(100% + 0.35rem);
+  top: calc(100% - 1px);
   z-index: 26;
+  display: flex;
+  justify-content: flex-end;
+  width: fit-content;
+  max-width: calc(100vw - 2rem);
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.45rem;
+  background: var(--surface-2);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.24);
 }
 
 .header-docked-spacer {
@@ -302,8 +312,8 @@ body {
 }
 
 .offers-toolbar-right--docked .ghost-btn {
-  min-width: 38px;
-  padding: 0.48rem 0.58rem;
+  min-width: max-content;
+  padding: 0.5rem 0.7rem;
 }
 
 .toolbar-search-input {
@@ -812,13 +822,13 @@ button:disabled {
   }
 
   .offers-toolbar-right--docked {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
   }
 
   .header-docked-tools {
     right: 1rem;
-    left: 1rem;
+    left: auto;
     display: flex;
     justify-content: flex-end;
   }

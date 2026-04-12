@@ -882,6 +882,9 @@ export function App() {
   }, [activeTopTab]);
 
   function renderOfferTools(isDocked: boolean) {
+    const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
+    const filtersLabel = `⏷ ${t.filters}`;
+    const searchLabel = `🔍 ${t.search}`;
     return (
       <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
         <button
@@ -891,7 +894,7 @@ export function App() {
           aria-label={t.viewMode}
           title={t.viewMode}
         >
-          {isDocked ? "👁" : `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`}
+          {viewLabel}
         </button>
         <button
           type="button"
@@ -900,7 +903,7 @@ export function App() {
           aria-label={t.filters}
           title={t.filters}
         >
-          {isDocked ? "⏷" : `⏷ ${t.filters}`}
+          {filtersLabel}
         </button>
         {!showSearchInput ? (
           <button
@@ -910,7 +913,7 @@ export function App() {
             aria-label={t.search}
             title={t.search}
           >
-            {isDocked ? "🔍" : `🔍 ${t.search}`}
+            {searchLabel}
           </button>
         ) : (
           <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""}`}>
