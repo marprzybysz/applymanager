@@ -793,10 +793,20 @@ body {
   padding: 0.22rem 0.35rem;
 }
 
+.editor-selection-bar--mirror {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
 .editor-selection-summary {
   font-size: 0.82rem;
   color: var(--text-muted);
   margin-right: 0.15rem;
+}
+
+.editor-selection-bar--mirror .editor-selection-summary {
+  margin-right: 0;
+  margin-left: 0.15rem;
 }
 
 .selection-action-btn {
@@ -837,6 +847,18 @@ body {
 
 .offers-toolbar .ghost-btn {
   white-space: nowrap;
+}
+
+.offers-toolbar-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.offers-toolbar-stack--docked {
+  width: 100%;
+  align-items: flex-end;
 }
 
 .offers-toolbar-left,
@@ -1825,6 +1847,12 @@ button:disabled {
   .offers-toolbar {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .offers-toolbar-stack,
+  .offers-toolbar-stack--docked {
+    width: 100%;
+    align-items: stretch;
   }
 
   .offers-toolbar-left,

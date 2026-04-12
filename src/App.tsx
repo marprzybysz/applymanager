@@ -1368,58 +1368,113 @@ export function App() {
     };
   }, [activeTopTab, offers.length, dockOfferToolsToHeader]);
 
+  function renderEditorSelectionBar() {
+    if (!(editorMode && selectedRowIds.length > 0)) return null;
+    return (
+      <div className="editor-selection-bar editor-selection-bar--mirror">
+        <span className="editor-selection-summary">{t.selectedRows}: {selectedRowIds.length}</span>
+        <button
+          type="button"
+          className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
+          onClick={() => {
+            const first = findOfferById(selectedRowIds[0]);
+            if (first) togglePinOffer(first);
+          }}
+          title={t.pin}
+        >
+          <span className="row-action-btn__icon">📌</span>
+          <span className="row-action-btn__label">{t.pin}</span>
+        </button>
+        <button
+          type="button"
+          className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
+          onClick={() => {
+            const first = findOfferById(selectedRowIds[0]);
+            if (first) openQuickStatus(first);
+          }}
+          title={t.quickStatus}
+        >
+          <span className="row-action-btn__icon">?</span>
+          <span className="row-action-btn__label">{t.quickStatus}</span>
+        </button>
+        <button
+          type="button"
+          className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
+          onClick={() => {
+            const first = findOfferById(selectedRowIds[0]);
+            if (first) openDeleteFromRow(first);
+          }}
+          title={t.delete}
+        >
+          <span className="row-action-btn__icon">🗑️</span>
+          <span className="row-action-btn__label">{t.delete}</span>
+        </button>
+        <button
+          type="button"
+          className="ghost-btn selection-clear-btn"
+          onClick={() => setSelectedRowIds([])}
+        >
+          {t.clearSelectionRows}
+        </button>
+      </div>
+    );
+  }
+
   function renderOfferTools(isDocked: boolean) {
     const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
     const filtersLabel = `⏷ ${t.filters}`;
     const searchLabel = `🔍 ${t.search}`;
     return (
-      <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
-        <button
-          type="button"
-          className="ghost-btn"
-          onClick={() => setCompactView((prev) => !prev)}
-          aria-label={t.viewMode}
-          title={t.viewMode}
-        >
-          {viewLabel}
-        </button>
-        <button
-          type="button"
-          className="ghost-btn"
-          onClick={() => setShowFilters((prev) => !prev)}
-          aria-label={t.filters}
-          title={t.filters}
-        >
-          {filtersLabel}
-        </button>
-        <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
+      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
+        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
           <button
             type="button"
-            className="ghost-btn toolbar-search-trigger"
-            onClick={() => setShowSearchInput(true)}
-            aria-label={t.search}
-            title={t.search}
+            className="ghost-btn"
+            onClick={() => setCompactView((prev) => !prev)}
+            aria-label={t.viewMode}
+            title={t.viewMode}
           >
-            {searchLabel}
+            {viewLabel}
           </button>
-          <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setShowFilters((prev) => !prev)}
+            aria-label={t.filters}
+            title={t.filters}
+          >
+            {filtersLabel}
+          </button>
+          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
             <button
               type="button"
-              className="toolbar-search-icon-btn"
-              onClick={() => setShowSearchInput(false)}
+              className="ghost-btn toolbar-search-trigger"
+              onClick={() => setShowSearchInput(true)}
               aria-label={t.search}
+              title={t.search}
             >
-              🔍
+              {searchLabel}
             </button>
-            <input
-              value={filterText}
-              onChange={(event) => setFilterText(event.target.value)}
-              placeholder={t.search}
-              className="toolbar-search-input"
-              ref={searchInputRef}
-            />
+            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+              <button
+                type="button"
+                className="toolbar-search-icon-btn"
+                onClick={() => setShowSearchInput(false)}
+                aria-label={t.search}
+              >
+                🔍
+              </button>
+              <input
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder={t.search}
+                className="toolbar-search-input"
+                ref={searchInputRef}
+              />
+            </div>
           </div>
         </div>
+        {renderEditorSelectionBar()}
       </div>
     );
   }
@@ -2373,54 +2428,6 @@ export function App() {
           <div className="offers-head">
             <div className="offers-head-left">
               <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
-              {editorMode && selectedRowIds.length > 0 ? (
-                <div className="editor-selection-bar">
-                  <span className="editor-selection-summary">{t.selectedRows}: {selectedRowIds.length}</span>
-                  <button
-                    type="button"
-                    className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
-                    onClick={() => {
-                      const first = findOfferById(selectedRowIds[0]);
-                      if (first) togglePinOffer(first);
-                    }}
-                    title={t.pin}
-                  >
-                    <span className="row-action-btn__icon">📌</span>
-                    <span className="row-action-btn__label">{t.pin}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
-                    onClick={() => {
-                      const first = findOfferById(selectedRowIds[0]);
-                      if (first) openQuickStatus(first);
-                    }}
-                    title={t.quickStatus}
-                  >
-                    <span className="row-action-btn__icon">?</span>
-                    <span className="row-action-btn__label">{t.quickStatus}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
-                    onClick={() => {
-                      const first = findOfferById(selectedRowIds[0]);
-                      if (first) openDeleteFromRow(first);
-                    }}
-                    title={t.delete}
-                  >
-                    <span className="row-action-btn__icon">🗑️</span>
-                    <span className="row-action-btn__label">{t.delete}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn selection-clear-btn"
-                    onClick={() => setSelectedRowIds([])}
-                  >
-                    {t.clearSelectionRows}
-                  </button>
-                </div>
-              ) : null}
             </div>
             <div className="offers-toolbar" ref={offersToolbarRef}>
               {!dockOfferToolsToHeader ? renderOfferTools(false) : null}
