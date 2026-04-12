@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 MODE="${1:-up}"
 COMPOSE="docker compose -f docker-compose.dev.yml"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+RESET_VOLUMES_ON_THIS_BRANCH="feature/exportassistant"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -77,8 +79,16 @@ wait_for_dev() {
   exit 1
 }
 
+maybe_reset_volumes() {
+  if [[ "$CURRENT_BRANCH" == "$RESET_VOLUMES_ON_THIS_BRANCH" ]]; then
+    echo "Branch '$CURRENT_BRANCH': resetting DB volumes for fresh data..."
+    $COMPOSE down -v --remove-orphans || true
+  fi
+}
+
 case "$MODE" in
   up)
+    maybe_reset_volumes
     $COMPOSE up --build -d
     wait_for_dev
     echo "ApplyManager dev started."
@@ -98,6 +108,7 @@ case "$MODE" in
     clean_images
     ;;
   restart)
+    maybe_reset_volumes
     $COMPOSE down
     $COMPOSE up --build -d
     wait_for_dev

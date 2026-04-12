@@ -37,6 +37,30 @@ type ScrapedJob = {
   workingHours?: string | null;
 };
 
+type ExcelImportIssue = {
+  rowNumber?: number;
+  missingFields?: string[];
+  parsed?: {
+    company?: string | null;
+    role?: string | null;
+    status?: string | null;
+    location?: string | null;
+    appliedAt?: string | null;
+    source?: string | null;
+    sourceUrl?: string | null;
+    notes?: string | null;
+  };
+  raw?: Record<string, unknown>;
+};
+
+type ExportAssistantRow = {
+  rowNumber: number;
+  raw: Record<string, unknown>;
+  missingFields: string[];
+  draft: Offer;
+  saved: boolean;
+};
+
 type UserPreferences = {
   preferredContractTypes: string[];
   preferredWorkTimes: string[];
@@ -154,6 +178,19 @@ const I18N = {
     fileFirst: "Najpierw wybierz plik .xlsx",
     excelImportFailed: "Import Excel nie powiodl sie",
     excelImported: "Zaimportowano z Excela: {imported}, pominieto: {skipped}",
+    importWarningSummary: "Uwaga: Wczytano: {imported}, pominieto: {skipped}.",
+    exportAssistantPromptTitle: "Wykryto braki po imporcie",
+    exportAssistantPromptBody:
+      "W wielu wierszach wykryto puste rubryki. Czy chcesz skorzystac z ExportAssistanta, aby uzupelnic braki?",
+    openExportAssistant: "Otworz ExportAssistant",
+    skipExportAssistant: "Pomin teraz",
+    exportAssistantTitle: "ExportAssistant - uzupelnianie brakow",
+    exportAssistantRaw: "Surowy odczyt",
+    exportAssistantEdit: "Edycja",
+    exportAssistantSaveRow: "Zapisz wiersz",
+    exportAssistantSaveAll: "Zapisz wszystkie poprawne",
+    exportAssistantSaved: "Zapisano przez ExportAssistanta: {count}",
+    exportAssistantNoRows: "Brak wierszy do uzupelnienia.",
     scrapeFailed: "Scraping nie powiodl sie",
     scrapedJobs: "Zescrapowane oferty: {total}",
     scrapedUpdated: "Zaktualizowano rekord zescrapowany",
@@ -267,6 +304,19 @@ const I18N = {
     fileFirst: "Select .xlsx file first",
     excelImportFailed: "Excel import failed",
     excelImported: "Excel imported: {imported}, skipped: {skipped}",
+    importWarningSummary: "Warning: Imported: {imported}, skipped: {skipped}.",
+    exportAssistantPromptTitle: "Missing fields detected",
+    exportAssistantPromptBody:
+      "Multiple rows contain empty fields. Do you want to use ExportAssistant to fill missing values?",
+    openExportAssistant: "Open ExportAssistant",
+    skipExportAssistant: "Skip for now",
+    exportAssistantTitle: "ExportAssistant - fill missing data",
+    exportAssistantRaw: "Raw read",
+    exportAssistantEdit: "Edit",
+    exportAssistantSaveRow: "Save row",
+    exportAssistantSaveAll: "Save all valid",
+    exportAssistantSaved: "Saved via ExportAssistant: {count}",
+    exportAssistantNoRows: "No rows to complete.",
     scrapeFailed: "Scrape failed",
     scrapedJobs: "Scraped jobs: {total}",
     scrapedUpdated: "Scraped record updated",
@@ -466,6 +516,19 @@ function getPrimaryLocation(location: string | null | undefined): string {
   return text.split(",")[0]?.trim() || text;
 }
 
+function getAssistantFieldLabel(field: string): string {
+  const labels: Record<string, string> = {
+    company: "Firma",
+    role: "Stanowisko",
+    location: "Lokalizacja",
+    status: "Status",
+    source: "Zrodlo",
+    sourceUrl: "Link",
+    notes: "Notatki",
+  };
+  return labels[field] || field;
+}
+
 function normalizeStatusKey(status: string | null | undefined): string {
   return String(status || "")
     .trim()
@@ -501,6 +564,12 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showStatus, setShowStatus] = useState(true);
+  const [showImportAssistantPrompt, setShowImportAssistantPrompt] = useState(false);
+  const [showExportAssistant, setShowExportAssistant] = useState(false);
+  const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
+  const [activeAssistantIndex, setActiveAssistantIndex] = useState(0);
+  const assistantRawWindowRef = useRef<HTMLElement | null>(null);
+  const assistantEditWindowRef = useRef<HTMLElement | null>(null);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [addOfferUrl, setAddOfferUrl] = useState("");
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
@@ -554,6 +623,8 @@ export function App() {
     ? "neutral"
     : /error|failed|invalid|http\s*\d+/i.test(message)
       ? "error"
+      : /warning|uwaga|pominieto|skipped/i.test(message)
+        ? "warning"
       : "success";
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
@@ -898,6 +969,14 @@ export function App() {
   }, [language]);
 
   useEffect(() => {
+    if (!showExportAssistant) return;
+    requestAnimationFrame(() => {
+      if (assistantRawWindowRef.current) assistantRawWindowRef.current.scrollTop = 0;
+      if (assistantEditWindowRef.current) assistantEditWindowRef.current.scrollTop = 0;
+    });
+  }, [showExportAssistant, activeAssistantIndex]);
+
+  useEffect(() => {
     if (activeTopTab !== "offers") {
       setDockOfferToolsToHeader(false);
       setShowSearchInput(false);
@@ -1140,7 +1219,13 @@ export function App() {
           body: formData
         });
 
-        const data = (await response.json()) as { ok: boolean; imported?: number; skipped?: number; error?: string };
+        const data = (await response.json()) as {
+          ok: boolean;
+          imported?: number;
+          skipped?: number;
+          issues?: ExcelImportIssue[];
+          error?: string;
+        };
         if (!data.ok) {
           throw new Error(data.error || t.excelImportFailed);
         }
@@ -1148,10 +1233,23 @@ export function App() {
         await Promise.all([fetchOffers(), fetchStats()]);
         setImportFile(null);
         setShowImportModal(false);
+        const importedCount = data.imported ?? 0;
+        const skippedCount = data.skipped ?? 0;
+        if (skippedCount > 0 && (data.issues || []).length > 0) {
+          setExportAssistantRows(buildExportAssistantRows(data.issues || []));
+          setActiveAssistantIndex(0);
+          setShowImportAssistantPrompt(true);
+          setStatusMessage(
+            t.importWarningSummary
+              .replace("{imported}", String(importedCount))
+              .replace("{skipped}", String(skippedCount))
+          );
+          return;
+        }
         setStatusMessage(
           t.excelImported
-            .replace("{imported}", String(data.imported ?? 0))
-            .replace("{skipped}", String(data.skipped ?? 0))
+            .replace("{imported}", String(importedCount))
+            .replace("{skipped}", String(skippedCount))
         );
         return;
       }
@@ -1209,6 +1307,85 @@ export function App() {
       }
 
       throw new Error(t.unsupportedImportCombo);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function buildExportAssistantRows(issues: ExcelImportIssue[]): ExportAssistantRow[] {
+    return issues.map((issue, index) => {
+      const parsed = issue.parsed || {};
+      const status = normalizeOfferStatus(parsed.status, true);
+      return {
+        rowNumber: Number(issue.rowNumber || index + 1),
+        raw: issue.raw || {},
+        missingFields: issue.missingFields || [],
+        saved: false,
+        draft: {
+          ...createDefaultOffer(),
+          company: String(parsed.company || ""),
+          role: String(parsed.role || ""),
+          status,
+          applied: inferAppliedFromStatus(status),
+          location: String(parsed.location || ""),
+          appliedAt: parsed.appliedAt || getTodayDate(),
+          source: String(parsed.source || "import_excel"),
+          sourceUrl: String(parsed.sourceUrl || ""),
+          notes: String(parsed.notes || ""),
+        },
+      };
+    });
+  }
+
+  function selectAssistantRow(index: number) {
+    setActiveAssistantIndex(index);
+    requestAnimationFrame(() => {
+      if (assistantRawWindowRef.current) {
+        assistantRawWindowRef.current.scrollTop = 0;
+      }
+      if (assistantEditWindowRef.current) {
+        assistantEditWindowRef.current.scrollTop = 0;
+      }
+    });
+  }
+
+  async function saveAssistantRow(index: number) {
+    const row = exportAssistantRows[index];
+    if (!row) return;
+    if (!row.draft.company.trim() || !row.draft.role.trim()) return;
+
+    const payload = { ...row.draft, applied: inferAppliedFromStatus(row.draft.status) };
+    const response = await fetch("/api/offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as { ok: boolean; error?: string };
+    if (!data.ok) {
+      throw new Error(data.error || t.offerAddFailed);
+    }
+
+    setExportAssistantRows((prev) =>
+      prev.map((item, rowIndex) => (rowIndex === index ? { ...item, saved: true } : item))
+    );
+  }
+
+  async function handleSaveAllAssistantRows() {
+    setLoading(true);
+    try {
+      let savedCount = 0;
+      for (let i = 0; i < exportAssistantRows.length; i += 1) {
+        const row = exportAssistantRows[i];
+        if (row.saved) continue;
+        if (!row.draft.company.trim() || !row.draft.role.trim()) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await saveAssistantRow(i);
+        savedCount += 1;
+      }
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setStatusMessage(t.exportAssistantSaved.replace("{count}", String(savedCount)));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -2309,6 +2486,200 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showImportAssistantPrompt ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="export-assistant-prompt-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowImportAssistantPrompt(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.exportAssistantPromptTitle}</h3>
+            <p>{t.exportAssistantPromptBody}</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowImportAssistantPrompt(false)}
+              >
+                {t.skipExportAssistant}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportAssistantPrompt(false);
+                  setShowExportAssistant(true);
+                }}
+              >
+                {t.openExportAssistant}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showExportAssistant ? (
+        <div className="modal-backdrop">
+          <div className="export-assistant-shell" id="export-assistant-modal">
+            <aside
+              className="modal export-assistant-window export-assistant-window--raw"
+              ref={assistantRawWindowRef}
+            >
+              <h3>{t.exportAssistantRaw}</h3>
+              {exportAssistantRows.length === 0 ? (
+                <p className="hint">{t.exportAssistantNoRows}</p>
+              ) : (
+                <>
+                  <div className="export-assistant-list">
+                    {exportAssistantRows.map((row, index) => (
+                      <button
+                        key={`${row.rowNumber}-${index}`}
+                        type="button"
+                        className={`ghost-btn export-assistant-row-btn ${index === activeAssistantIndex ? "export-assistant-row-btn--active" : ""}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectAssistantRow(index)}
+                      >
+                        #{row.rowNumber} {row.saved ? "✓" : ""}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="export-assistant-summary">
+                    <p>
+                      <strong>Wiersz:</strong> #{exportAssistantRows[activeAssistantIndex]?.rowNumber || "-"}
+                    </p>
+                    <p>
+                      <strong>Brakujace pola:</strong>
+                    </p>
+                    <div className="export-assistant-missing-list">
+                      {(exportAssistantRows[activeAssistantIndex]?.missingFields || []).map((field) => (
+                        <span key={field} className="export-assistant-missing-chip">
+                          {getAssistantFieldLabel(field)}
+                        </span>
+                      ))}
+                      {(exportAssistantRows[activeAssistantIndex]?.missingFields || []).length === 0 ? (
+                        <span className="hint">Brak</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="export-assistant-quick-grid">
+                    {(["company", "role", "location", "status", "source"] as const).map((field) => {
+                      const row = exportAssistantRows[activeAssistantIndex];
+                      const value = String((row?.draft as unknown as Record<string, unknown>)?.[field] || "-");
+                      const isMissing = (row?.missingFields || []).includes(field);
+                      return (
+                        <div
+                          key={field}
+                          className={`export-assistant-quick-item ${isMissing ? "export-assistant-quick-item--missing" : ""}`}
+                        >
+                          <span>{getAssistantFieldLabel(field)}</span>
+                          <strong>{value || "-"}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <details className="export-assistant-raw-details">
+                    <summary>Pokaz surowy JSON</summary>
+                    <pre className="export-assistant-raw-box">
+                      {JSON.stringify(exportAssistantRows[activeAssistantIndex]?.raw || {}, null, 2)}
+                    </pre>
+                  </details>
+                </>
+              )}
+            </aside>
+
+            <section
+              className="modal export-assistant-window export-assistant-window--edit"
+              ref={assistantEditWindowRef}
+            >
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowExportAssistant(false)}
+                aria-label={t.close}
+              >
+                X
+              </button>
+              <h3>{t.exportAssistantTitle}</h3>
+              <h4>{t.exportAssistantEdit}</h4>
+              {exportAssistantRows[activeAssistantIndex] ? (
+                <form
+                  className="grid"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setLoading(true);
+                    try {
+                      await saveAssistantRow(activeAssistantIndex);
+                      await Promise.all([fetchOffers(), fetchStats()]);
+                      setStatusMessage(t.exportAssistantSaved.replace("{count}", "1"));
+                    } catch (error) {
+                      setStatusMessage(String(error));
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  {(["company", "role", "location", "status", "source", "sourceUrl", "notes"] as const).map((field) => {
+                    const row = exportAssistantRows[activeAssistantIndex];
+                    const missing = row.missingFields.includes(field);
+                    const value = String((row.draft as unknown as Record<string, unknown>)[field] || "");
+                    return (
+                      <label key={field} className={`form-field ${missing ? "form-field--missing" : ""}`}>
+                        <span>{field}</span>
+                        <input
+                          value={value}
+                          onChange={(event) =>
+                            setExportAssistantRows((prev) =>
+                              prev.map((item, idx) =>
+                                idx === activeAssistantIndex
+                                  ? {
+                                      ...item,
+                                      draft: {
+                                        ...item.draft,
+                                        [field]: event.target.value,
+                                      } as Offer,
+                                    }
+                                  : item
+                              )
+                            )
+                          }
+                        />
+                      </label>
+                    );
+                  })}
+                  <div className="modal-actions span-2">
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => setShowExportAssistant(false)}
+                    >
+                      {t.close}
+                    </button>
+                    <button type="button" className="ghost-btn" onClick={handleSaveAllAssistantRows} disabled={loading}>
+                      {t.exportAssistantSaveAll}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        loading ||
+                        !exportAssistantRows[activeAssistantIndex].draft.company.trim() ||
+                        !exportAssistantRows[activeAssistantIndex].draft.role.trim()
+                      }
+                    >
+                      {t.exportAssistantSaveRow}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <p className="hint">{t.exportAssistantNoRows}</p>
+              )}
+            </section>
           </div>
         </div>
       ) : null}

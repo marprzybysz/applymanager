@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 MODE="${1:-up}"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+RESET_VOLUMES_ON_THIS_BRANCH="feature/exportassistant"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -71,8 +73,16 @@ wait_for_app() {
   exit 1
 }
 
+maybe_reset_volumes() {
+  if [[ "$CURRENT_BRANCH" == "$RESET_VOLUMES_ON_THIS_BRANCH" ]]; then
+    echo "Branch '$CURRENT_BRANCH': resetting DB volumes for fresh data..."
+    docker compose down -v --remove-orphans || true
+  fi
+}
+
 case "$MODE" in
   up)
+    maybe_reset_volumes
     docker compose up --build -d
     wait_for_app
     echo "ApplyManager started."
@@ -92,6 +102,7 @@ case "$MODE" in
     clean_images
     ;;
   restart)
+    maybe_reset_volumes
     docker compose down
     docker compose up --build -d
     wait_for_app
