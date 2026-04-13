@@ -200,7 +200,7 @@ const I18N = {
     noOffers: "Nie masz jeszcze dodanych ofert.",
     noOffersLandingTitle: "Nie masz jeszcze zadnych ofert pracy do sledzenia.",
     noOffersLandingBody: "Dodaj oferte do sledzenia lub skorzystaj z Importu.",
-    openExportManager: "Importuj",
+    openImportManager: "Importuj",
     close: "Zamknij",
     addOfferTitle: "Dodaj Oferte",
     pasteLink: "Wklej link",
@@ -242,15 +242,15 @@ const I18N = {
     importWarningSummary: "Uwaga: Wczytano: {imported}, pominieto: {skipped}.",
     exportAssistantPromptTitle: "Wykryto braki po imporcie",
     exportAssistantPromptBody:
-      "W wielu wierszach wykryto puste rubryki. Czy chcesz skorzystac z ExportAssistanta, aby uzupelnic braki?",
-    openExportAssistant: "Otworz ExportAssistant",
+      "W wielu wierszach wykryto puste rubryki. Czy chcesz skorzystac z ImportManagera, aby uzupelnic braki?",
+    openExportAssistant: "Otworz ImportManager",
     skipExportAssistant: "Pomin teraz",
-    exportAssistantTitle: "ExportAssistant - uzupelnianie brakow",
+    exportAssistantTitle: "ImportManager - uzupelnianie brakow",
     exportAssistantRaw: "Surowy odczyt",
     exportAssistantEdit: "Edycja",
     exportAssistantSaveRow: "Zapisz wiersz",
     exportAssistantSaveAll: "Zapisz wszystkie poprawne",
-    exportAssistantSaved: "Zapisano przez ExportAssistanta: {count}",
+    exportAssistantSaved: "Zapisano przez ImportManagera: {count}",
     exportAssistantNoRows: "Brak wierszy do uzupelnienia.",
     scrapeFailed: "Scraping nie powiodl sie",
     scrapedJobs: "Zescrapowane oferty: {total}",
@@ -388,7 +388,7 @@ const I18N = {
     noOffers: "You don't have any offers yet.",
     noOffersLandingTitle: "You don't have any job offers to track yet.",
     noOffersLandingBody: "Add an offer to track or use Import.",
-    openExportManager: "Import",
+    openImportManager: "Import",
     close: "Close",
     addOfferTitle: "Add Offer",
     pasteLink: "Paste Link",
@@ -430,15 +430,15 @@ const I18N = {
     importWarningSummary: "Warning: Imported: {imported}, skipped: {skipped}.",
     exportAssistantPromptTitle: "Missing fields detected",
     exportAssistantPromptBody:
-      "Multiple rows contain empty fields. Do you want to use ExportAssistant to fill missing values?",
-    openExportAssistant: "Open ExportAssistant",
+      "Multiple rows contain empty fields. Do you want to use ImportManager to fill missing values?",
+    openExportAssistant: "Open ImportManager",
     skipExportAssistant: "Skip for now",
-    exportAssistantTitle: "ExportAssistant - fill missing data",
+    exportAssistantTitle: "ImportManager - fill missing data",
     exportAssistantRaw: "Raw read",
     exportAssistantEdit: "Edit",
     exportAssistantSaveRow: "Save row",
     exportAssistantSaveAll: "Save all valid",
-    exportAssistantSaved: "Saved via ExportAssistant: {count}",
+    exportAssistantSaved: "Saved via ImportManager: {count}",
     exportAssistantNoRows: "No rows to complete.",
     scrapeFailed: "Scrape failed",
     scrapedJobs: "Scraped jobs: {total}",
@@ -2737,7 +2737,7 @@ export function App() {
                     setShowUserMenu(false);
                   }}
                 >
-                  {t.openExportManager}
+                  {t.openImportManager}
                 </button>
               </div>
             </div>
@@ -2768,7 +2768,7 @@ export function App() {
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
           ) : (
             <div className="offers-table-wrap">
-              <table className="offers-table">
+              <table className={`offers-table ${compactView ? "offers-table--compact" : ""}`}>
                 <thead>
                   <tr>
                     <th>
@@ -2848,10 +2848,11 @@ export function App() {
                       (!hasSelection || isQuickStatusRow) &&
                       (hoveredOfferId === rowId || isQuickStatusRow);
                     const keepRowHoverPanelMounted = shouldShowRowHoverPanel || closingHoverPanelRowId === rowId;
+                    const isPanelRow = keepRowHoverPanelMounted || isQuickStatusRow;
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""}`}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""}`}
                       onMouseEnter={() => handleEditorRowMouseEnter(rowId, canInteractWithRow)}
                       onMouseLeave={() => handleEditorRowMouseLeave(rowId, canInteractWithRow)}
                       onClick={(event) => {
@@ -2880,12 +2881,12 @@ export function App() {
                             onClick={(event) => event.stopPropagation()}
                           >
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
-                            {offer.role || "-"}
+                            <span className="role-cell-text">{offer.role || "-"}</span>
                           </a>
                         ) : (
                           <>
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
-                            {offer.role || "-"}
+                            <span className="role-cell-text">{offer.role || "-"}</span>
                           </>
                         )}
                       </td>
