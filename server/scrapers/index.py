@@ -71,9 +71,16 @@ def get_recruitment_status(days_to_expire: int | None) -> dict[str, str] | None:
 
 
 def with_recruitment_window(job: dict[str, Any]) -> dict[str, Any]:
+    source = normalize_text(job.get("source")) or ""
     date_posted = normalize_date_only(job.get("datePosted"))
     explicit_expires_at = normalize_date_only(job.get("expiresAt"))
-    expires_at = explicit_expires_at or (add_days(date_posted, 30) if date_posted else None)
+
+    # OLX: keep only explicit expiry from source (no automatic 30-day derivation).
+    if source == "olx":
+        expires_at = explicit_expires_at
+    else:
+        expires_at = explicit_expires_at or (add_days(date_posted, 30) if date_posted else None)
+
     days_to_expire = diff_days(expires_at, get_today_date_only()) if expires_at else None
 
     enriched = {**job}
