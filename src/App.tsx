@@ -1475,7 +1475,9 @@ export function App() {
     const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
     const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
     return (
-      <div className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""}`}>
+      <div
+        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
+      >
         <div className="editor-selection-bar">
           <button
             type="button"

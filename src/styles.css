@@ -815,6 +815,12 @@ body {
   max-height: 146px;
 }
 
+.editor-selection-inline.has-quick-status.is-status-menu-open {
+  max-height: 340px;
+  overflow: visible;
+  z-index: 12;
+}
+
 .editor-selection-inline.is-closed {
   pointer-events: none;
 }
