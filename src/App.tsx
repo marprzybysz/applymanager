@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Offer = {
   id?: number;
@@ -800,6 +801,7 @@ export function App() {
   const [quickStatusOfferId, setQuickStatusOfferId] = useState<number | null>(null);
   const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
   const [quickStatusMenuOpen, setQuickStatusMenuOpen] = useState(false);
+  const [quickStatusMenuPos, setQuickStatusMenuPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
   const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
@@ -1162,6 +1164,7 @@ export function App() {
       await Promise.all([fetchOffers(), fetchStats()]);
       setQuickStatusOfferId(null);
       setQuickStatusMenuOpen(false);
+      setQuickStatusMenuPos(null);
       setQuickStatusMode("single");
       setStatusMessage(t.updated);
     } catch (error) {
@@ -1176,6 +1179,7 @@ export function App() {
     if (id === null) return;
     setQuickStatusOfferId(id);
     setQuickStatusMenuOpen(false);
+    setQuickStatusMenuPos(null);
     setQuickStatusMode(mode);
     setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
     setHoveredOfferId(id);
@@ -1186,8 +1190,54 @@ export function App() {
   function closeQuickStatusEditor() {
     setQuickStatusOfferId(null);
     setQuickStatusMenuOpen(false);
+    setQuickStatusMenuPos(null);
     setQuickStatusMode("single");
   }
+
+  function openQuickStatusMenu(triggerEl: HTMLElement) {
+    const rect = triggerEl.getBoundingClientRect();
+    const menuMinWidth = Math.max(170, Math.round(rect.width));
+    const estimatedHeight = STATUS_OPTIONS.length * 36 + 16;
+    const maxLeft = Math.max(8, window.innerWidth - menuMinWidth - 8);
+    const left = Math.min(rect.left, maxLeft);
+    let top = rect.bottom + 6;
+    if (top + estimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - estimatedHeight - 6);
+    }
+    setQuickStatusMenuPos({ top, left, minWidth: menuMinWidth });
+    setQuickStatusMenuOpen(true);
+  }
+
+  function toggleQuickStatusMenu(triggerEl: HTMLElement) {
+    if (quickStatusMenuOpen) {
+      setQuickStatusMenuOpen(false);
+      setQuickStatusMenuPos(null);
+      return;
+    }
+    openQuickStatusMenu(triggerEl);
+  }
+
+  useEffect(() => {
+    if (!quickStatusMenuOpen) return;
+    const close = () => {
+      setQuickStatusMenuOpen(false);
+      setQuickStatusMenuPos(null);
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(".quick-status-picker__trigger") || target.closest(".quick-status-picker__menu")) return;
+      close();
+    };
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [quickStatusMenuOpen]);
 
   function openDeleteFromRow(offer: Offer) {
     const normalized = normalizeOfferForEdit(offer);
@@ -1623,32 +1673,12 @@ export function App() {
                 <button
                   type="button"
                   className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
-                  onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
                   aria-expanded={quickStatusMenuOpen}
                 >
                   <span>{quickStatusValue}</span>
                   <span className="quick-status-picker__chevron">▾</span>
                 </button>
-                {quickStatusMenuOpen ? (
-                  <div className="quick-status-picker__menu">
-                    {STATUS_OPTIONS.map((status) => {
-                      const tone = getOfferStatusTone(status);
-                      return (
-                        <button
-                          key={status}
-                          type="button"
-                          className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
-                          onClick={() => {
-                            setQuickStatusValue(status);
-                            setQuickStatusMenuOpen(false);
-                          }}
-                        >
-                          {status}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
               </div>
               <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
                 {t.save}
@@ -2767,7 +2797,8 @@ export function App() {
           {visibleOffers.length === 0 ? (
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
           ) : (
-            <div className="offers-table-wrap">
+            <div className="offers-table-wrap offers-table-wrap--overlay">
+              <div className="offers-table-scroll">
               <table className={`offers-table ${compactView ? "offers-table--compact" : ""}`}>
                 <thead>
                   <tr>
@@ -2946,32 +2977,12 @@ export function App() {
                                   <button
                                     type="button"
                                     className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
-                                    onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                                    onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
                                     aria-expanded={quickStatusMenuOpen}
                                   >
                                     <span>{quickStatusValue}</span>
                                     <span className="quick-status-picker__chevron">▾</span>
                                   </button>
-                                  {quickStatusMenuOpen ? (
-                                    <div className="quick-status-picker__menu">
-                                      {STATUS_OPTIONS.map((status) => {
-                                        const tone = getOfferStatusTone(status);
-                                        return (
-                                          <button
-                                            key={status}
-                                            type="button"
-                                            className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
-                                            onClick={() => {
-                                              setQuickStatusValue(status);
-                                              setQuickStatusMenuOpen(false);
-                                            }}
-                                          >
-                                            {status}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : null}
                                 </div>
                                 <button type="button" onClick={() => submitQuickStatus(offer)} disabled={loading}>
                                   {t.save}
@@ -3007,6 +3018,7 @@ export function App() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </section>
@@ -3251,6 +3263,38 @@ export function App() {
           </div>
         </div>
       ) : null}
+
+      {quickStatusMenuOpen && quickStatusMenuPos
+        ? createPortal(
+            <div
+              className="quick-status-picker__menu quick-status-picker__menu--portal"
+              style={{
+                top: `${quickStatusMenuPos.top}px`,
+                left: `${quickStatusMenuPos.left}px`,
+                minWidth: `${quickStatusMenuPos.minWidth}px`,
+              }}
+            >
+              {STATUS_OPTIONS.map((status) => {
+                const tone = getOfferStatusTone(status);
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
+                    onClick={() => {
+                      setQuickStatusValue(status);
+                      setQuickStatusMenuOpen(false);
+                      setQuickStatusMenuPos(null);
+                    }}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body
+          )
+        : null}
 
       {selectedOfferDraft ? (
         <div className="modal-backdrop">

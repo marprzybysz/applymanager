@@ -864,6 +864,7 @@ body {
   gap: 0.8rem;
   margin-bottom: 0.75rem;
   position: relative;
+  z-index: 15;
 }
 
 .offers-head-left {
@@ -1116,6 +1117,8 @@ body {
   opacity: 0;
   transform: translateY(-8px);
   margin-bottom: 0;
+  position: relative;
+  z-index: 14;
   transition: max-height 220ms ease, opacity 180ms ease, transform 180ms ease, margin-bottom 180ms ease;
 }
 
@@ -1246,6 +1249,24 @@ button:disabled {
   min-width: 0;
   position: relative;
   z-index: 2;
+  scrollbar-width: thin;
+  scrollbar-color: var(--input-border) transparent;
+}
+
+.offers-table-wrap--overlay {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  z-index: 20;
+}
+
+.offers-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-width: 100%;
+  min-width: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--input-border) transparent;
 }
@@ -1570,6 +1591,10 @@ button:disabled {
   position: relative;
 }
 
+.quick-status-picker.is-open {
+  z-index: 100;
+}
+
 .quick-status-picker__trigger {
   min-width: 130px;
   justify-content: space-between;
@@ -1584,7 +1609,7 @@ button:disabled {
   position: absolute;
   top: calc(100% + 0.3rem);
   left: 0;
-  z-index: 30;
+  z-index: 110;
   min-width: 170px;
   display: grid;
   gap: 0.28rem;
@@ -1593,6 +1618,13 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 12px 26px rgba(3, 8, 18, 0.45);
+}
+
+.quick-status-picker__menu--portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1200;
 }
 
 .quick-status-picker__option {
@@ -1694,19 +1726,22 @@ button:disabled {
 }
 
 .modal::-webkit-scrollbar,
-.offers-table-wrap::-webkit-scrollbar {
+.offers-table-wrap::-webkit-scrollbar,
+.offers-table-scroll::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
 .modal::-webkit-scrollbar-track,
-.offers-table-wrap::-webkit-scrollbar-track {
+.offers-table-wrap::-webkit-scrollbar-track,
+.offers-table-scroll::-webkit-scrollbar-track {
   background: rgba(148, 163, 184, 0.08);
   border-radius: 999px;
 }
 
 .modal::-webkit-scrollbar-thumb,
-.offers-table-wrap::-webkit-scrollbar-thumb {
+.offers-table-wrap::-webkit-scrollbar-thumb,
+.offers-table-scroll::-webkit-scrollbar-thumb {
   background: rgba(100, 116, 139, 0.75);
   border-radius: 999px;
   border: 2px solid transparent;
@@ -1714,7 +1749,8 @@ button:disabled {
 }
 
 .modal::-webkit-scrollbar-thumb:hover,
-.offers-table-wrap::-webkit-scrollbar-thumb:hover {
+.offers-table-wrap::-webkit-scrollbar-thumb:hover,
+.offers-table-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.9);
   background-clip: padding-box;
 }
