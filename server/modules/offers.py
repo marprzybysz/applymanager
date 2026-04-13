@@ -135,6 +135,31 @@ def infer_date_posted_from_expires_at(expires_at: str | None) -> str | None:
         return None
 
 
+def _format_created_at_for_export(value: Any, user_utc_offset_minutes: int | None) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return ""
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except Exception:
+            return text
+
+    if user_utc_offset_minutes is None:
+        return dt.isoformat()
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    target_tz = timezone(timedelta(minutes=user_utc_offset_minutes))
+    return dt.astimezone(target_tz).isoformat(timespec="seconds")
+
+
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
@@ -443,7 +468,7 @@ def preview_offers_from_excel(content: bytes) -> dict[str, Any]:
     }
 
 
-def export_offers_to_excel_bytes() -> tuple[bytes, str]:
+def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> tuple[bytes, str]:
     offers = list_offers()
     workbook = Workbook()
     worksheet = workbook.active
@@ -500,7 +525,7 @@ def export_offers_to_excel_bytes() -> tuple[bytes, str]:
                 offer.get("workMode") or "",
                 offer.get("shiftCount") or "",
                 offer.get("workingHours") or "",
-                str(offer.get("createdAt") or ""),
+                _format_created_at_for_export(offer.get("createdAt"), user_utc_offset_minutes),
             ]
         )
 

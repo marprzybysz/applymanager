@@ -167,9 +167,9 @@ async def import_excel_preview(file: UploadFile = File(...)):
 
 
 @router.get("/offers/export-excel")
-def export_excel():
+def export_excel(tzOffsetMinutes: int | None = None):
     try:
-        content, filename = export_offers_to_excel_bytes()
+        content, filename = export_offers_to_excel_bytes(user_utc_offset_minutes=tzOffsetMinutes)
         headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
         return Response(
             content=content,

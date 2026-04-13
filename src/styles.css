@@ -751,6 +751,19 @@ body {
   flex-wrap: wrap;
 }
 
+.app-footer {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 22px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text-soft) 70%, #9ca3af 30%);
+  opacity: 0.62;
+  z-index: 80;
+  pointer-events: none;
+}
+
 .offers-head {
   display: flex;
   justify-content: space-between;

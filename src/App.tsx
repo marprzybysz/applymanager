@@ -144,6 +144,7 @@ const I18N = {
     exportData: "Eksportuj dane",
     dataManagement: "Zarzadzanie danymi",
     notifications: "Powiadomienia",
+    notificationBell: "Dzwonek powiadomien",
     noNotifications: "Brak powiadomien.",
     notificationKindOperational: "Operacyjne",
     unsupportedImportCombo: "Ten typ importu nie jest obslugiwany",
@@ -169,8 +170,8 @@ const I18N = {
     import: "Import",
     noOffers: "Nie masz jeszcze dodanych ofert.",
     noOffersLandingTitle: "Nie masz jeszcze zadnych ofert pracy do sledzenia.",
-    noOffersLandingBody: "Dodaj oferte do sledzenia lub skorzystaj z ExportManager.",
-    openExportManager: "ExportManager",
+    noOffersLandingBody: "Dodaj oferte do sledzenia lub skorzystaj z Importu.",
+    openExportManager: "Importuj",
     close: "Zamknij",
     addOfferTitle: "Dodaj Oferte",
     pasteLink: "Wklej link",
@@ -304,6 +305,7 @@ const I18N = {
     exportData: "Export data",
     dataManagement: "Data management",
     notifications: "Notifications",
+    notificationBell: "Notifications bell",
     noNotifications: "No notifications.",
     notificationKindOperational: "Operational",
     unsupportedImportCombo: "This import type is not supported",
@@ -329,8 +331,8 @@ const I18N = {
     import: "Import",
     noOffers: "You don't have any offers yet.",
     noOffersLandingTitle: "You don't have any job offers to track yet.",
-    noOffersLandingBody: "Add an offer to track or use ExportManager.",
-    openExportManager: "ExportManager",
+    noOffersLandingBody: "Add an offer to track or use Import.",
+    openExportManager: "Import",
     close: "Close",
     addOfferTitle: "Add Offer",
     pasteLink: "Paste Link",
@@ -2037,7 +2039,8 @@ export function App() {
     setLoading(true);
     try {
       if (exportTarget === "offers" && exportFormat === "xlsx") {
-        window.open("/api/offers/export-excel", "_blank");
+        const userUtcOffsetMinutes = -new Date().getTimezoneOffset();
+        window.open(`/api/offers/export-excel?tzOffsetMinutes=${userUtcOffsetMinutes}`, "_blank");
         setShowExportModal(false);
         setStatusMessage(t.exportSuccess);
         return;
@@ -2392,8 +2395,8 @@ export function App() {
                   setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
                 }
               }}
-              aria-label={t.notifications}
-              title={t.notifications}
+              aria-label={t.notificationBell}
+              title={t.notificationBell}
             >
               🔔
               {unreadNotificationsCount > 0 ? (
@@ -4015,6 +4018,7 @@ export function App() {
           </div>
         </div>
       ) : null}
+      <footer className="app-footer">Powered by Marcin Przybysz</footer>
     </main>
   );
 }
