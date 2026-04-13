@@ -802,6 +802,7 @@ export function App() {
   const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
   const [quickStatusMenuOpen, setQuickStatusMenuOpen] = useState(false);
   const [quickStatusMenuPos, setQuickStatusMenuPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
+  const [quickStatusBoxPos, setQuickStatusBoxPos] = useState<{ top: number; left: number } | null>(null);
   const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
   const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
@@ -1165,6 +1166,7 @@ export function App() {
       setQuickStatusOfferId(null);
       setQuickStatusMenuOpen(false);
       setQuickStatusMenuPos(null);
+      setQuickStatusBoxPos(null);
       setQuickStatusMode("single");
       setStatusMessage(t.updated);
     } catch (error) {
@@ -1174,12 +1176,22 @@ export function App() {
     }
   }
 
-  function openQuickStatus(offer: Offer, mode: "single" | "bulk" = "single") {
+  function openQuickStatus(offer: Offer, mode: "single" | "bulk" = "single", triggerEl?: HTMLElement) {
     const id = getOfferId(offer);
     if (id === null) return;
     setQuickStatusOfferId(id);
     setQuickStatusMenuOpen(false);
     setQuickStatusMenuPos(null);
+    if (mode === "single" && triggerEl) {
+      const rect = triggerEl.getBoundingClientRect();
+      const approxWidth = 360;
+      const maxLeft = Math.max(8, window.innerWidth - approxWidth - 8);
+      const left = Math.min(Math.max(8, rect.left), maxLeft);
+      const top = Math.min(window.innerHeight - 48, rect.bottom + 8);
+      setQuickStatusBoxPos({ top, left });
+    } else {
+      setQuickStatusBoxPos(null);
+    }
     setQuickStatusMode(mode);
     setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
     setHoveredOfferId(id);
@@ -1191,6 +1203,7 @@ export function App() {
     setQuickStatusOfferId(null);
     setQuickStatusMenuOpen(false);
     setQuickStatusMenuPos(null);
+    setQuickStatusBoxPos(null);
     setQuickStatusMode("single");
   }
 
@@ -1238,6 +1251,17 @@ export function App() {
       document.removeEventListener("mousedown", onMouseDown);
     };
   }, [quickStatusMenuOpen]);
+
+  useEffect(() => {
+    if (quickStatusMode !== "single" || quickStatusOfferId === null) return;
+    const close = () => closeQuickStatusEditor();
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [quickStatusMode, quickStatusOfferId]);
 
   function openDeleteFromRow(offer: Offer) {
     const normalized = normalizeOfferForEdit(offer);
@@ -2955,7 +2979,7 @@ export function App() {
                               <button
                                 type="button"
                                 className="row-action-btn row-action-btn--status row-action-btn--expand"
-                                onClick={() => openQuickStatus(offer)}
+                                onClick={(event) => openQuickStatus(offer, "single", event.currentTarget)}
                                 title={t.quickStatus}
                               >
                                 <span className="row-action-btn__icon">?</span>
@@ -2971,27 +2995,6 @@ export function App() {
                                 <span className="row-action-btn__label">{t.delete}</span>
                               </button>
                             </div>
-                            {quickStatusOfferId === rowId ? (
-                              <div className="quick-status-box">
-                                <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
-                                  <button
-                                    type="button"
-                                    className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
-                                    onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
-                                    aria-expanded={quickStatusMenuOpen}
-                                  >
-                                    <span>{quickStatusValue}</span>
-                                    <span className="quick-status-picker__chevron">▾</span>
-                                  </button>
-                                </div>
-                                <button type="button" onClick={() => submitQuickStatus(offer)} disabled={loading}>
-                                  {t.save}
-                                </button>
-                                <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
-                                  {t.cancel}
-                                </button>
-                              </div>
-                            ) : null}
                           </div>
                         ) : null}
                       </td>
@@ -3291,6 +3294,44 @@ export function App() {
                   </button>
                 );
               })}
+            </div>,
+            document.body
+          )
+        : null}
+
+      {quickStatusMode === "single" && quickStatusOfferId !== null && quickStatusBoxPos
+        ? createPortal(
+            <div
+              className="quick-status-box quick-status-box--portal"
+              style={{
+                top: `${quickStatusBoxPos.top}px`,
+                left: `${quickStatusBoxPos.left}px`,
+              }}
+            >
+              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
+                  aria-expanded={quickStatusMenuOpen}
+                >
+                  <span>{quickStatusValue}</span>
+                  <span className="quick-status-picker__chevron">▾</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = findOfferById(quickStatusOfferId);
+                  if (target) submitQuickStatus(target);
+                }}
+                disabled={loading}
+              >
+                {t.save}
+              </button>
+              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                {t.cancel}
+              </button>
             </div>,
             document.body
           )

@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 MODE="${1:-up}"
 COMPOSE="docker compose -f docker-compose.dev.yml"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-RESET_VOLUMES_ON_THIS_BRANCH="feature/exportassistant"
+RESET_VOLUMES_ON_THIS_BRANCH=""
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -80,7 +80,7 @@ wait_for_dev() {
 }
 
 maybe_reset_volumes() {
-  if [[ "$CURRENT_BRANCH" == "$RESET_VOLUMES_ON_THIS_BRANCH" ]]; then
+  if [[ -n "$RESET_VOLUMES_ON_THIS_BRANCH" && "$CURRENT_BRANCH" == "$RESET_VOLUMES_ON_THIS_BRANCH" ]]; then
     echo "Branch '$CURRENT_BRANCH': resetting DB volumes for fresh data..."
     $COMPOSE down -v --remove-orphans || true
   fi

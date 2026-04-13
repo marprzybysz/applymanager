@@ -1262,11 +1262,13 @@ button:disabled {
 
 .offers-table-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   border: 1px solid var(--border);
   border-radius: 10px;
   max-width: 100%;
   min-width: 0;
+  position: relative;
+  z-index: 21;
   scrollbar-width: thin;
   scrollbar-color: var(--input-border) transparent;
 }
@@ -1434,7 +1436,7 @@ button:disabled {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 28;
+  z-index: 80;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -1585,6 +1587,14 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
+  position: relative;
+  z-index: 90;
+}
+
+.quick-status-box--portal {
+  position: fixed;
+  margin-top: 0;
+  z-index: 1250;
 }
 
 .quick-status-picker {
@@ -1624,7 +1634,7 @@ button:disabled {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1200;
+  z-index: 1300;
 }
 
 .quick-status-picker__option {
