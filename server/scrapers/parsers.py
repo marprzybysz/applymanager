@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
@@ -159,6 +161,212 @@ def _parse_pracuj_title_meta(title: str | None, source: str) -> dict[str, str | 
     }
 
 
+def _parse_olx_title_meta(title: str | None, source: str) -> dict[str, str | None]:
+    if not title or source != "olx":
+        return {"role": title, "company": None}
+    return {"role": clean_text(title), "company": None}
+
+
+def _parse_nofluffjobs_title_meta(title: str | None, source: str) -> dict[str, str | None]:
+    if not title or source != "nofluffjobs":
+        return {"role": title, "company": None, "location": None}
+
+    parts = [clean_text(part.strip(" .")) for part in title.split("|")]
+    parts = [part for part in parts if part]
+    if len(parts) < 4:
+        return {"role": clean_text(re.sub(r"^Praca\s+", "", title, flags=re.IGNORECASE)), "company": None, "location": None}
+
+    role = clean_text(re.sub(r"^Praca\s+", "", parts[0], flags=re.IGNORECASE))
+    company = clean_text(parts[2])
+    location = clean_text(parts[3])
+    return {"role": role, "company": company, "location": location}
+
+
+def _extract_olx_jobposting_from_html(soup: BeautifulSoup, source: str) -> dict[str, Any]:
+    if source != "olx":
+        return {}
+
+    for node in soup.select(JSON_LD_SELECTOR):
+        text = (node.get_text() or "").strip()
+        if not text:
+            continue
+        try:
+            payload = json.loads(text)
+        except Exception:
+            continue
+
+        candidates = payload if isinstance(payload, list) else [payload]
+        for candidate in candidates:
+            if not isinstance(candidate, dict) or not _has_job_posting_type(candidate.get("@type")):
+                continue
+
+            hiring_org = candidate.get("hiringOrganization") if isinstance(candidate.get("hiringOrganization"), dict) else {}
+            base_salary = candidate.get("baseSalary") if isinstance(candidate.get("baseSalary"), dict) else {}
+            base_salary_value = base_salary.get("value") if isinstance(base_salary.get("value"), dict) else {}
+            job_location = candidate.get("jobLocation")
+            address = job_location.get("address") if isinstance(job_location, dict) else {}
+            locality = clean_text(address.get("addressLocality") if isinstance(address, dict) else None)
+            region = clean_text(address.get("addressRegion") if isinstance(address, dict) else None)
+            country = clean_text(address.get("addressCountry") if isinstance(address, dict) else None)
+            location = ", ".join([part for part in [locality, region, country] if part]) or None
+            employment_type = candidate.get("employmentType")
+            employment_types = (
+                [clean_text(item) for item in employment_type if clean_text(item)] if isinstance(employment_type, list) else []
+            )
+            if isinstance(employment_type, str):
+                cleaned = clean_text(employment_type)
+                employment_types = [cleaned] if cleaned else []
+
+            return {
+                "title": clean_text(candidate.get("title")),
+                "company": clean_text(hiring_org.get("name")),
+                "location": location,
+                "datePosted": clean_text(candidate.get("datePosted")),
+                "validThrough": clean_text(candidate.get("validThrough")),
+                "salary": base_salary_value.get("value")
+                or base_salary_value.get("minValue")
+                or base_salary_value.get("maxValue"),
+                "employmentTypes": employment_types,
+            }
+    return {}
+
+
+def _extract_nofluffjobs_offer_from_html(html: str, source: str, fallback_url: str | None) -> dict[str, Any]:
+    if source != "nofluffjobs" or not fallback_url:
+        return {}
+
+    slug = clean_text(urlparse(fallback_url).path.rstrip("/").split("/")[-1])
+    if not slug:
+        return {}
+
+    marker = f'"id":"{slug}"'
+    start_index = html.find(marker)
+    if start_index == -1:
+        marker = f'"postingUrl":"{slug}"'
+        start_index = html.find(marker)
+    if start_index == -1:
+        return {}
+
+    chunk = html[start_index : start_index + 30000]
+
+    def _first(pattern: str) -> str | None:
+        match = re.search(pattern, chunk)
+        return clean_text(match.group(1)) if match else None
+
+    title = _first(r'"title":"([^"]+)"')
+    city = _first(r'"city":"([^"]+)"')
+    company = _first(r'"company":\{.*?"name":"([^"]+)"')
+    expires_at = _first(r'"expiresAt":"([^"]+)"')
+
+    posted_match = re.search(r'"posted":(\d{10,13})', chunk)
+    posted_iso = None
+    if posted_match:
+        try:
+            posted_raw = int(posted_match.group(1))
+            if posted_raw > 10_000_000_000:
+                posted_raw = posted_raw // 1000
+            posted_iso = datetime.fromtimestamp(posted_raw, tz=timezone.utc).isoformat()
+        except Exception:
+            posted_iso = None
+
+    salary_match = re.search(
+        r'"originalSalary":\{"currency":"([^"]+)","types":\{"([^"]+)":\{"period":"([^"]+)","range":\[(\d+),(\d+)\]',
+        chunk,
+    )
+    salary = None
+    employment_types: list[str] = []
+    if salary_match:
+        currency = salary_match.group(1)
+        contract_type = salary_match.group(2)
+        min_value = salary_match.group(4)
+        max_value = salary_match.group(5)
+        salary = f"{min_value}-{max_value} {currency}"
+        employment_types = [clean_text(contract_type)] if clean_text(contract_type) else []
+
+    return {
+        "title": title,
+        "company": company,
+        "location": city,
+        "datePosted": posted_iso,
+        "validThrough": expires_at,
+        "salary": salary,
+        "employmentTypes": employment_types,
+    }
+
+
+def _extract_justjoinit_offer_from_html(html: str, source: str, fallback_url: str | None) -> dict[str, Any]:
+    if source != "justjoinit" or not fallback_url:
+        return {}
+
+    slug = clean_text(urlparse(fallback_url).path.rstrip("/").split("/")[-1])
+    if not slug:
+        return {}
+
+    start_index = html.find(f'\\"offerParent\\":{{\\"slug\\":\\"{slug}\\"')
+    if start_index == -1:
+        start_index = html.find(f'\\"id\\":\\"{slug}\\"')
+    if start_index == -1:
+        start_index = html.find(f'\\"postingUrl\\":\\"{slug}\\"')
+    if start_index == -1:
+        return {}
+
+    chunk = html[start_index : start_index + 35000]
+
+    def _first(pattern: str) -> str | None:
+        match = re.search(pattern, chunk)
+        return clean_text(match.group(1)) if match else None
+
+    company = _first(r'\\"companyName\\":\\"([^\\"]+)\\"')
+    city = _first(r'\\"city\\":\\"([^\\"]+)\\"')
+    street = _first(r'\\"street\\":\\"([^\\"]+)\\"')
+    date_posted = _first(r'\\"publishedAt\\":\\"([^\\"]+)\\"')
+    valid_through = _first(r'\\"expiredAt\\":\\"([^\\"]+)\\"')
+
+    employment_types: list[str] = []
+    employment_block = re.search(r'\\"employmentTypes\\":\\[(.*?)\\],\\"workplaceType\\"', chunk, flags=re.S)
+    if employment_block:
+        seen: set[str] = set()
+        for label in re.findall(r'\\"label\\":\\"([^\\"]+)\\"', employment_block.group(1)):
+            normalized = clean_text(label)
+            if normalized and normalized not in seen:
+                employment_types.append(normalized)
+                seen.add(normalized)
+
+    location = ", ".join([part for part in [street, city] if part and part != "-"]) or city
+
+    return {
+        "company": company,
+        "location": location,
+        "datePosted": date_posted,
+        "validThrough": valid_through,
+        "employmentTypes": employment_types,
+    }
+
+
+def _extract_rocketjobs_offer_from_html(html: str, source: str) -> dict[str, Any]:
+    if source != "rocketjobs":
+        return {}
+
+    def _first(pattern: str) -> str | None:
+        match = re.search(pattern, html)
+        return clean_text(match.group(1)) if match else None
+
+    company = _first(r'\\"companyName\\":\\"([^\\"]+)\\"')
+    city = _first(r'\\"city\\":\\"([^\\"]+)\\"')
+    street = _first(r'\\"street\\":\\"([^\\"]+)\\"')
+    date_posted = _first(r'\\"publishedAt\\":\\"([^\\"]+)\\"')
+    valid_through = _first(r'\\"expiredAt\\":\\"([^\\"]+)\\"')
+
+    location = ", ".join([part for part in [street, city] if part and part != "-"]) or city
+
+    return {
+        "company": company,
+        "location": location,
+        "datePosted": date_posted,
+        "validThrough": valid_through,
+    }
+
+
 def _extract_pracuj_employer_name_from_html(html: str, source: str) -> str | None:
     if source != "pracuj":
         return None
@@ -295,7 +503,7 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
     soup = BeautifulSoup(html, "html.parser")
 
     og_title_node = soup.select_one("meta[property='og:title']")
-    og_title = clean_text(og_title_node.get("content") if og_title_node else None)
+    og_title = _strip_olx_suffix(clean_text(og_title_node.get("content") if og_title_node else None))
     doc_title = _strip_olx_suffix(clean_text(soup.title.string if soup.title else None))
     description_node = soup.select_one("meta[name='description']")
     description = clean_text(description_node.get("content") if description_node else None)
@@ -304,17 +512,35 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
 
     parsed_rocket = _parse_rocketjobs_title_meta(doc_title, source)
     parsed_pracuj = _parse_pracuj_title_meta(doc_title, source)
-    parsed_role = parsed_rocket.get("role") or parsed_pracuj.get("role")
-    parsed_company = parsed_rocket.get("company") or parsed_pracuj.get("company")
+    parsed_olx = _parse_olx_title_meta(doc_title, source)
+    parsed_nofluff = _parse_nofluffjobs_title_meta(doc_title, source)
+    parsed_role = parsed_rocket.get("role") or parsed_pracuj.get("role") or parsed_olx.get("role") or parsed_nofluff.get("role")
+    parsed_company = parsed_rocket.get("company") or parsed_pracuj.get("company") or parsed_olx.get("company") or parsed_nofluff.get("company")
     pracuj_conditions = _extract_pracuj_conditions_from_html(html, source)
+    olx_job = _extract_olx_jobposting_from_html(soup, source)
+    rocket_job = _extract_rocketjobs_offer_from_html(html, source)
+    nofluff_job = _extract_nofluffjobs_offer_from_html(html, source, fallback_url)
+    justjoin_job = _extract_justjoinit_offer_from_html(html, source, fallback_url)
 
     pracuj_employer = _extract_pracuj_employer_name_from_html(html, source)
-    title = og_title or parsed_role
+    title = clean_text(olx_job.get("title")) or og_title or parsed_role
 
     canonical_el = soup.select_one("link[rel='canonical']")
     canonical = clean_text(canonical_el.get("href") if canonical_el else None)
     url = canonical or fallback_url
-    location = og_description if source == "rocketjobs" else None
+    location = (
+        (clean_text(rocket_job.get("location")) or og_description)
+        if source == "rocketjobs"
+        else (
+            clean_text(olx_job.get("location"))
+            if source == "olx"
+            else (
+                clean_text(nofluff_job.get("location")) or clean_text(parsed_nofluff.get("location"))
+                if source == "nofluffjobs"
+                else (clean_text(justjoin_job.get("location")) or og_description if source == "justjoinit" else None)
+            )
+        )
+    )
 
     if not title and not description and not og_description:
         return None
@@ -322,13 +548,32 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
     return {
         "source": source,
         "title": title,
-        "company": pracuj_employer or parsed_company,
+        "company": clean_text(olx_job.get("company"))
+        or clean_text(rocket_job.get("company"))
+        or clean_text(nofluff_job.get("company"))
+        or clean_text(justjoin_job.get("company"))
+        or pracuj_employer
+        or parsed_company,
         "location": location,
         "url": url,
-        "datePosted": None,
-        "validThrough": None,
-        "salary": None,
-        "employmentTypes": pracuj_conditions.get("employmentTypes"),
+        "datePosted": clean_text(olx_job.get("datePosted"))
+        or clean_text(rocket_job.get("datePosted"))
+        or clean_text(nofluff_job.get("datePosted"))
+        or clean_text(justjoin_job.get("datePosted")),
+        "validThrough": clean_text(olx_job.get("validThrough"))
+        or clean_text(rocket_job.get("validThrough"))
+        or clean_text(nofluff_job.get("validThrough"))
+        or clean_text(justjoin_job.get("validThrough")),
+        "salary": olx_job.get("salary") or nofluff_job.get("salary"),
+        "employmentTypes": (
+            olx_job.get("employmentTypes")
+            if source == "olx"
+            else (
+                nofluff_job.get("employmentTypes")
+                if source == "nofluffjobs"
+                else (justjoin_job.get("employmentTypes") if source == "justjoinit" else pracuj_conditions.get("employmentTypes"))
+            )
+        ),
         "workTime": pracuj_conditions.get("workTime"),
         "workMode": pracuj_conditions.get("workMode"),
         "shiftCount": pracuj_conditions.get("shiftCount"),
