@@ -407,6 +407,15 @@ body {
   position: relative;
 }
 
+.notify-btn.action-mini-btn {
+  overflow: visible;
+}
+
+.notify-btn.action-mini-btn:hover {
+  width: 132px;
+  min-width: 132px;
+}
+
 .notify-badge {
   position: absolute;
   top: -5px;
@@ -446,6 +455,16 @@ body {
   padding: 0.45rem 0.55rem;
   font-size: 0.85rem;
   line-height: 1.35;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  transition: opacity 180ms ease, transform 180ms ease;
+  will-change: opacity, transform;
+}
+
+.notification-item-content {
+  min-width: 0;
 }
 
 .notification-item p {
@@ -470,10 +489,25 @@ body {
 
 .notification-item--warning {
   border-color: #d97706;
+  background: #3b2a15;
+  color: #fde68a;
 }
 
 .notification-item--error {
-  border-color: #b64a4a;
+  border-color: #dc2626;
+  background: #3a171a;
+  color: #fecaca;
+}
+
+.notification-item-close {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.notification-item--closing {
+  opacity: 0;
+  transform: translateX(12px);
+  pointer-events: none;
 }
 
 .toast-stack {

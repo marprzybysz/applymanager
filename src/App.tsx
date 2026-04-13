@@ -117,8 +117,10 @@ type AppNotification = {
   text: string;
   tone: NotificationTone;
   read: boolean;
-  visible: boolean;
-  closing?: boolean;
+  surfaceVisible: boolean;
+  menuVisible: boolean;
+  surfaceClosing?: boolean;
+  menuClosing?: boolean;
   kind: "operational";
 };
 
@@ -145,7 +147,7 @@ const I18N = {
     dataManagement: "Zarzadzanie danymi",
     notifications: "Powiadomienia",
     notificationBell: "Dzwonek powiadomien",
-    noNotifications: "Brak powiadomien.",
+    noNotifications: "Brak nowych powiadomien.",
     notificationKindOperational: "Operacyjne",
     unsupportedImportCombo: "Ten typ importu nie jest obslugiwany",
     unsupportedExportCombo: "Ten typ eksportu nie jest obslugiwany",
@@ -306,7 +308,7 @@ const I18N = {
     dataManagement: "Data management",
     notifications: "Notifications",
     notificationBell: "Notifications bell",
-    noNotifications: "No notifications.",
+    noNotifications: "No new notifications.",
     notificationKindOperational: "Operational",
     unsupportedImportCombo: "This import type is not supported",
     unsupportedExportCombo: "This export type is not supported",
@@ -766,17 +768,24 @@ export function App() {
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
   const unreadNotificationsCount = useMemo(
-    () => notifications.filter((item) => !item.read).length,
+    () => notifications.filter((item) => item.menuVisible && !item.read).length,
     [notifications]
   );
   const visibleCenterNotifications = useMemo(
-    () => notifications.filter((item) => item.visible && (item.tone === "warning" || item.tone === "error")).slice(0, 3),
+    () =>
+      notifications
+        .filter((item) => item.surfaceVisible && (item.tone === "warning" || item.tone === "error"))
+        .slice(0, 3),
     [notifications]
   );
   const visibleToastNotifications = useMemo(
-    () => notifications.filter((item) => item.visible && (item.tone === "success" || item.tone === "neutral")).slice(0, 4),
+    () =>
+      notifications
+        .filter((item) => item.surfaceVisible && (item.tone === "success" || item.tone === "neutral"))
+        .slice(0, 4),
     [notifications]
   );
+  const visibleMenuNotifications = useMemo(() => notifications.filter((item) => item.menuVisible), [notifications]);
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -798,23 +807,36 @@ export function App() {
       text: nextMessage,
       tone,
       read: false,
-      visible: true,
-      closing: false,
+      surfaceVisible: true,
+      menuVisible: true,
+      surfaceClosing: false,
+      menuClosing: false,
       kind: "operational",
     };
     setNotifications((prev) => [notification, ...prev].slice(0, 80));
     const hideAfterMs = getNotificationAutoHideMs(tone);
     if (hideAfterMs !== null) {
       window.setTimeout(() => {
-        dismissNotification(id);
+        dismissSurfaceNotification(id);
       }, hideAfterMs);
     }
   }
 
-  function dismissNotification(id: number) {
-    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, closing: true } : item)));
+  function dismissSurfaceNotification(id: number) {
+    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, surfaceClosing: true } : item)));
     window.setTimeout(() => {
-      setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, visible: false } : item)));
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, surfaceVisible: false, surfaceClosing: false } : item))
+      );
+    }, NOTIFICATION_CLOSE_ANIMATION_MS);
+  }
+
+  function dismissMenuNotification(id: number) {
+    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, menuClosing: true } : item)));
+    window.setTimeout(() => {
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, menuVisible: false, menuClosing: false, read: true } : item))
+      );
     }, NOTIFICATION_CLOSE_ANIMATION_MS);
   }
 
@@ -2385,7 +2407,7 @@ export function App() {
           <div className="menu-wrap">
             <button
               type="button"
-              className="ghost-btn icon-btn notify-btn"
+              className="ghost-btn icon-btn notify-btn action-mini-btn"
               onClick={() => {
                 const next = !showNotificationsMenu;
                 setShowNotificationsMenu(next);
@@ -2398,7 +2420,10 @@ export function App() {
               aria-label={t.notificationBell}
               title={t.notificationBell}
             >
-              🔔
+              <span className="action-mini-content action-mini-content--icon" aria-hidden="true">
+                🔔
+              </span>
+              <span className="action-mini-content action-mini-content--label">{t.notifications}</span>
               {unreadNotificationsCount > 0 ? (
                 <span className="notify-badge">{unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}</span>
               ) : null}
@@ -2406,16 +2431,29 @@ export function App() {
             {showNotificationsMenu ? (
               <div className="menu-panel notifications-panel">
                 <strong>{t.notifications}</strong>
-                {notifications.length === 0 ? (
+                {visibleMenuNotifications.length === 0 ? (
                   <p className="hint">{t.noNotifications}</p>
                 ) : (
                   <div className="notifications-list">
-                    {notifications.map((item) => (
-                      <div key={item.id} className={`notification-item notification-item--${item.tone}`}>
-                        <span className="notification-kind">
-                          {item.kind === "operational" ? t.notificationKindOperational : "-"}
-                        </span>
-                        <p>{item.text}</p>
+                    {visibleMenuNotifications.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`notification-item notification-item--${item.tone} ${item.menuClosing ? "notification-item--closing" : ""}`}
+                      >
+                        <div className="notification-item-content">
+                          <span className="notification-kind">
+                            {item.kind === "operational" ? t.notificationKindOperational : "-"}
+                          </span>
+                          <p>{item.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className={`toast-close toast-close--${item.tone} notification-item-close`}
+                          onClick={() => dismissMenuNotification(item.id)}
+                          aria-label={t.close}
+                        >
+                          X
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -2554,7 +2592,10 @@ export function App() {
           aria-atomic="false"
         >
           {visibleCenterNotifications.map((item) => (
-            <div key={`center-${item.id}`} className={`toast toast--${item.tone} ${item.closing ? "toast--closing" : ""}`}>
+            <div
+              key={`center-${item.id}`}
+              className={`toast toast--${item.tone} ${item.surfaceClosing ? "toast--closing" : ""}`}
+            >
               <div>
                 <span className="notification-kind">
                   {item.kind === "operational" ? t.notificationKindOperational : "-"}
@@ -2564,7 +2605,7 @@ export function App() {
               <button
                 type="button"
                 className={`toast-close toast-close--${item.tone}`}
-                onClick={() => dismissNotification(item.id)}
+                onClick={() => dismissSurfaceNotification(item.id)}
                 aria-label={t.close}
               >
                 X
@@ -2576,7 +2617,10 @@ export function App() {
 
       <div className="toast-stack" aria-live="polite" aria-atomic="false">
         {visibleToastNotifications.map((item) => (
-            <div key={`toast-${item.id}`} className={`toast toast--${item.tone} ${item.closing ? "toast--closing" : ""}`}>
+            <div
+              key={`toast-${item.id}`}
+              className={`toast toast--${item.tone} ${item.surfaceClosing ? "toast--closing" : ""}`}
+            >
               <div>
                 <span className="notification-kind">
                   {item.kind === "operational" ? t.notificationKindOperational : "-"}
@@ -2586,7 +2630,7 @@ export function App() {
               <button
                 type="button"
                 className={`toast-close toast-close--${item.tone}`}
-                onClick={() => dismissNotification(item.id)}
+                onClick={() => dismissSurfaceNotification(item.id)}
                 aria-label={t.close}
               >
                 X
