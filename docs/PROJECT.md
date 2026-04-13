@@ -59,3 +59,11 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
    - operacje zbiorcze: `Usuń` i `Archiwizuj`,
    - osobny widok/filtr `Archiwum`,
    - backendowe endpointy bulk (`/api/offers/bulk/*`).
+
+## Known UI issues (TODO)
+
+- Tryb edycji - panel akcji pod prawym blokiem (`Widok/Filtry/Szukaj`) ma sporadyczne problemy z pełnym wyrównaniem wysokości i "pływaniem" przycisków (`Wyczyść zaznaczenie` vs przyciski ikonowe) podczas hover/animacji.
+- Plan naprawy:
+  - ujednolicić jedną wysokość i box-model dla całego dolnego rzędu,
+  - ograniczyć animacje do transform/opacity (bez reflow szerokości kontenera),
+  - dodać test wizualny/regresyjny dla układu prawego panelu w trybie edycji.

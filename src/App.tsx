@@ -264,13 +264,24 @@ const I18N = {
     cancel: "Anuluj",
     confirmDeleteTitle: "Potwierdzenie usuniecia",
     confirmDeleteText: "Czy na pewno chcesz usunac:",
+    confirmBulkDeleteText: "Czy na pewno chcesz usunac zaznaczone oferty:",
     confirmDeleteYes: "Tak",
     confirmDeleteNo: "Nie",
     deleted: "Oferta usunieta",
     updated: "Oferta zaktualizowana",
     deleteConfirm: "Czy na pewno chcesz usunac te oferte?",
     pickOfferToEdit: "Wybierz oferte z tabeli, aby ja edytowac.",
-    serviceTemporarilyUnavailable: "Uwaga: usluga tymczasowo niedostepna."
+    serviceTemporarilyUnavailable: "Uwaga: usluga tymczasowo niedostepna.",
+    editorModeEnabled: "Tryb edycji wlaczony",
+    editorModeDisabled: "Tryb edycji wylaczony",
+    editorModeLabel: "Tryb Edycji",
+    rowActions: "Akcje",
+    pin: "Przypnij",
+    unpin: "Odepnij",
+    quickStatus: "Szybki status",
+    selectedRows: "Zaznaczone",
+    clearSelectionRows: "Wyczysc zaznaczenie",
+    pinNeedsNoSort: "Uwaga: przypinanie dziala tylko gdy sortowanie jest wylaczone."
   },
   en: {
     ready: "Ready",
@@ -413,13 +424,24 @@ const I18N = {
     cancel: "Cancel",
     confirmDeleteTitle: "Delete confirmation",
     confirmDeleteText: "Are you sure you want to delete:",
+    confirmBulkDeleteText: "Are you sure you want to delete selected offers:",
     confirmDeleteYes: "Yes",
     confirmDeleteNo: "No",
     deleted: "Offer deleted",
     updated: "Offer updated",
     deleteConfirm: "Are you sure you want to delete this offer?",
     pickOfferToEdit: "Choose an offer from the table to edit it.",
-    serviceTemporarilyUnavailable: "Warning: service temporarily unavailable."
+    serviceTemporarilyUnavailable: "Warning: service temporarily unavailable.",
+    editorModeEnabled: "Editor mode enabled",
+    editorModeDisabled: "Editor mode disabled",
+    editorModeLabel: "Editor Mode",
+    rowActions: "Actions",
+    pin: "Pin",
+    unpin: "Unpin",
+    quickStatus: "Quick status",
+    selectedRows: "Selected",
+    clearSelectionRows: "Clear selection",
+    pinNeedsNoSort: "Warning: pinning works only when sorting is disabled."
   }
 } as const;
 
@@ -704,11 +726,22 @@ export function App() {
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
   const [sortAnimating, setSortAnimating] = useState(false);
+  const [editorMode, setEditorMode] = useState(false);
+  const [hoveredOfferId, setHoveredOfferId] = useState<number | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
+  const [quickStatusOfferId, setQuickStatusOfferId] = useState<number | null>(null);
+  const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
+  const [quickStatusMenuOpen, setQuickStatusMenuOpen] = useState(false);
+  const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
+  const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
+  const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
   const sortAnimationTimerRef = useRef<number | null>(null);
+  const hoverPanelCloseTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
   const offersToolbarRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -908,7 +941,14 @@ export function App() {
       return haystack.includes(textQuery);
     });
 
-    if (!sortColumn || sortDirection === "none") return filtered;
+    if (!sortColumn || sortDirection === "none") {
+      if (!pinnedOfferIds.length) return filtered;
+      const pinnedSet = new Set(pinnedOfferIds);
+      const pinned = filtered.filter((offer) => typeof offer.id === "number" && pinnedSet.has(offer.id));
+      pinned.sort((a, b) => pinnedOfferIds.indexOf(a.id as number) - pinnedOfferIds.indexOf(b.id as number));
+      const unpinned = filtered.filter((offer) => !(typeof offer.id === "number" && pinnedSet.has(offer.id)));
+      return [...pinned, ...unpinned];
+    }
 
     return [...filtered].sort((a, b) => {
       const aValue = getSortValue(a, sortColumn);
@@ -917,7 +957,9 @@ export function App() {
       if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
-  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection]);
+  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
+
+  const isQuickStatusLocked = quickStatusOfferId !== null;
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -936,6 +978,137 @@ export function App() {
     setFilterPeriod("all");
   }
 
+  function getOfferId(offer: Offer): number | null {
+    return typeof offer.id === "number" ? offer.id : null;
+  }
+
+  function findOfferById(id: number): Offer | null {
+    return offers.find((offer) => offer.id === id) || null;
+  }
+
+  function toggleEditorMode() {
+    setEditorMode((prev) => {
+      const next = !prev;
+      setStatusMessage(next ? t.editorModeEnabled : t.editorModeDisabled);
+      return next;
+    });
+  }
+
+  function toggleRowSelection(offer: Offer) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    setSelectedRowIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]));
+  }
+
+  function togglePinOffer(offer: Offer) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    if (sortColumn && sortDirection !== "none") {
+      setStatusMessage(t.pinNeedsNoSort);
+      return;
+    }
+    setPinnedOfferIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [id, ...prev]));
+  }
+
+  function pinSelectedOffers() {
+    const ids = selectedRowIds.filter((id) => typeof id === "number");
+    if (!ids.length) return;
+    if (sortColumn && sortDirection !== "none") {
+      setStatusMessage(t.pinNeedsNoSort);
+      return;
+    }
+    setPinnedOfferIds((prev) => {
+      const prevSet = new Set(prev);
+      const allSelectedPinned = ids.every((id) => prevSet.has(id));
+
+      if (allSelectedPinned) {
+        const selectedSet = new Set(ids);
+        return prev.filter((id) => !selectedSet.has(id));
+      }
+
+      const newIds = ids.filter((id) => !prevSet.has(id));
+      if (!newIds.length) return prev;
+      return [...newIds, ...prev];
+    });
+  }
+
+  async function updateOfferStatusQuick(offer: Offer, status: CanonicalStatus) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    const payload = normalizeOfferForEdit(offer);
+    payload.status = status;
+    payload.applied = inferAppliedFromStatus(status);
+    const response = await fetch(`/api/offers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
+    if (!data.ok || !data.offer) {
+      throw new Error(data.error || t.offerAddFailed);
+    }
+  }
+
+  async function submitQuickStatus(offer: Offer) {
+    setLoading(true);
+    try {
+      const targets =
+        quickStatusMode === "bulk"
+          ? selectedRowIds
+              .map((id) => findOfferById(id))
+              .filter((entry): entry is Offer => Boolean(entry))
+          : [offer];
+
+      const seenIds = new Set<number>();
+      const uniqueTargets: Offer[] = [];
+      for (const entry of targets) {
+        const id = getOfferId(entry);
+        if (id === null || seenIds.has(id)) continue;
+        seenIds.add(id);
+        uniqueTargets.push(entry);
+      }
+      const effectiveTargets: Offer[] = uniqueTargets.length > 0 ? uniqueTargets : [offer];
+
+      await Promise.all(effectiveTargets.map((entry) => updateOfferStatusQuick(entry, quickStatusValue)));
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setQuickStatusOfferId(null);
+      setQuickStatusMenuOpen(false);
+      setQuickStatusMode("single");
+      setStatusMessage(t.updated);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openQuickStatus(offer: Offer, mode: "single" | "bulk" = "single") {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    setQuickStatusOfferId(id);
+    setQuickStatusMenuOpen(false);
+    setQuickStatusMode(mode);
+    setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
+    setHoveredOfferId(id);
+    setShowFilters(false);
+    setShowSearchInput(false);
+  }
+
+  function closeQuickStatusEditor() {
+    setQuickStatusOfferId(null);
+    setQuickStatusMenuOpen(false);
+    setQuickStatusMode("single");
+  }
+
+  function openDeleteFromRow(offer: Offer) {
+    const normalized = normalizeOfferForEdit(offer);
+    setQuickStatusOfferId(null);
+    setSelectedOffer(normalized);
+    setSelectedOfferDraft(null);
+    setEditingSelectedOffer(false);
+    setShowDeleteConfirm(true);
+  }
+
   function openOfferDetails(offer: Offer) {
     const normalized = normalizeOfferForEdit(offer);
     setSelectedOffer(normalized);
@@ -948,6 +1121,7 @@ export function App() {
     setSelectedOfferDraft(null);
     setEditingSelectedOffer(false);
     setShowDeleteConfirm(false);
+    setShowBulkDeleteConfirm(false);
   }
 
   function closeAddOfferModal() {
@@ -1182,6 +1356,20 @@ export function App() {
   }, [showSearchInput, dockOfferToolsToHeader]);
 
   useEffect(() => {
+    if (!editorMode) {
+      setSelectedRowIds([]);
+      setHoveredOfferId(null);
+      setQuickStatusOfferId(null);
+    }
+  }, [editorMode]);
+
+  useEffect(() => {
+    const existingIds = new Set(offers.map((offer) => offer.id).filter((id): id is number => typeof id === "number"));
+    setPinnedOfferIds((prev) => prev.filter((id) => existingIds.has(id)));
+    setSelectedRowIds((prev) => prev.filter((id) => existingIds.has(id)));
+  }, [offers]);
+
+  useEffect(() => {
     if (!sortColumn || sortDirection === "none") return;
     if (sortAnimationTimerRef.current !== null) {
       window.clearTimeout(sortAnimationTimerRef.current);
@@ -1242,58 +1430,208 @@ export function App() {
     };
   }, [activeTopTab, offers.length, dockOfferToolsToHeader]);
 
+  useEffect(() => {
+    return () => {
+      if (hoverPanelCloseTimerRef.current) {
+        window.clearTimeout(hoverPanelCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (quickStatusMode === "bulk" && selectedRowIds.length === 0) {
+      closeQuickStatusEditor();
+    }
+  }, [selectedRowIds.length, quickStatusMode]);
+
+  function handleEditorRowMouseEnter(rowId: number | null, canInteractWithRow: boolean) {
+    if (!canInteractWithRow) return;
+    if (hoverPanelCloseTimerRef.current) {
+      window.clearTimeout(hoverPanelCloseTimerRef.current);
+      hoverPanelCloseTimerRef.current = null;
+    }
+    setClosingHoverPanelRowId(null);
+    setHoveredOfferId(rowId);
+  }
+
+  function handleEditorRowMouseLeave(rowId: number | null, canInteractWithRow: boolean) {
+    if (!canInteractWithRow) return;
+    setHoveredOfferId((prev) => (prev === rowId ? null : prev));
+    if (rowId === null) return;
+    setClosingHoverPanelRowId(rowId);
+    if (hoverPanelCloseTimerRef.current) {
+      window.clearTimeout(hoverPanelCloseTimerRef.current);
+    }
+    hoverPanelCloseTimerRef.current = window.setTimeout(() => {
+      setClosingHoverPanelRowId((prev) => (prev === rowId ? null : prev));
+      hoverPanelCloseTimerRef.current = null;
+    }, 170);
+  }
+
+  function renderEditorSelectionBar() {
+    if (!editorMode) return null;
+    const hasSelection = selectedRowIds.length > 0;
+    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
+    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
+    return (
+      <div
+        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
+      >
+        <div className="editor-selection-bar">
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              pinSelectedOffers();
+            }}
+            title={allSelectedPinned ? t.unpin : t.pin}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">📌</span>
+            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) openQuickStatus(firstSelected, "bulk");
+            }}
+            title={t.quickStatus}
+            disabled={isQuickStatusLocked || !firstSelected}
+          >
+            <span className="row-action-btn__icon">?</span>
+            <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              openBulkDeleteConfirm();
+            }}
+            title={t.delete}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">🗑️</span>
+            <span className="row-action-btn__label">{t.delete}</span>
+          </button>
+          <button
+            type="button"
+            className="ghost-btn selection-clear-btn"
+            onClick={() => {
+              setSelectedRowIds([]);
+              closeQuickStatusEditor();
+            }}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            {t.clearSelectionRows}
+          </button>
+        </div>
+        {showBulkQuickStatusEditor ? (
+          <div className="editor-selection-quick-status">
+            <div className="quick-status-box">
+              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                  onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                  aria-expanded={quickStatusMenuOpen}
+                >
+                  <span>{quickStatusValue}</span>
+                  <span className="quick-status-picker__chevron">▾</span>
+                </button>
+                {quickStatusMenuOpen ? (
+                  <div className="quick-status-picker__menu">
+                    {STATUS_OPTIONS.map((status) => {
+                      const tone = getOfferStatusTone(status);
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
+                          onClick={() => {
+                            setQuickStatusValue(status);
+                            setQuickStatusMenuOpen(false);
+                          }}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
+                {t.save}
+              </button>
+              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   function renderOfferTools(isDocked: boolean) {
     const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
     const filtersLabel = `⏷ ${t.filters}`;
     const searchLabel = `🔍 ${t.search}`;
     return (
-      <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
-        <button
-          type="button"
-          className="ghost-btn"
-          onClick={() => setCompactView((prev) => !prev)}
-          aria-label={t.viewMode}
-          title={t.viewMode}
-        >
-          {viewLabel}
-        </button>
-        <button
-          type="button"
-          className="ghost-btn"
-          onClick={() => setShowFilters((prev) => !prev)}
-          aria-label={t.filters}
-          title={t.filters}
-        >
-          {filtersLabel}
-        </button>
-        <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
+      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
+        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
           <button
             type="button"
-            className="ghost-btn toolbar-search-trigger"
-            onClick={() => setShowSearchInput(true)}
-            aria-label={t.search}
-            title={t.search}
+            className="ghost-btn"
+            onClick={() => setCompactView((prev) => !prev)}
+            aria-label={t.viewMode}
+            title={t.viewMode}
+            disabled={isQuickStatusLocked}
           >
-            {searchLabel}
+            {viewLabel}
           </button>
-          <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setShowFilters((prev) => !prev)}
+            aria-label={t.filters}
+            title={t.filters}
+            disabled={isQuickStatusLocked}
+          >
+            {filtersLabel}
+          </button>
+          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
             <button
               type="button"
-              className="toolbar-search-icon-btn"
-              onClick={() => setShowSearchInput(false)}
+              className="ghost-btn toolbar-search-trigger"
+              onClick={() => setShowSearchInput(true)}
               aria-label={t.search}
+              title={t.search}
+              disabled={isQuickStatusLocked}
             >
-              🔍
+              {searchLabel}
             </button>
-            <input
-              value={filterText}
-              onChange={(event) => setFilterText(event.target.value)}
-              placeholder={t.search}
-              className="toolbar-search-input"
-              ref={searchInputRef}
-            />
+            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+              <button
+                type="button"
+                className="toolbar-search-icon-btn"
+                onClick={() => setShowSearchInput(false)}
+                aria-label={t.search}
+              >
+                🔍
+              </button>
+              <input
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder={t.search}
+                className="toolbar-search-input"
+                ref={searchInputRef}
+              />
+            </div>
           </div>
         </div>
+        {renderEditorSelectionBar()}
       </div>
     );
   }
@@ -1939,6 +2277,44 @@ export function App() {
     }
   }
 
+  function openBulkDeleteConfirm() {
+    if (selectedRowIds.length === 0) return;
+    setShowBulkDeleteConfirm(true);
+  }
+
+  async function confirmDeleteSelectedOffers() {
+    const ids = selectedRowIds.filter((id) => typeof id === "number");
+    if (!ids.length) {
+      setShowBulkDeleteConfirm(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map(async (id) => {
+          const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
+          const data = (await response.json()) as { ok: boolean; error?: string };
+          if (!data.ok) {
+            throw new Error(data.error || t.offerAddFailed);
+          }
+        })
+      );
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length > 0) {
+        const reason = (failed[0] as PromiseRejectedResult).reason;
+        throw new Error(reason instanceof Error ? reason.message : String(reason));
+      }
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setSelectedRowIds([]);
+      setShowBulkDeleteConfirm(false);
+      setStatusMessage(t.deleted);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="app" id="top">
       <header className="header app-bar" ref={headerRef}>
@@ -1968,23 +2344,29 @@ export function App() {
             <>
               <button
                 type="button"
-                className="edit-offer-btn edit-offer-btn--compact action-mini-btn"
-                onClick={() => setStatusMessage(t.serviceTemporarilyUnavailable)}
+                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${editorMode ? "is-active edit-offer-btn--mode" : ""}`}
+                onClick={toggleEditorMode}
                 aria-label={t.edit}
               >
-                <span className="action-mini-content action-mini-content--icon" aria-hidden="true">
-                  <svg className="action-mini-icon" viewBox="0 0 24 24">
-                    <path
-                      d="M21.2 18.4 15 12.2a5.6 5.6 0 0 1-7.2-7.2l2.7 2.7 2.7-2.7L10.5 2.3a5.6 5.6 0 0 1 7.2 7.2l6.2 6.2a1.9 1.9 0 0 1-2.7 2.7Z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span className="action-mini-content action-mini-content--label">{t.edit}</span>
+                {editorMode ? (
+                  <span className="edit-mode-label">{t.editorModeLabel}</span>
+                ) : (
+                  <>
+                    <span className="action-mini-content action-mini-content--icon" aria-hidden="true">
+                      <svg className="action-mini-icon" viewBox="0 0 24 24">
+                        <path
+                          d="M21.2 18.4 15 12.2a5.6 5.6 0 0 1-7.2-7.2l2.7 2.7 2.7-2.7L10.5 2.3a5.6 5.6 0 0 1 7.2 7.2l6.2 6.2a1.9 1.9 0 0 1-2.7 2.7Z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.9"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <span className="action-mini-content action-mini-content--label">{t.edit}</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -2239,7 +2621,14 @@ export function App() {
         ) : (
         <section className="card offers-card" id="offers-list" ref={offersSectionRef}>
           <div className="offers-head">
-            <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+            <div className="offers-head-left">
+              <h2>{t.offers} ({visibleOffers.length}/{offers.length})</h2>
+              {editorMode && selectedRowIds.length > 0 ? (
+                <div className="offers-selection-summary-left">
+                  {t.selectedRows}: {selectedRowIds.length}
+                </div>
+              ) : null}
+            </div>
             <div className="offers-toolbar" ref={offersToolbarRef}>
               {!dockOfferToolsToHeader ? renderOfferTools(false) : null}
             </div>
@@ -2322,11 +2711,41 @@ export function App() {
                   </tr>
                 </thead>
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
-                  {visibleOffers.map((offer, index) => (
+                  {visibleOffers.map((offer, index) => {
+                    const rowId = offer.id || null;
+                    const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
+                    const canInteractWithRow = !isQuickStatusLocked || isQuickStatusRow;
+                    const hasSelection = selectedRowIds.length > 0;
+                    const isBulkQuickStatusActive = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null;
+                    const shouldShowRowHoverPanel =
+                      editorMode &&
+                      canInteractWithRow &&
+                      !isBulkQuickStatusActive &&
+                      (!hasSelection || isQuickStatusRow) &&
+                      (hoveredOfferId === rowId || isQuickStatusRow);
+                    const keepRowHoverPanelMounted = shouldShowRowHoverPanel || closingHoverPanelRowId === rowId;
+                    return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
-                      className="clickable-row"
-                      onClick={() => openOfferDetails(offer)}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""}`}
+                      onMouseEnter={() => handleEditorRowMouseEnter(rowId, canInteractWithRow)}
+                      onMouseLeave={() => handleEditorRowMouseLeave(rowId, canInteractWithRow)}
+                      onClick={(event) => {
+                        if (editorMode) {
+                          const target = event.target as HTMLElement;
+                          if (
+                            target.closest("button") ||
+                            target.closest("select") ||
+                            target.closest("a")
+                          ) {
+                            return;
+                          }
+                          if (!canInteractWithRow) return;
+                          toggleRowSelection(offer);
+                          return;
+                        }
+                        openOfferDetails(offer);
+                      }}
                     >
                       <td>
                         {offer.sourceUrl ? (
@@ -2336,10 +2755,14 @@ export function App() {
                             rel="noreferrer"
                             onClick={(event) => event.stopPropagation()}
                           >
+                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
                             {offer.role || "-"}
                           </a>
                         ) : (
-                          offer.role || "-"
+                          <>
+                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {offer.role || "-"}
+                          </>
                         )}
                       </td>
                       <td>{offer.company || "-"}</td>
@@ -2347,6 +2770,94 @@ export function App() {
                         <span className={`offer-status-pill offer-status-pill--${getOfferStatusTone(offer.status)}`}>
                           {offer.status || "-"}
                         </span>
+                        {keepRowHoverPanelMounted ? (
+                          <div
+                            className={`row-hover-panel ${shouldShowRowHoverPanel ? "is-open" : "is-closing"}`}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="editor-hover-bar">
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--pin row-action-btn--expand"
+                                onClick={() => togglePinOffer(offer)}
+                                title={pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                              >
+                                <span className="row-action-btn__icon">📌</span>
+                                <span className="row-action-btn__label">
+                                  {pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--edit row-action-btn--expand"
+                                onClick={() => openOfferDetails(offer)}
+                                title={t.edit}
+                              >
+                                <span className="row-action-btn__icon">✏️</span>
+                                <span className="row-action-btn__label">{t.edit}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--status row-action-btn--expand"
+                                onClick={() => openQuickStatus(offer)}
+                                title={t.quickStatus}
+                              >
+                                <span className="row-action-btn__icon">?</span>
+                                <span className="row-action-btn__label">{t.quickStatus}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--delete row-action-btn--expand"
+                                onClick={() => openDeleteFromRow(offer)}
+                                title={t.delete}
+                              >
+                                <span className="row-action-btn__icon">🗑️</span>
+                                <span className="row-action-btn__label">{t.delete}</span>
+                              </button>
+                            </div>
+                            {quickStatusOfferId === rowId ? (
+                              <div className="quick-status-box">
+                                <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                                  <button
+                                    type="button"
+                                    className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                                    onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                                    aria-expanded={quickStatusMenuOpen}
+                                  >
+                                    <span>{quickStatusValue}</span>
+                                    <span className="quick-status-picker__chevron">▾</span>
+                                  </button>
+                                  {quickStatusMenuOpen ? (
+                                    <div className="quick-status-picker__menu">
+                                      {STATUS_OPTIONS.map((status) => {
+                                        const tone = getOfferStatusTone(status);
+                                        return (
+                                          <button
+                                            key={status}
+                                            type="button"
+                                            className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
+                                            onClick={() => {
+                                              setQuickStatusValue(status);
+                                              setQuickStatusMenuOpen(false);
+                                            }}
+                                          >
+                                            {status}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <button type="button" onClick={() => submitQuickStatus(offer)} disabled={loading}>
+                                  {t.save}
+                                </button>
+                                <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                                  {t.cancel}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </td>
                       {!compactView ? <td>{getPrimaryLocation(offer.location)}</td> : null}
                       <td>{offer.appliedAt || "-"}</td>
@@ -2367,7 +2878,8 @@ export function App() {
                       {!compactView ? <td>{offer.workingHours || "-"}</td> : null}
                       {!compactView ? <td>{offer.notes || "-"}</td> : null}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2837,6 +3349,53 @@ export function App() {
                 type="button"
                 className="danger-btn"
                 onClick={confirmDeleteOfferDetails}
+                disabled={loading}
+              >
+                {t.confirmDeleteYes}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBulkDeleteConfirm ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="delete-bulk-confirm-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setShowBulkDeleteConfirm(false)}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.confirmDeleteTitle}</h3>
+            <p>{t.confirmBulkDeleteText}</p>
+            <div className="list">
+              {selectedRowIds
+                .map((id) => findOfferById(id))
+                .filter((offer): offer is Offer => Boolean(offer))
+                .slice(0, 5)
+                .map((offer) => (
+                  <p key={offer.id || `${offer.company}-${offer.role}`}>
+                    <strong>{offer.company || "-"}</strong> - <strong>{offer.role || "-"}</strong>
+                  </p>
+                ))}
+              {selectedRowIds.length > 5 ? <p>... +{selectedRowIds.length - 5}</p> : null}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={loading}
+              >
+                {t.confirmDeleteNo}
+              </button>
+              <button
+                type="button"
+                className="danger-btn"
+                onClick={confirmDeleteSelectedOffers}
                 disabled={loading}
               >
                 {t.confirmDeleteYes}
