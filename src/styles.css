@@ -1420,48 +1420,42 @@ button:disabled {
   background: var(--surface);
 }
 
-.quick-status-box select {
+.quick-status-picker {
+  position: relative;
+}
+
+.quick-status-picker__trigger {
   min-width: 130px;
+  justify-content: space-between;
+  gap: 0.45rem;
 }
 
-.quick-status-select {
-  font-weight: 700;
+.quick-status-picker__chevron {
+  opacity: 0.85;
 }
 
-.quick-status-select--blue {
-  background: rgba(37, 99, 235, 0.16);
-  border-color: rgba(37, 99, 235, 0.38);
-  color: #bfdbfe;
+.quick-status-picker__menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  z-index: 30;
+  min-width: 170px;
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.38rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 26px rgba(3, 8, 18, 0.45);
 }
 
-.quick-status-select--yellow {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.42);
-  color: #fde68a;
+.quick-status-picker__option {
+  justify-content: center;
+  width: 100%;
 }
 
-.quick-status-select--pink {
-  background: rgba(236, 72, 153, 0.18);
-  border-color: rgba(236, 72, 153, 0.45);
-  color: #fbcfe8;
-}
-
-.quick-status-select--green {
-  background: rgba(22, 163, 74, 0.18);
-  border-color: rgba(22, 163, 74, 0.45);
-  color: #bbf7d0;
-}
-
-.quick-status-select--red {
-  background: rgba(143, 47, 63, 0.35);
-  border-color: #8f2f3f;
-  color: #f5c2cb;
-}
-
-.quick-status-select--neutral {
-  background: var(--surface-2);
-  border-color: var(--border);
-  color: var(--text);
+.quick-status-picker__option.is-active {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset;
 }
 
 .offers-table td a {

@@ -731,6 +731,8 @@ export function App() {
   const [selectedRowIds, setSelectedRowIds] = useState<number[]>([]);
   const [quickStatusOfferId, setQuickStatusOfferId] = useState<number | null>(null);
   const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
+  const [quickStatusMenuOpen, setQuickStatusMenuOpen] = useState(false);
+  const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
   const sortAnimationTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -886,26 +888,6 @@ export function App() {
       return "red";
     }
     return "neutral";
-  }
-
-  function getQuickStatusOptionStyle(status: CanonicalStatus) {
-    const tone = getOfferStatusTone(status);
-    if (tone === "blue") {
-      return { backgroundColor: "rgba(37, 99, 235, 0.22)", color: "#bfdbfe" };
-    }
-    if (tone === "yellow") {
-      return { backgroundColor: "rgba(245, 158, 11, 0.22)", color: "#fde68a" };
-    }
-    if (tone === "pink") {
-      return { backgroundColor: "rgba(236, 72, 153, 0.2)", color: "#fbcfe8" };
-    }
-    if (tone === "green") {
-      return { backgroundColor: "rgba(22, 163, 74, 0.24)", color: "#bbf7d0" };
-    }
-    if (tone === "red") {
-      return { backgroundColor: "rgba(143, 47, 63, 0.35)", color: "#f5c2cb" };
-    }
-    return { backgroundColor: "#1f2937", color: "#d1d5db" };
   }
 
   function resolveOfferPeriodDate(offer: Offer) {
@@ -1068,9 +1050,23 @@ export function App() {
   async function submitQuickStatus(offer: Offer) {
     setLoading(true);
     try {
-      await updateOfferStatusQuick(offer, quickStatusValue);
+      const targets =
+        quickStatusMode === "bulk"
+          ? selectedRowIds
+              .map((id) => findOfferById(id))
+              .filter((entry): entry is Offer => Boolean(entry))
+          : [offer];
+
+      const uniqueTargets = Array.from(
+        new Map(targets.map((entry) => [getOfferId(entry), entry]).entries()).values()
+      );
+      const effectiveTargets = uniqueTargets.length > 0 ? uniqueTargets : [offer];
+
+      await Promise.all(effectiveTargets.map((entry) => updateOfferStatusQuick(entry, quickStatusValue)));
       await Promise.all([fetchOffers(), fetchStats()]);
       setQuickStatusOfferId(null);
+      setQuickStatusMenuOpen(false);
+      setQuickStatusMode("single");
       setStatusMessage(t.updated);
     } catch (error) {
       setStatusMessage(String(error));
@@ -1079,14 +1075,22 @@ export function App() {
     }
   }
 
-  function openQuickStatus(offer: Offer) {
+  function openQuickStatus(offer: Offer, mode: "single" | "bulk" = "single") {
     const id = getOfferId(offer);
     if (id === null) return;
     setQuickStatusOfferId(id);
+    setQuickStatusMenuOpen(false);
+    setQuickStatusMode(mode);
     setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
     setHoveredOfferId(id);
     setShowFilters(false);
     setShowSearchInput(false);
+  }
+
+  function closeQuickStatusEditor() {
+    setQuickStatusOfferId(null);
+    setQuickStatusMenuOpen(false);
+    setQuickStatusMode("single");
   }
 
   function openDeleteFromRow(offer: Offer) {
@@ -1443,7 +1447,7 @@ export function App() {
             type="button"
             className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
             onClick={() => {
-              if (firstSelected) openQuickStatus(firstSelected);
+              if (firstSelected) openQuickStatus(firstSelected, "bulk");
             }}
             title={t.quickStatus}
             disabled={isQuickStatusLocked || !firstSelected}
@@ -2714,21 +2718,41 @@ export function App() {
                             </div>
                             {quickStatusOfferId === rowId ? (
                               <div className="quick-status-box">
-                                <select
-                                  className={`quick-status-select quick-status-select--${getOfferStatusTone(quickStatusValue)}`}
-                                  value={quickStatusValue}
-                                  onChange={(event) => setQuickStatusValue(event.target.value as CanonicalStatus)}
-                                >
-                                  {STATUS_OPTIONS.map((status) => (
-                                    <option key={status} value={status} style={getQuickStatusOptionStyle(status)}>
-                                      {status}
-                                    </option>
-                                  ))}
-                                </select>
+                                <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                                  <button
+                                    type="button"
+                                    className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                                    onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                                    aria-expanded={quickStatusMenuOpen}
+                                  >
+                                    <span>{quickStatusValue}</span>
+                                    <span className="quick-status-picker__chevron">▾</span>
+                                  </button>
+                                  {quickStatusMenuOpen ? (
+                                    <div className="quick-status-picker__menu">
+                                      {STATUS_OPTIONS.map((status) => {
+                                        const tone = getOfferStatusTone(status);
+                                        return (
+                                          <button
+                                            key={status}
+                                            type="button"
+                                            className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
+                                            onClick={() => {
+                                              setQuickStatusValue(status);
+                                              setQuickStatusMenuOpen(false);
+                                            }}
+                                          >
+                                            {status}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
                                 <button type="button" onClick={() => submitQuickStatus(offer)} disabled={loading}>
                                   {t.save}
                                 </button>
-                                <button type="button" className="ghost-btn" onClick={() => setQuickStatusOfferId(null)}>
+                                <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
                                   {t.cancel}
                                 </button>
                               </div>
