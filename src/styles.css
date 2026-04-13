@@ -806,6 +806,57 @@ body {
   color: var(--text-main);
 }
 
+.about-modal-content {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.about-app-name {
+  margin: 0 0 0.6rem;
+  text-align: center;
+}
+
+.about-modal-content p {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.about-modal-content a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.about-thanks {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.about-roadmap-btn {
+  justify-self: start;
+  margin-top: 0.35rem;
+}
+
+.about-roadmap-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0.55rem 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.about-roadmap-panel p {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.about-roadmap-panel small {
+  color: var(--text-soft);
+}
+
 .offers-head {
   display: flex;
   justify-content: space-between;

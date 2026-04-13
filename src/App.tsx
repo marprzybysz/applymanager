@@ -149,6 +149,33 @@ const I18N = {
     notificationBell: "Dzwonek powiadomien",
     noNotifications: "Brak nowych powiadomien.",
     notificationKindOperational: "Operacyjne",
+    about: "Informacje",
+    aboutTitle: "Informacje o aplikacji",
+    aboutAppName: "ApplyManager",
+    aboutVersionLabel: "Wersja aplikacji:",
+    aboutVersionValue: "Alpha (v0.8) wersja serwerowa",
+    aboutReleaseDateLabel: "Data wydania:",
+    aboutAuthorLabel: "Autor:",
+    aboutAuthorName: "Marcin Przybysz (marprzybysz)",
+    aboutFrontendLabel: "Frontend:",
+    aboutFrontendValue: "React 18 + TypeScript + Vite",
+    aboutBackendLabel: "Backend:",
+    aboutBackendValue: "Python 3 + FastAPI",
+    aboutDatabaseLabel: "Baza danych:",
+    aboutDatabaseValue: "PostgreSQL 16",
+    aboutScrapingLabel: "Scraping:",
+    aboutScrapingValue: "requests + parsery HTML/JSON-LD (wlasne moduly)",
+    aboutToolsLabel: "Narzedzia:",
+    aboutToolsValue: "Codex (Frontend, nauka i tlumaczenie kodu)",
+    aboutEditorLabel: "Edytor tekstowy:",
+    aboutEditorValue: "Visual Studio Code / vim",
+    thanksLabel: "Podziekowania dla:",
+    thanksPawel: 'Pawel Cyrklaf (Wiedza z deploymentem i zarzadzaniem dockerem)',
+    thanksAdam: "Adam Kozlowski (Pierwszy feedback)",
+    roadmap: "Roadmap",
+    roadmapLine:
+      "Statystyki -> Wsparcie (zakladka jak napisac CV, list motywacyjny, metody skladania CV, Networking) -> Wersja Desktopowa (Electron) -> Oficjalny Release -> Wersja Mobilna",
+    roadmapNote: "Roadmap moze byc zmieniona na potrzeby spolecznosci.",
     unsupportedImportCombo: "Ten typ importu nie jest obslugiwany",
     unsupportedExportCombo: "Ten typ eksportu nie jest obslugiwany",
     importSuccess: "Import zakonczony",
@@ -310,6 +337,33 @@ const I18N = {
     notificationBell: "Notifications bell",
     noNotifications: "No new notifications.",
     notificationKindOperational: "Operational",
+    about: "About",
+    aboutTitle: "Application info",
+    aboutAppName: "ApplyManager",
+    aboutVersionLabel: "Application version:",
+    aboutVersionValue: "Alpha (v0.8) server version",
+    aboutReleaseDateLabel: "Release date:",
+    aboutAuthorLabel: "Author:",
+    aboutAuthorName: "Marcin Przybysz (marprzybysz)",
+    aboutFrontendLabel: "Frontend:",
+    aboutFrontendValue: "React 18 + TypeScript + Vite",
+    aboutBackendLabel: "Backend:",
+    aboutBackendValue: "Python 3 + FastAPI",
+    aboutDatabaseLabel: "Database:",
+    aboutDatabaseValue: "PostgreSQL 16",
+    aboutScrapingLabel: "Scraping:",
+    aboutScrapingValue: "requests + HTML/JSON-LD parsers (custom modules)",
+    aboutToolsLabel: "Tools:",
+    aboutToolsValue: "Codex (Frontend, learning and code translation)",
+    aboutEditorLabel: "Text editor:",
+    aboutEditorValue: "Visual Studio Code / vim",
+    thanksLabel: "Special thanks:",
+    thanksPawel: "Pawel Cyrklaf (Deployment and Docker management knowledge)",
+    thanksAdam: "Adam Kozlowski (First feedback)",
+    roadmap: "Roadmap",
+    roadmapLine:
+      "Stats -> Support (CV writing tab, cover letter, CV submission methods, Networking) -> Desktop version (Electron) -> Official release -> Mobile version",
+    roadmapNote: "Roadmap can change based on community needs.",
     unsupportedImportCombo: "This import type is not supported",
     unsupportedExportCombo: "This export type is not supported",
     importSuccess: "Import completed",
@@ -484,6 +538,14 @@ function isAbsoluteHttpUrl(value: string) {
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getTodayLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function createDefaultOffer(): Offer {
@@ -704,6 +766,8 @@ export function App() {
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showDataManagementMenu, setShowDataManagementMenu] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showRoadmap, setShowRoadmap] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importOperationMessage, setImportOperationMessage] = useState("");
   const [showImportSummaryModal, setShowImportSummaryModal] = useState(false);
@@ -767,6 +831,7 @@ export function App() {
   const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsMenu;
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
+  const aboutReleaseDate = useMemo(() => getTodayLocalDate(), []);
   const unreadNotificationsCount = useMemo(
     () => notifications.filter((item) => item.menuVisible && !item.read).length,
     [notifications]
@@ -2563,6 +2628,18 @@ export function App() {
                     </button>
                   </div>
                 ) : null}
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setShowAboutModal(true);
+                    setShowUserMenu(false);
+                    setShowSettingsMenu(false);
+                    setShowDataManagementMenu(false);
+                  }}
+                >
+                  {t.about}
+                </button>
               </div>
             ) : null}
           </div>
@@ -4059,6 +4136,86 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+      {showAboutModal ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="about-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => {
+                setShowAboutModal(false);
+                setShowRoadmap(false);
+              }}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3 className="about-app-name">{t.aboutAppName}</h3>
+            <div className="about-modal-content">
+              <p>
+                <strong>{t.aboutVersionLabel}</strong> {t.aboutVersionValue}
+              </p>
+              <p>
+                <strong>{t.aboutReleaseDateLabel}</strong> {aboutReleaseDate}
+              </p>
+              <p>
+                <strong>{t.aboutAuthorLabel}</strong>{" "}
+                <a href="https://github.com/marprzybysz" target="_blank" rel="noreferrer">
+                  {t.aboutAuthorName}
+                </a>
+              </p>
+              <p>
+                <strong>{t.aboutFrontendLabel}</strong> {t.aboutFrontendValue}
+              </p>
+              <p>
+                <strong>{t.aboutBackendLabel}</strong> {t.aboutBackendValue}
+              </p>
+              <p>
+                <strong>{t.aboutDatabaseLabel}</strong> {t.aboutDatabaseValue}
+              </p>
+              <p>
+                <strong>{t.aboutScrapingLabel}</strong> {t.aboutScrapingValue}
+              </p>
+              <p>
+                <strong>{t.aboutToolsLabel}</strong> {t.aboutToolsValue}
+              </p>
+              <p>
+                <strong>{t.aboutEditorLabel}</strong> {t.aboutEditorValue}
+              </p>
+              <div className="about-thanks">
+                <p>
+                  <strong>{t.thanksLabel}</strong>
+                </p>
+                <p>
+                  <a href="https://www.youtube.com/@PawelCyrklafDevOps" target="_blank" rel="noreferrer">
+                    Pawel Cyrklaf
+                  </a>{" "}
+                  - {t.thanksPawel}
+                </p>
+                <p>
+                  <a href="https://www.linkedin.com/in/adam-kozłowski-ten-od-api/" target="_blank" rel="noreferrer">
+                    Adam Kozlowski
+                  </a>{" "}
+                  - {t.thanksAdam}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ghost-btn about-roadmap-btn"
+                onClick={() => setShowRoadmap((prev) => !prev)}
+              >
+                {t.roadmap} {showRoadmap ? "▴" : "▾"}
+              </button>
+              {showRoadmap ? (
+                <div className="about-roadmap-panel">
+                  <p>{t.roadmapLine}</p>
+                  <small>{t.roadmapNote}</small>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
