@@ -888,6 +888,26 @@ export function App() {
     return "neutral";
   }
 
+  function getQuickStatusOptionStyle(status: CanonicalStatus) {
+    const tone = getOfferStatusTone(status);
+    if (tone === "blue") {
+      return { backgroundColor: "rgba(37, 99, 235, 0.22)", color: "#bfdbfe" };
+    }
+    if (tone === "yellow") {
+      return { backgroundColor: "rgba(245, 158, 11, 0.22)", color: "#fde68a" };
+    }
+    if (tone === "pink") {
+      return { backgroundColor: "rgba(236, 72, 153, 0.2)", color: "#fbcfe8" };
+    }
+    if (tone === "green") {
+      return { backgroundColor: "rgba(22, 163, 74, 0.24)", color: "#bbf7d0" };
+    }
+    if (tone === "red") {
+      return { backgroundColor: "rgba(143, 47, 63, 0.35)", color: "#f5c2cb" };
+    }
+    return { backgroundColor: "#1f2937", color: "#d1d5db" };
+  }
+
   function resolveOfferPeriodDate(offer: Offer) {
     return offer.appliedAt || offer.datePosted || null;
   }
@@ -954,6 +974,8 @@ export function App() {
       return 0;
     });
   }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
+
+  const isQuickStatusLocked = quickStatusOfferId !== null;
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -1062,6 +1084,9 @@ export function App() {
     if (id === null) return;
     setQuickStatusOfferId(id);
     setQuickStatusValue(normalizeOfferStatus(offer.status, offer.applied !== false));
+    setHoveredOfferId(id);
+    setShowFilters(false);
+    setShowSearchInput(false);
   }
 
   function openDeleteFromRow(offer: Offer) {
@@ -1409,6 +1434,7 @@ export function App() {
               pinSelectedOffers();
             }}
             title={allSelectedPinned ? t.unpin : t.pin}
+            disabled={isQuickStatusLocked || !hasSelection}
           >
             <span className="row-action-btn__icon">📌</span>
             <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
@@ -1420,6 +1446,7 @@ export function App() {
               if (firstSelected) openQuickStatus(firstSelected);
             }}
             title={t.quickStatus}
+            disabled={isQuickStatusLocked || !firstSelected}
           >
             <span className="row-action-btn__icon">?</span>
             <span className="row-action-btn__label">{t.quickStatus}</span>
@@ -1431,6 +1458,7 @@ export function App() {
               openBulkDeleteConfirm();
             }}
             title={t.delete}
+            disabled={isQuickStatusLocked || !hasSelection}
           >
             <span className="row-action-btn__icon">🗑️</span>
             <span className="row-action-btn__label">{t.delete}</span>
@@ -1439,6 +1467,7 @@ export function App() {
             type="button"
             className="ghost-btn selection-clear-btn"
             onClick={() => setSelectedRowIds([])}
+            disabled={isQuickStatusLocked || !hasSelection}
           >
             {t.clearSelectionRows}
           </button>
@@ -1460,6 +1489,7 @@ export function App() {
             onClick={() => setCompactView((prev) => !prev)}
             aria-label={t.viewMode}
             title={t.viewMode}
+            disabled={isQuickStatusLocked}
           >
             {viewLabel}
           </button>
@@ -1469,6 +1499,7 @@ export function App() {
             onClick={() => setShowFilters((prev) => !prev)}
             aria-label={t.filters}
             title={t.filters}
+            disabled={isQuickStatusLocked}
           >
             {filtersLabel}
           </button>
@@ -1479,6 +1510,7 @@ export function App() {
               onClick={() => setShowSearchInput(true)}
               aria-label={t.search}
               title={t.search}
+              disabled={isQuickStatusLocked}
             >
               {searchLabel}
             </button>
@@ -2583,13 +2615,21 @@ export function App() {
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
                   {visibleOffers.map((offer, index) => {
                     const rowId = offer.id || null;
-                    const showRowHoverPanel = editorMode && (hoveredOfferId === rowId || quickStatusOfferId === rowId);
+                    const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
+                    const canInteractWithRow = !isQuickStatusLocked || isQuickStatusRow;
+                    const showRowHoverPanel = editorMode && canInteractWithRow && (hoveredOfferId === rowId || isQuickStatusRow);
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
                       className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""}`}
-                      onMouseEnter={() => setHoveredOfferId(rowId)}
-                      onMouseLeave={() => setHoveredOfferId((prev) => (prev === rowId ? null : prev))}
+                      onMouseEnter={() => {
+                        if (!canInteractWithRow) return;
+                        setHoveredOfferId(rowId);
+                      }}
+                      onMouseLeave={() => {
+                        if (!canInteractWithRow) return;
+                        setHoveredOfferId((prev) => (prev === rowId ? null : prev));
+                      }}
                       onClick={(event) => {
                         if (editorMode) {
                           const target = event.target as HTMLElement;
@@ -2600,6 +2640,7 @@ export function App() {
                           ) {
                             return;
                           }
+                          if (!canInteractWithRow) return;
                           toggleRowSelection(offer);
                           return;
                         }
@@ -2674,11 +2715,12 @@ export function App() {
                             {quickStatusOfferId === rowId ? (
                               <div className="quick-status-box">
                                 <select
+                                  className={`quick-status-select quick-status-select--${getOfferStatusTone(quickStatusValue)}`}
                                   value={quickStatusValue}
                                   onChange={(event) => setQuickStatusValue(event.target.value as CanonicalStatus)}
                                 >
                                   {STATUS_OPTIONS.map((status) => (
-                                    <option key={status} value={status}>
+                                    <option key={status} value={status} style={getQuickStatusOptionStyle(status)}>
                                       {status}
                                     </option>
                                   ))}

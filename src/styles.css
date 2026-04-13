@@ -1424,6 +1424,46 @@ button:disabled {
   min-width: 130px;
 }
 
+.quick-status-select {
+  font-weight: 700;
+}
+
+.quick-status-select--blue {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.38);
+  color: #bfdbfe;
+}
+
+.quick-status-select--yellow {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #fde68a;
+}
+
+.quick-status-select--pink {
+  background: rgba(236, 72, 153, 0.18);
+  border-color: rgba(236, 72, 153, 0.45);
+  color: #fbcfe8;
+}
+
+.quick-status-select--green {
+  background: rgba(22, 163, 74, 0.18);
+  border-color: rgba(22, 163, 74, 0.45);
+  color: #bbf7d0;
+}
+
+.quick-status-select--red {
+  background: rgba(143, 47, 63, 0.35);
+  border-color: #8f2f3f;
+  color: #f5c2cb;
+}
+
+.quick-status-select--neutral {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
 .offers-table td a {
   color: var(--link);
   text-decoration: none;
