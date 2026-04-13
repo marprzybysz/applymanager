@@ -77,3 +77,45 @@
   - zaznaczanie wielu ofert,
   - przenoszenie do archiwum,
   - usuwanie zaznaczonych rekordów.
+
+## 2026-04-13
+
+### Scraping - parsery direct-link
+
+- Dodano parsery direct-link dla:
+  - OLX,
+  - RocketJobs,
+  - NoFluffJobs,
+  - JustJoinIt.
+- Dostosowano reguły wyliczania `expiresAt/daysToExpire`:
+  - OLX bez wymuszania inferencji czasu wygaśnięcia,
+  - pozostałe źródła nadal wspierają inferencję zgodnie z logiką backendu.
+
+### Eksport i strefy czasowe
+
+- Dodano obsługę lokalnej strefy użytkownika przy eksporcie Excel:
+  - frontend przekazuje `tzOffsetMinutes`,
+  - backend przelicza `createdAt` do strefy użytkownika na potrzeby pliku eksportu.
+
+### Frontend - UX i nawigacja
+
+- Dopracowano empty-state (`Import` zamiast błędnego `ExportManager`).
+- Przywrócono i przebudowano stopkę:
+  - klasyczna stopka pod treścią strony,
+  - link do GitHub autora.
+- Dodano/udoskonalono animacje i zachowanie przycisków akcji w headerze.
+
+### Powiadomienia
+
+- Ujednolicono kolorystykę `warning/error` między toastami i panelem powiadomień.
+- Dodano zamykanie pojedynczych wpisów w menu powiadomień.
+- Rozdzielono "zamknięcie na surface" od "historii w menu":
+  - zamknięcie toastu nie usuwa wpisu z historii,
+  - wpis można usunąć osobno z menu dzwonka.
+- Dodano animacje zamykania w menu powiadomień.
+
+### Sekcja "Informacje" (Alpha)
+
+- W menu użytkownika dodano pozycję `Informacje`.
+- Modal zawiera dane wersji Alpha, stack technologiczny, autora oraz roadmap.
+- Dodano sekcję podziękowań i linki do wskazanych osób.

@@ -1,4 +1,4 @@
-# ApplyManager
+# ApplyManager (Alpha)
 
 ApplyManager to aplikacja do śledzenia ofert pracy i procesu aplikowania.
 Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, import/eksport danych oraz środowiska Docker (dev/prod).
@@ -11,6 +11,11 @@ Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, im
 - Scraping: requests + parsery HTML/JSON-LD (własne moduły)
 - Desktop scaffold: Qt6 + C++ (`local/`)
 - Konteneryzacja: Docker Compose
+
+## Status wersji
+
+- Aktualna wersja: `Alpha (v0.8)` (wersja serwerowa)
+- Model wydania: szybkie iteracje UI/API + stabilizacja import/scraping
 
 ## Szybki start (Docker Dev)
 
@@ -138,6 +143,7 @@ npm run build:desktop
 - `DELETE /api/offers/{offer_id}` - usunięcie oferty
 - `POST /api/offers/import-excel` - import `.xlsx/.xls`
 - `GET /api/offers/export-excel` - eksport `.xlsx`
+  - opcjonalny query param: `tzOffsetMinutes` (lokalna strefa użytkownika dla dat/czasu w eksporcie)
 
 ### Preferencje
 
@@ -150,7 +156,7 @@ npm run build:desktop
 - `POST /api/scrape` - query tekstowe lub URL
 - `POST /api/scrape/link` - pojedynczy URL
 
-Obsługiwane źródła scrapera:
+Obsługiwane źródła scrapera (query + direct-link parsery):
 
 - `pracuj`
 - `olx`
@@ -167,10 +173,20 @@ Obsługiwane źródła scrapera:
 - tryb widoku: prosty / zaawansowany
 - wyszukiwarka z rozwijanym polem
 - statusy kolorowane (np. wysłano, in progress, rozmowa, odrzucenie)
+- tryb edycji tabeli:
+  - akcje na wierszu (przypnij, edytuj, szybki status, usuń),
+  - zaznaczanie wielu wierszy,
+  - operacje zbiorcze (status/pin/usuwanie z potwierdzeniem)
 - szczegóły oferty w modalu:
   - edycja i zapis
   - usuwanie z osobnym potwierdzeniem
 - import/eksport + preferencje dostępne z menu użytkownika
+- system powiadomień:
+  - powiadomienia surface (zielone/pomarańczowe/czerwone),
+  - historia powiadomień pod dzwonkiem,
+  - niezależne zamykanie na surface i w historii menu
+- modal `Informacje` w menu użytkownika:
+  - wersja aplikacji, data, autor, stack technologiczny, roadmap
 
 ## Struktura projektu
 
@@ -192,6 +208,24 @@ Pełna dokumentacja techniczna jest w katalogu `docs/`:
 - `docs/PROJECT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKLOG.md`
+
+## Szybkie testy scrapingu (console)
+
+Przykładowe wywołanie dla pojedynczego linku:
+
+```js
+(async () => {
+  const url = "https://www.pracuj.pl/praca/specjalista-specjalistka-ds-logistyki-lodz,oferta,1004725992";
+  const res = await fetch("/api/scrape/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url })
+  });
+  const data = await res.json();
+  console.log("status:", res.status);
+  console.table(data.job ? [data.job] : []);
+})();
+```
 
 ## Qt local scaffold
 

@@ -15,13 +15,19 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
 
 - zakładki: `Oferty`, `Statystyki`,
 - tabela ofert (sortowanie + filtrowanie + wyszukiwarka),
+- tryb edycji tabeli i akcje zbiorcze (status/pin/usuwanie),
 - tryb widoku prosty/zaawansowany,
 - modal szczegółów oferty (podgląd, edycja, usuwanie),
 - statusy ofert oznaczane kolorami,
 - menu użytkownika:
   - preferencje,
   - import,
-  - eksport.
+  - eksport,
+  - informacje o wersji (modal Alpha + roadmap).
+- system powiadomień:
+  - toasty operacyjne,
+  - historia w panelu dzwonka,
+  - niezależne zamykanie surface/historii.
 
 ### API / Backend
 
@@ -29,7 +35,8 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
 - statystyki ofert,
 - preferencje użytkownika,
 - import i eksport Excel,
-- scraping URL i query.
+- scraping URL i query,
+- eksport z uwzględnieniem strefy użytkownika (`tzOffsetMinutes`).
 
 ### Baza danych
 
@@ -59,6 +66,15 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
    - operacje zbiorcze: `Usuń` i `Archiwizuj`,
    - osobny widok/filtr `Archiwum`,
    - backendowe endpointy bulk (`/api/offers/bulk/*`).
+
+## Obsługiwane źródła scrapingu (aktualnie)
+
+- pracuj.pl
+- olx.pl
+- rocketjobs.pl
+- nofluffjobs.com
+- justjoin.it
+- indeed (provider query)
 
 ## Known UI issues (TODO)
 
