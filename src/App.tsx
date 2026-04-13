@@ -733,8 +733,10 @@ export function App() {
   const [quickStatusValue, setQuickStatusValue] = useState<CanonicalStatus>("Wyslano");
   const [quickStatusMenuOpen, setQuickStatusMenuOpen] = useState(false);
   const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
+  const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
   const sortAnimationTimerRef = useRef<number | null>(null);
+  const hoverPanelCloseTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [selectedOfferDraft, setSelectedOfferDraft] = useState<Offer | null>(null);
   const [editingSelectedOffer, setEditingSelectedOffer] = useState(false);
@@ -1057,10 +1059,15 @@ export function App() {
               .filter((entry): entry is Offer => Boolean(entry))
           : [offer];
 
-      const uniqueTargets = Array.from(
-        new Map(targets.map((entry) => [getOfferId(entry), entry]).entries()).values()
-      );
-      const effectiveTargets = uniqueTargets.length > 0 ? uniqueTargets : [offer];
+      const seenIds = new Set<number>();
+      const uniqueTargets: Offer[] = [];
+      for (const entry of targets) {
+        const id = getOfferId(entry);
+        if (id === null || seenIds.has(id)) continue;
+        seenIds.add(id);
+        uniqueTargets.push(entry);
+      }
+      const effectiveTargets: Offer[] = uniqueTargets.length > 0 ? uniqueTargets : [offer];
 
       await Promise.all(effectiveTargets.map((entry) => updateOfferStatusQuick(entry, quickStatusValue)));
       await Promise.all([fetchOffers(), fetchStats()]);
@@ -1423,13 +1430,52 @@ export function App() {
     };
   }, [activeTopTab, offers.length, dockOfferToolsToHeader]);
 
+  useEffect(() => {
+    return () => {
+      if (hoverPanelCloseTimerRef.current) {
+        window.clearTimeout(hoverPanelCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (quickStatusMode === "bulk" && selectedRowIds.length === 0) {
+      closeQuickStatusEditor();
+    }
+  }, [selectedRowIds.length, quickStatusMode]);
+
+  function handleEditorRowMouseEnter(rowId: number | null, canInteractWithRow: boolean) {
+    if (!canInteractWithRow) return;
+    if (hoverPanelCloseTimerRef.current) {
+      window.clearTimeout(hoverPanelCloseTimerRef.current);
+      hoverPanelCloseTimerRef.current = null;
+    }
+    setClosingHoverPanelRowId(null);
+    setHoveredOfferId(rowId);
+  }
+
+  function handleEditorRowMouseLeave(rowId: number | null, canInteractWithRow: boolean) {
+    if (!canInteractWithRow) return;
+    setHoveredOfferId((prev) => (prev === rowId ? null : prev));
+    if (rowId === null) return;
+    setClosingHoverPanelRowId(rowId);
+    if (hoverPanelCloseTimerRef.current) {
+      window.clearTimeout(hoverPanelCloseTimerRef.current);
+    }
+    hoverPanelCloseTimerRef.current = window.setTimeout(() => {
+      setClosingHoverPanelRowId((prev) => (prev === rowId ? null : prev));
+      hoverPanelCloseTimerRef.current = null;
+    }, 170);
+  }
+
   function renderEditorSelectionBar() {
     if (!editorMode) return null;
     const hasSelection = selectedRowIds.length > 0;
     const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
     const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
     return (
-      <div className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"}`}>
+      <div className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""}`}>
         <div className="editor-selection-bar">
           <button
             type="button"
@@ -1470,12 +1516,58 @@ export function App() {
           <button
             type="button"
             className="ghost-btn selection-clear-btn"
-            onClick={() => setSelectedRowIds([])}
+            onClick={() => {
+              setSelectedRowIds([]);
+              closeQuickStatusEditor();
+            }}
             disabled={isQuickStatusLocked || !hasSelection}
           >
             {t.clearSelectionRows}
           </button>
         </div>
+        {showBulkQuickStatusEditor ? (
+          <div className="editor-selection-quick-status">
+            <div className="quick-status-box">
+              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                  onClick={() => setQuickStatusMenuOpen((prev) => !prev)}
+                  aria-expanded={quickStatusMenuOpen}
+                >
+                  <span>{quickStatusValue}</span>
+                  <span className="quick-status-picker__chevron">▾</span>
+                </button>
+                {quickStatusMenuOpen ? (
+                  <div className="quick-status-picker__menu">
+                    {STATUS_OPTIONS.map((status) => {
+                      const tone = getOfferStatusTone(status);
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          className={`quick-status-picker__option offer-status-pill offer-status-pill--${tone} ${quickStatusValue === status ? "is-active" : ""}`}
+                          onClick={() => {
+                            setQuickStatusValue(status);
+                            setQuickStatusMenuOpen(false);
+                          }}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
+                {t.save}
+              </button>
+              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -2621,19 +2713,21 @@ export function App() {
                     const rowId = offer.id || null;
                     const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
                     const canInteractWithRow = !isQuickStatusLocked || isQuickStatusRow;
-                    const showRowHoverPanel = editorMode && canInteractWithRow && (hoveredOfferId === rowId || isQuickStatusRow);
+                    const hasSelection = selectedRowIds.length > 0;
+                    const isBulkQuickStatusActive = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null;
+                    const shouldShowRowHoverPanel =
+                      editorMode &&
+                      canInteractWithRow &&
+                      !isBulkQuickStatusActive &&
+                      (!hasSelection || isQuickStatusRow) &&
+                      (hoveredOfferId === rowId || isQuickStatusRow);
+                    const keepRowHoverPanelMounted = shouldShowRowHoverPanel || closingHoverPanelRowId === rowId;
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
                       className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""}`}
-                      onMouseEnter={() => {
-                        if (!canInteractWithRow) return;
-                        setHoveredOfferId(rowId);
-                      }}
-                      onMouseLeave={() => {
-                        if (!canInteractWithRow) return;
-                        setHoveredOfferId((prev) => (prev === rowId ? null : prev));
-                      }}
+                      onMouseEnter={() => handleEditorRowMouseEnter(rowId, canInteractWithRow)}
+                      onMouseLeave={() => handleEditorRowMouseLeave(rowId, canInteractWithRow)}
                       onClick={(event) => {
                         if (editorMode) {
                           const target = event.target as HTMLElement;
@@ -2674,8 +2768,11 @@ export function App() {
                         <span className={`offer-status-pill offer-status-pill--${getOfferStatusTone(offer.status)}`}>
                           {offer.status || "-"}
                         </span>
-                        {showRowHoverPanel ? (
-                          <div className="row-hover-panel" onClick={(event) => event.stopPropagation()}>
+                        {keepRowHoverPanelMounted ? (
+                          <div
+                            className={`row-hover-panel ${shouldShowRowHoverPanel ? "is-open" : "is-closing"}`}
+                            onClick={(event) => event.stopPropagation()}
+                          >
                             <div className="editor-hover-bar">
                               <button
                                 type="button"
