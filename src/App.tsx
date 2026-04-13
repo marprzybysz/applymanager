@@ -4062,7 +4062,12 @@ export function App() {
           </div>
         </div>
       ) : null}
-      <footer className="app-footer">Powered by Marcin Przybysz</footer>
+      <footer className="app-footer">
+        Powered by{" "}
+        <a href="https://github.com/marprzybysz" target="_blank" rel="noreferrer">
+          Marcin Przybysz
+        </a>
+      </footer>
     </main>
   );
 }

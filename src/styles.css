@@ -786,16 +786,24 @@ body {
 }
 
 .app-footer {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 22px;
-  font-size: 11px;
+  position: static;
+  margin-top: 0.35rem;
+  margin-bottom: 0.25rem;
+  text-align: center;
+  font-size: 12px;
   letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--text-soft) 70%, #9ca3af 30%);
-  opacity: 0.62;
-  z-index: 80;
-  pointer-events: none;
+  color: color-mix(in srgb, var(--text-soft) 78%, #9ca3af 22%);
+  opacity: 0.82;
+}
+
+.app-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-footer a:hover {
+  color: var(--text-main);
 }
 
 .offers-head {
