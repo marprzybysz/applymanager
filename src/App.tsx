@@ -1185,9 +1185,17 @@ export function App() {
     if (mode === "single" && triggerEl) {
       const rect = triggerEl.getBoundingClientRect();
       const approxWidth = 360;
+      const approxHeight = 48;
+      const boxGap = 3;
       const maxLeft = Math.max(8, window.innerWidth - approxWidth - 8);
       const left = Math.min(Math.max(8, rect.left), maxLeft);
-      const top = Math.min(window.innerHeight - 48, rect.bottom + 8);
+      let top = rect.bottom + boxGap;
+      if (top + approxHeight > window.innerHeight - 8) {
+        top = rect.top - approxHeight - boxGap;
+      }
+      if (top < 8) {
+        top = 8;
+      }
       setQuickStatusBoxPos({ top, left });
     } else {
       setQuickStatusBoxPos(null);
@@ -1211,12 +1219,31 @@ export function App() {
     const rect = triggerEl.getBoundingClientRect();
     const menuMinWidth = Math.max(170, Math.round(rect.width));
     const estimatedHeight = STATUS_OPTIONS.length * 36 + 16;
+    const menuGap = 4;
     const maxLeft = Math.max(8, window.innerWidth - menuMinWidth - 8);
-    const left = Math.min(rect.left, maxLeft);
-    let top = rect.bottom + 6;
-    if (top + estimatedHeight > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - estimatedHeight - 6);
+    let left = Math.min(rect.left, maxLeft);
+    let top = rect.bottom + menuGap;
+
+    if (quickStatusMode === "single" && quickStatusBoxPos) {
+      const boxHeight = 46;
+      left = Math.min(Math.max(8, quickStatusBoxPos.left + 8), maxLeft);
+      const boxTop = quickStatusBoxPos.top;
+      const preferUp = boxTop > window.innerHeight * 0.6;
+      if (preferUp) {
+        top = boxTop - estimatedHeight - menuGap;
+        if (top < 8) {
+          top = boxTop + boxHeight + menuGap;
+        }
+      } else {
+        top = boxTop + boxHeight + menuGap;
+        if (top + estimatedHeight > window.innerHeight - 8) {
+          top = Math.max(8, boxTop - estimatedHeight - menuGap);
+        }
+      }
+    } else if (top + estimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - estimatedHeight - menuGap);
     }
+
     setQuickStatusMenuPos({ top, left, minWidth: menuMinWidth });
     setQuickStatusMenuOpen(true);
   }
