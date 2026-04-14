@@ -99,7 +99,7 @@
 
 ### Frontend - UX i nawigacja
 
-- Dopracowano empty-state (`Import` zamiast błędnego `ExportManager`).
+- Dopracowano empty-state (`ImportManager` zamiast błędnego `ExportManager`).
 - Przywrócono i przebudowano stopkę:
   - klasyczna stopka pod treścią strony,
   - link do GitHub autora.
