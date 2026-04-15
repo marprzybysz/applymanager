@@ -12,7 +12,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-applymanager}
-      DB_PASSWORD: ${DB_PASSWORD:-applymanager}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       DB_NAME: ${DB_NAME:-applymanager}
     depends_on:
       db:
@@ -27,7 +27,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-${DB_USER:-applymanager}}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-applymanager}}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:?Set DB_PASSWORD in .env}}
       POSTGRES_DB: ${POSTGRES_DB:-${DB_NAME:-applymanager}}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]

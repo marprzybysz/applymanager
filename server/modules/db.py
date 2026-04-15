@@ -8,7 +8,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", "5432")),
     "user": os.getenv("DB_USER", "applymanager"),
-    "password": os.getenv("DB_PASSWORD", "applymanager"),
+    "password": os.getenv("DB_PASSWORD"),
     "dbname": os.getenv("DB_NAME", "applymanager"),
 }
 

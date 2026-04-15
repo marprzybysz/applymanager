@@ -17,11 +17,54 @@ Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, im
 - Aktualna wersja: `Alpha (v0.8)` (wersja serwerowa)
 - Model wydania: szybkie iteracje UI/API + stabilizacja import/scraping
 
+## Instalacja na Dockerze (skrypty .sh)
+
+1. Wejdź do katalogu projektu:
+
+```bash
+cd applymanager
+```
+
+2. Nadaj uprawnienia do uruchamiania skryptów (jednorazowo):
+
+```bash
+chmod +x scripts/*.sh
+```
+
+3. Wygeneruj lokalny plik `.env` z bezpiecznym hasłem DB:
+
+```bash
+./scripts/setup-server-env.sh
+```
+
+4. Uruchom środowisko:
+
+- Dev:
+
+```bash
+./scripts/run-dev.sh up
+```
+
+- Prod:
+
+```bash
+./scripts/run-all.sh up
+```
+
+5. Zatrzymanie środowiska:
+
+```bash
+./scripts/run-dev.sh down
+# lub
+./scripts/run-all.sh down
+```
+
 ## Szybki start (Docker Dev)
 
 Najwygodniejszy tryb podczas developmentu:
 
 ```bash
+./scripts/setup-server-env.sh
 ./scripts/run-dev.sh up
 ```
 
@@ -46,6 +89,7 @@ Zarządzanie:
 ## Szybki start (Docker Prod)
 
 ```bash
+./scripts/setup-server-env.sh
 ./scripts/run-all.sh up
 ```
 
