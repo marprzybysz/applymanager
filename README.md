@@ -188,6 +188,17 @@ Obsługiwane źródła scrapera (query + direct-link parsery):
 - modal `Informacje` w menu użytkownika:
   - wersja aplikacji, data, autor, stack technologiczny, roadmap
 
+## Tłumaczenia UI
+
+Teksty interfejsu są w jednym pliku:
+
+- `src/i18n/translations.ts`
+
+Dodawanie nowego tłumaczenia:
+
+1. Dodaj nowy klucz w `pl` i `en`.
+2. Użyj go w kodzie przez `t.nazwaKlucza` (np. w `src/App.tsx`).
+
 ## Struktura projektu
 
 - `src/` - web frontend
