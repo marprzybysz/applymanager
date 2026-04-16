@@ -29,8 +29,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-${DB_USER:-applymanager}}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:?Set DB_PASSWORD in .env}}
       POSTGRES_DB: ${POSTGRES_DB:-${DB_NAME:-applymanager}}
+    volumes:
+      - applymanager_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+volumes:
+  applymanager_db_data:

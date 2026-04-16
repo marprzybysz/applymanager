@@ -68,6 +68,8 @@ Najwygodniejszy tryb podczas developmentu:
 ./scripts/run-dev.sh up
 ```
 
+Uwaga: tryb dev nie używa trwałego volume dla DB, więc `./scripts/run-dev.sh restart` resetuje dane bazy.
+
 Porty:
 
 - Web (Vite): `http://localhost:1420`
@@ -92,6 +94,8 @@ Zarządzanie:
 ./scripts/setup-server-env.sh
 ./scripts/run-all.sh up
 ```
+
+Uwaga: tryb prod używa trwałego volume Postgresa, więc dane bazy są zachowywane między restartami.
 
 Porty:
 
