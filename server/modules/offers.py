@@ -4,6 +4,7 @@ import io
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+import pandas as pd
 from openpyxl import Workbook, load_workbook
 from psycopg2.extras import RealDictCursor
 
@@ -539,38 +540,47 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
 
 def get_offer_stats() -> dict[str, Any]:
     offers = list_offers()
-    total = len(offers)
-    applied = sum(1 for offer in offers if offer.get("applied") is True)
-    active = sum(1 for offer in offers if isinstance(offer.get("daysToExpire"), int) and offer.get("daysToExpire") >= 0)
-    expired = sum(1 for offer in offers if isinstance(offer.get("daysToExpire"), int) and offer.get("daysToExpire") < 0)
+    if not offers:
+        return {
+            "totalOffers": 0,
+            "appliedOffers": 0,
+            "activeOffers": 0,
+            "expiredOffers": 0,
+            "averageDaysLeft": None,
+            "recentApplications7d": 0,
+            "statusCounts": {},
+            "sourceCounts": {},
+        }
 
-    status_counts: dict[str, int] = {}
-    source_counts: dict[str, int] = {}
-    days_values: list[int] = []
-    recent_applications = 0
-    today = datetime.now(timezone.utc).date()
+    df = pd.DataFrame(offers)
+    total = int(len(df.index))
 
-    for offer in offers:
-        status = str(offer.get("status") or "unknown").strip() or "unknown"
-        status_counts[status] = status_counts.get(status, 0) + 1
+    applied = int(df["applied"].eq(True).sum()) if "applied" in df.columns else 0
 
-        source = str(offer.get("source") or "manual").strip() or "manual"
-        source_counts[source] = source_counts.get(source, 0) + 1
+    days_series = pd.to_numeric(df["daysToExpire"], errors="coerce") if "daysToExpire" in df.columns else pd.Series(dtype="float64")
+    active = int((days_series >= 0).sum()) if not days_series.empty else 0
+    expired = int((days_series < 0).sum()) if not days_series.empty else 0
 
-        days = offer.get("daysToExpire")
-        if isinstance(days, int):
-            days_values.append(days)
+    status_series = (
+        df["status"].fillna("unknown").astype(str).str.strip().replace("", "unknown")
+        if "status" in df.columns
+        else pd.Series(dtype="string")
+    )
+    status_counts = {str(key): int(value) for key, value in status_series.value_counts().to_dict().items()}
 
-        applied_at = offer.get("appliedAt")
-        if isinstance(applied_at, str) and applied_at:
-            try:
-                delta = (today - datetime.fromisoformat(applied_at).date()).days
-                if 0 <= delta <= 7:
-                    recent_applications += 1
-            except Exception:
-                pass
+    source_series = (
+        df["source"].fillna("manual").astype(str).str.strip().replace("", "manual")
+        if "source" in df.columns
+        else pd.Series(dtype="string")
+    )
+    source_counts = {str(key): int(value) for key, value in source_series.value_counts().to_dict().items()}
 
-    avg_days_left = round(sum(days_values) / len(days_values), 1) if days_values else None
+    today = pd.Timestamp(datetime.now(timezone.utc).date())
+    applied_dates = pd.to_datetime(df["appliedAt"], errors="coerce") if "appliedAt" in df.columns else pd.Series(dtype="datetime64[ns]")
+    delta_days = (today - applied_dates.dt.normalize()).dt.days if not applied_dates.empty else pd.Series(dtype="float64")
+    recent_applications = int(((delta_days >= 0) & (delta_days <= 7)).sum()) if not delta_days.empty else 0
+
+    avg_days_left = round(float(days_series.mean()), 1) if not days_series.dropna().empty else None
 
     return {
         "totalOffers": total,

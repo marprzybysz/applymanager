@@ -6,7 +6,9 @@ Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, im
 ## Stack
 
 - Frontend: React 18 + TypeScript + Vite
+- Dashboardy (frontend): Recharts + powerbi-client + powerbi-client-react
 - Backend: Python 3 + FastAPI
+- Statystyki (backend): pandas
 - Baza danych: PostgreSQL 16
 - Scraping: requests + parsery HTML/JSON-LD (własne moduły)
 - Desktop scaffold: Qt6 + C++ (`local/`)
