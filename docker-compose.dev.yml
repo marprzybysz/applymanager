@@ -31,6 +31,7 @@ services:
       - "1420:1420"
     environment:
       VITE_API_PROXY_TARGET: http://api:3000
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     volumes:
       - ./:/app
       - /app/node_modules
