@@ -154,13 +154,16 @@ pip install -r requirements.txt
 npm run dev:full
 ```
 
-## Testy regresyjne
+## Testy smoke i regresyjne
 
 Uruchomienie testów w kontenerze (bez mieszania hostowego środowiska Python):
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app python:3.10-slim sh -lc "pip install -r requirements.txt -r requirements-dev.txt && pytest -q"
+docker run --rm -v "$PWD":/app -w /app python:3.10-slim sh -lc "pip install -r requirements.txt -r requirements-dev.txt && pytest -q tests/smoke && pytest -q tests/regression"
 ```
+
+- `tests/smoke` - szybka walidacja kluczowych endpointów i przepływów.
+- `tests/regression` - dokładniejsze testy logiki (normalizacja, statystyki, walidacje).
 
 ## Desktop (Electron - podstawy)
 
