@@ -193,8 +193,10 @@ export const I18N = {
     unpin: "Odepnij",
     quickStatus: "Szybki status",
     archive: "Archiwizuj",
+    restoreArchive: "Przywroc",
     archivedStatus: "Archiwizowano",
     archived: "Oferta zarchiwizowana",
+    restored: "Oferta przywrocona",
     selectedRows: "Zaznaczone",
     clearSelectionRows: "Wyczysc zaznaczenie",
     pinNeedsNoSort: "Uwaga: przypinanie dziala tylko gdy sortowanie jest wylaczone."
@@ -393,8 +395,10 @@ export const I18N = {
     unpin: "Unpin",
     quickStatus: "Quick status",
     archive: "Archive",
+    restoreArchive: "Restore",
     archivedStatus: "Archived",
     archived: "Offer archived",
+    restored: "Offer restored",
     selectedRows: "Selected",
     clearSelectionRows: "Clear selection",
     pinNeedsNoSort: "Warning: pinning works only when sorting is disabled."

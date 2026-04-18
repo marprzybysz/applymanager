@@ -1705,6 +1705,15 @@ button:disabled {
   line-height: 1;
 }
 
+.archived-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.28rem;
+  font-size: 0.84rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
 .stats-grid {
   display: grid;
   gap: 0.75rem;

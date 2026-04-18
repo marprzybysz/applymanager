@@ -669,7 +669,9 @@ export function App() {
     const filtered = offers.filter((offer) => {
       if (filterStatus === ARCHIVED_FILTER_VALUE) {
         if (offer.archive !== true) return false;
-      } else if (filterStatus !== "all") {
+      } else if (filterStatus === "all") {
+        if (offer.archive === true) return false;
+      } else {
         if (offer.archive === true) return false;
         if ((offer.status || "") !== filterStatus) return false;
       }
@@ -801,11 +803,12 @@ export function App() {
   }
 
   async function archiveOffer(offer: Offer) {
+    const nextArchiveValue = offer.archive !== true;
     setLoading(true);
     try {
-      await updateOfferArchiveQuick(offer, true);
+      await updateOfferArchiveQuick(offer, nextArchiveValue);
       await Promise.all([fetchOffers(), fetchStats()]);
-      setStatusMessage(t.archived);
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -816,15 +819,16 @@ export function App() {
   async function archiveSelectedOffers() {
     const targets = selectedRowIds
       .map((id) => findOfferById(id))
-      .filter((entry): entry is Offer => Boolean(entry))
-      .filter((offer) => offer.archive !== true);
+      .filter((entry): entry is Offer => Boolean(entry));
     if (targets.length === 0) return;
+    const allArchived = targets.every((offer) => offer.archive === true);
+    const nextArchiveValue = !allArchived;
 
     setLoading(true);
     try {
-      await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, true)));
+      await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, nextArchiveValue)));
       await Promise.all([fetchOffers(), fetchStats()]);
-      setStatusMessage(t.archived);
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -1481,11 +1485,11 @@ export function App() {
             onClick={() => {
               archiveSelectedOffers();
             }}
-            title={t.archive}
-            disabled={isQuickStatusLocked || !hasSelection || allSelectedArchived}
+            title={allSelectedArchived ? t.restoreArchive : t.archive}
+            disabled={isQuickStatusLocked || !hasSelection}
           >
-            <span className="row-action-btn__icon">🗃️</span>
-            <span className="row-action-btn__label">{t.archive}</span>
+            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
+            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
           </button>
           <button
             type="button"
@@ -2780,11 +2784,13 @@ export function App() {
                             onClick={(event) => event.stopPropagation()}
                           >
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </a>
                         ) : (
                           <>
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </>
                         )}
@@ -2833,11 +2839,10 @@ export function App() {
                                 type="button"
                                 className="row-action-btn row-action-btn--archive row-action-btn--expand"
                                 onClick={() => archiveOffer(offer)}
-                                title={t.archive}
-                                disabled={offer.archive === true}
+                                title={offer.archive === true ? t.restoreArchive : t.archive}
                               >
-                                <span className="row-action-btn__icon">🗃️</span>
-                                <span className="row-action-btn__label">{t.archive}</span>
+                                <span className="row-action-btn__icon">{offer.archive === true ? "📂" : "🗃️"}</span>
+                                <span className="row-action-btn__label">{offer.archive === true ? t.restoreArchive : t.archive}</span>
                               </button>
                               <button
                                 type="button"
