@@ -17,10 +17,12 @@ from server.modules.offers import (
     update_offer,
 )
 from server.modules.preferences import get_preferences, save_preferences
+from server.modules.rate_limit import FixedWindowRateLimiter
 from server.modules.registry import get_module_usage
 from server.modules.scrape import list_sources, normalize_scrape_url, scrape_query_or_link, scrape_single_url
 
 router = APIRouter(prefix="/api")
+SCRAPE_RATE_LIMITER = FixedWindowRateLimiter(max_requests=30, window_seconds=60)
 
 
 def is_manual_offer(offer_input: dict) -> bool:
@@ -40,6 +42,22 @@ def validate_manual_offer_requirements(offer_input: dict) -> None:
         raise HTTPException(status_code=400, detail="status is required for manual offer")
     if not to_non_empty_string(offer_input.get("appliedAt")):
         raise HTTPException(status_code=400, detail="appliedAt is required for manual offer")
+
+
+def _enforce_scrape_rate_limit(request: Request) -> JSONResponse | None:
+    client_ip = request.client.host if request.client else "unknown"
+    decision = SCRAPE_RATE_LIMITER.check(client_ip)
+    if decision.allowed:
+        return None
+
+    return JSONResponse(
+        status_code=429,
+        content={
+            "ok": False,
+            "error": "rate limit exceeded for scrape endpoints",
+            "retryAfterSeconds": decision.retry_after_seconds,
+        },
+    )
 
 
 @router.get("/greet")
@@ -187,6 +205,10 @@ def scrape_sources():
 
 @router.post("/scrape")
 async def scrape(request: Request):
+    blocked_response = _enforce_scrape_rate_limit(request)
+    if blocked_response:
+        return blocked_response
+
     body = await request.json()
     query = to_non_empty_string((body or {}).get("query")) or ""
     sources = (body or {}).get("sources") if isinstance((body or {}).get("sources"), list) else None
@@ -203,6 +225,10 @@ async def scrape(request: Request):
 
 @router.post("/scrape/link")
 async def scrape_link(request: Request):
+    blocked_response = _enforce_scrape_rate_limit(request)
+    if blocked_response:
+        return blocked_response
+
     body = await request.json()
     url = normalize_scrape_url((body or {}).get("url")) or ""
 

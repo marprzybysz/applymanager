@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from fastapi.responses import JSONResponse
 
 from server.web import routes
 
@@ -68,3 +69,20 @@ def test_create_manual_offer_requires_location(monkeypatch) -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "location is required for manual offer"
+
+
+def test_scrape_rate_limit_returns_429(monkeypatch) -> None:
+    monkeypatch.setattr(
+        routes,
+        "_enforce_scrape_rate_limit",
+        lambda _request: JSONResponse(
+            status_code=429,
+            content={"ok": False, "error": "rate limit exceeded for scrape endpoints", "retryAfterSeconds": 10},
+        ),
+    )
+    client = _build_test_client()
+
+    response = client.post("/api/scrape", json={"query": "frontend"})
+
+    assert response.status_code == 429
+    assert response.json()["ok"] is False

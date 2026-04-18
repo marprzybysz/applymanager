@@ -216,6 +216,7 @@ npm run build:desktop
 - `GET /api/scrape/sources`
 - `POST /api/scrape` - query tekstowe lub URL
 - `POST /api/scrape/link` - pojedynczy URL
+- Limiter: `POST /api/scrape*` ma limit `30` requestów / `60s` na IP (`429` po przekroczeniu)
 
 Obsługiwane źródła scrapera (query + direct-link parsery):
 
