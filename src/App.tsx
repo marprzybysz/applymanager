@@ -7,6 +7,7 @@ type Offer = {
   company: string;
   role: string;
   applied: boolean;
+  archive?: boolean;
   status: string;
   location?: string | null;
   notes?: string | null;
@@ -146,6 +147,7 @@ const WORK_TIMES = ["dowolny", "pełny etat", "pół etatu"];
 const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
 const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
 const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
+const ARCHIVED_FILTER_VALUE = "__archived__";
 const STATUS_OPTIONS: CanonicalStatus[] = [
   "Wyslano",
   "Zapisano",
@@ -202,6 +204,7 @@ function createDefaultOffer(): Offer {
     company: "",
     role: "",
     applied: true,
+    archive: false,
     status: "Wyslano",
     location: "",
     notes: "",
@@ -228,6 +231,7 @@ function normalizeImportEntryToOffer(entry: Partial<Offer>): Offer {
     role: String(entry.role || "").trim(),
     status: normalizedStatus,
     applied: inferAppliedFromStatus(normalizedStatus),
+    archive: entry.archive === true,
     location: String(entry.location || "").trim(),
     notes: String(entry.notes || ""),
     appliedAt: entry.appliedAt || getTodayDate(),
@@ -297,6 +301,7 @@ function normalizeDateForInput(value: string | null | undefined): string {
 function normalizeOfferForEdit(offer: Offer): Offer {
   return {
     ...offer,
+    archive: offer.archive === true,
     company: String(offer.company || ""),
     role: String(offer.role || ""),
     status: normalizeOfferStatus(offer.status, offer.applied !== false),
@@ -662,7 +667,12 @@ export function App() {
   const visibleOffers = useMemo(() => {
     const textQuery = filterText.trim().toLowerCase();
     const filtered = offers.filter((offer) => {
-      if (filterStatus !== "all" && (offer.status || "") !== filterStatus) return false;
+      if (filterStatus === ARCHIVED_FILTER_VALUE) {
+        if (offer.archive !== true) return false;
+      } else if (filterStatus !== "all") {
+        if (offer.archive === true) return false;
+        if ((offer.status || "") !== filterStatus) return false;
+      }
       if (filterSource !== "all" && (offer.source || "manual") !== filterSource) return false;
       if (!matchesPeriodFilter(offer, filterPeriod)) return false;
       if (!textQuery) return true;
@@ -772,6 +782,54 @@ export function App() {
       if (!newIds.length) return prev;
       return [...newIds, ...prev];
     });
+  }
+
+  async function updateOfferArchiveQuick(offer: Offer, archiveValue: boolean) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    const payload = normalizeOfferForEdit(offer);
+    payload.archive = archiveValue;
+    const response = await fetch(`/api/offers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
+    if (!data.ok || !data.offer) {
+      throw new Error(data.error || t.offerAddFailed);
+    }
+  }
+
+  async function archiveOffer(offer: Offer) {
+    setLoading(true);
+    try {
+      await updateOfferArchiveQuick(offer, true);
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setStatusMessage(t.archived);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function archiveSelectedOffers() {
+    const targets = selectedRowIds
+      .map((id) => findOfferById(id))
+      .filter((entry): entry is Offer => Boolean(entry))
+      .filter((offer) => offer.archive !== true);
+    if (targets.length === 0) return;
+
+    setLoading(true);
+    try {
+      await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, true)));
+      await Promise.all([fetchOffers(), fetchStats()]);
+      setStatusMessage(t.archived);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function updateOfferStatusQuick(offer: Offer, status: CanonicalStatus) {
@@ -1068,6 +1126,7 @@ export function App() {
     setOffers(
       (data.offers || []).map((offer) => ({
         ...offer,
+        archive: offer.archive === true,
         status: normalizeOfferStatus(offer.status, offer.applied !== false),
       }))
     );
@@ -1385,6 +1444,7 @@ export function App() {
     const hasSelection = selectedRowIds.length > 0;
     const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
     const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
     const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
     return (
       <div
@@ -1414,6 +1474,18 @@ export function App() {
           >
             <span className="row-action-btn__icon">?</span>
             <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              archiveSelectedOffers();
+            }}
+            title={t.archive}
+            disabled={isQuickStatusLocked || !hasSelection || allSelectedArchived}
+          >
+            <span className="row-action-btn__icon">🗃️</span>
+            <span className="row-action-btn__label">{t.archive}</span>
           </button>
           <button
             type="button"
@@ -1535,6 +1607,7 @@ export function App() {
           <span>{t.filterByStatus}</span>
           <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
             <option value="all">{t.all}</option>
+            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
             {statusFilterOptions.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -2032,6 +2105,7 @@ export function App() {
           company: jobs[0].company || t.company,
           role: jobs[0].title || t.role,
           applied: true,
+          archive: false,
           status: "Wyslano",
           location: jobs[0].location,
           notes: "",
@@ -2061,6 +2135,7 @@ export function App() {
       company: job.company || t.company,
       role: job.title || t.role,
       applied: true,
+      archive: false,
       status: "Wyslano",
       location: job.location,
       notes: "",
@@ -2753,6 +2828,16 @@ export function App() {
                               >
                                 <span className="row-action-btn__icon">?</span>
                                 <span className="row-action-btn__label">{t.quickStatus}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--archive row-action-btn--expand"
+                                onClick={() => archiveOffer(offer)}
+                                title={t.archive}
+                                disabled={offer.archive === true}
+                              >
+                                <span className="row-action-btn__icon">🗃️</span>
+                                <span className="row-action-btn__label">{t.archive}</span>
                               </button>
                               <button
                                 type="button"
