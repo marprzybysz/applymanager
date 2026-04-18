@@ -143,7 +143,7 @@ export const I18N = {
     sourceBreakdown: "Zrodla",
     fetchLinkPlaceholder: "Wklej link do oferty (np. pracuj.pl)",
     supportedColumns:
-      "Obslugiwane kolumny: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (lub warianty company/role/date/url).",
+      "Obslugiwane kolumny: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki. Link oferty tylko jako hyperlink w komorce Stanowisko.",
     yesApplied: "applied",
     noApplied: "not applied",
     viewMode: "Widok",
@@ -331,7 +331,7 @@ export const I18N = {
     sourceBreakdown: "Sources",
     fetchLinkPlaceholder: "Paste offer URL (e.g. pracuj.pl)",
     supportedColumns:
-      "Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki, Hyperlink (or company/role/date/url variants).",
+      "Supported columns: Firma, Stanowisko, Lokalizacja, Status, Data aplikacji, Notatki. Offer URL only as hyperlink in the Role/Stanowisko cell.",
     yesApplied: "applied",
     noApplied: "not applied",
     viewMode: "View",

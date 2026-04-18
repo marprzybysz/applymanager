@@ -1656,6 +1656,16 @@ button:disabled {
   white-space: nowrap;
 }
 
+.offers-table td a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.offers-table td a:hover .role-cell-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .offers-table--compact td:first-child,
 .offers-table--compact th:first-child {
   white-space: nowrap;

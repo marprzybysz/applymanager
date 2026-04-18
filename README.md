@@ -203,7 +203,10 @@ npm run build:desktop
 - `PUT /api/offers/{offer_id}` - edycja oferty
 - `DELETE /api/offers/{offer_id}` - usunięcie oferty
 - `POST /api/offers/import-excel` - import `.xlsx` (walidacja i parsowanie po stronie backendu)
+  - importer czyta wartości komórek; dla komórek z formułą używa wartości wyliczonej zapisanej w pliku
+  - link oferty jest czytany wyłącznie jako hyperlink w komórce `Stanowisko/Role` (kolumna `Link` nie jest używana)
 - `GET /api/offers/export-excel` - eksport `.xlsx`
+  - link oferty jest zapisywany jako hyperlink w kolumnie `role` (bez osobnej kolumny linku)
   - opcjonalny query param: `tzOffsetMinutes` (lokalna strefa użytkownika dla dat/czasu w eksporcie)
 
 ### Preferencje

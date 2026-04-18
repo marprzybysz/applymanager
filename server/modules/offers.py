@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -56,8 +57,8 @@ EXCEL_FIELDS = {
         "Termin",
     ],
     "source": ["source", "Source", "portal", "Portal"],
-    "sourceUrl": ["url", "URL", "link", "Link", "hyperlink", "Hyperlink"],
-    "sourceUrlLink": ["__link__url", "__link__URL", "__link__link", "__link__Link", "__link__hyperlink", "__link__Hyperlink"],
+    "sourceUrl": ["url", "URL", "link", "Link", "hyperlink", "Hyperlink", "link oferty", "Link oferty"],
+    "sourceUrlLink": ["__link__url", "__link__URL", "__link__link", "__link__Link", "__link__hyperlink", "__link__Hyperlink", "__link__link oferty", "__link__Link oferty"],
 }
 DEFAULT_OFFER_DURATION_DAYS = 30
 
@@ -99,6 +100,46 @@ def _has_meaningful_non_id_data(row: dict[str, Any]) -> bool:
 
 def _normalize_status_key(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+def _extract_hyperlink_formula_parts(value: Any) -> tuple[str | None, str | None]:
+    text = to_non_empty_string(value)
+    if not text:
+        return None, None
+    # Handles formulas like: =HYPERLINK("https://example.com","Role")
+    # and locale variant with semicolon separator.
+    match = re.match(
+        r'^\s*=\s*HYPERLINK\s*\(\s*"([^"]+)"(?:\s*[,;]\s*"([^"]*)")?\s*\)\s*$',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None, None
+    url = to_non_empty_string(match.group(1))
+    label = to_non_empty_string(match.group(2))
+    if not (url and is_absolute_http_url(url)):
+        return None, label
+    return url, label
+
+
+def _pick_role_hyperlink(row: dict[str, Any]) -> str | None:
+    for role_header in EXCEL_FIELDS["role"]:
+        link_key = f"__link__{role_header}"
+        link_value = to_non_empty_string(row.get(link_key))
+        if link_value and is_absolute_http_url(link_value):
+            return link_value
+    return None
+
+
+def _pick_any_row_hyperlink(row: dict[str, Any]) -> str | None:
+    for key, value in row.items():
+        key_text = str(key or "")
+        if not key_text.startswith("__link__"):
+            continue
+        link_value = to_non_empty_string(value)
+        if link_value and is_absolute_http_url(link_value):
+            return link_value
+    return None
 
 
 def normalize_offer_status(status_value: Any, applied_default: bool = True) -> str:
@@ -195,8 +236,15 @@ def map_excel_row_to_offer(
     company = pick_first_value(row, EXCEL_FIELDS["company"])
     role = pick_first_value(row, EXCEL_FIELDS["role"])
 
+    role_hyperlink = _pick_role_hyperlink(row)
     direct_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrl"])
     linked_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrlLink"])
+    source_url = (
+        role_hyperlink
+        or linked_source_url
+        or (direct_source_url if is_absolute_http_url(direct_source_url) else None)
+        or _pick_any_row_hyperlink(row)
+    )
     applied = to_boolean_or_null(pick_first_value(row, EXCEL_FIELDS["applied"]))
     applied_value = True if applied is None else applied
     explicit_status = pick_first_value(row, EXCEL_FIELDS["status"])
@@ -212,7 +260,7 @@ def map_excel_row_to_offer(
         "datePosted": safe_date(pick_first_value(row, EXCEL_FIELDS["datePosted"])),
         "expiresAt": safe_date(pick_first_value(row, EXCEL_FIELDS["expiresAt"])),
         "source": pick_first_value(row, EXCEL_FIELDS["source"]) or import_source,
-        "sourceUrl": direct_source_url if is_absolute_http_url(direct_source_url) else (linked_source_url or None),
+        "sourceUrl": source_url,
     }
 
     missing_fields: list[str] = []
@@ -247,25 +295,40 @@ def map_excel_row_to_offer(
 
 
 def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
-    workbook = load_workbook(io.BytesIO(content), data_only=False)
-    worksheet = workbook.worksheets[0]
+    # Read values with data_only=True so formula cells return computed value (if cached in file),
+    # while reading hyperlinks from a second workbook loaded with formulas preserved.
+    workbook_values = load_workbook(io.BytesIO(content), data_only=True)
+    workbook_links = load_workbook(io.BytesIO(content), data_only=False)
+    worksheet_values = workbook_values.worksheets[0]
+    worksheet_links = workbook_links.worksheets[0]
 
-    header_cells = list(next(worksheet.iter_rows(min_row=1, max_row=1), []))
+    header_cells = list(next(worksheet_values.iter_rows(min_row=1, max_row=1), []))
     headers = [to_non_empty_string(cell.value) or "" for cell in header_cells]
     rows: list[dict[str, Any]] = []
 
-    for row_index, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row), start=2):
+    for row_index, row_values in enumerate(
+        worksheet_values.iter_rows(min_row=2, max_row=worksheet_values.max_row),
+        start=2,
+    ):
+        row_links = worksheet_links[row_index]
         item: dict[str, Any] = {}
         item["__rowNumber"] = row_index
-        for idx, cell in enumerate(row):
+        for idx, value_cell in enumerate(row_values):
             if idx >= len(headers):
                 continue
             header = headers[idx]
             if not header:
                 continue
-            item[header] = cell.value
-            if cell.hyperlink and cell.hyperlink.target:
-                item[f"__link__{header}"] = str(cell.hyperlink.target).strip()
+            item[header] = value_cell.value
+            link_cell = row_links[idx] if idx < len(row_links) else None
+            if link_cell and link_cell.hyperlink and link_cell.hyperlink.target:
+                item[f"__link__{header}"] = str(link_cell.hyperlink.target).strip()
+            elif link_cell:
+                formula_link, formula_label = _extract_hyperlink_formula_parts(link_cell.value)
+                if formula_link:
+                    item[f"__link__{header}"] = formula_link
+                if item[header] is None and formula_label:
+                    item[header] = formula_label
         rows.append(item)
 
     return rows
@@ -487,7 +550,6 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
         "expiresAt",
         "daysToExpire",
         "source",
-        "sourceUrl",
         "employmentTypes",
         "workTime",
         "workMode",
@@ -520,7 +582,6 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
                 raw_expires_at or "",
                 offer.get("daysToExpire") if offer.get("daysToExpire") is not None else "",
                 offer.get("source") or "",
-                offer.get("sourceUrl") or "",
                 ", ".join(offer.get("employmentTypes") or []),
                 offer.get("workTime") or "",
                 offer.get("workMode") or "",
@@ -529,6 +590,11 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
                 _format_created_at_for_export(offer.get("createdAt"), user_utc_offset_minutes),
             ]
         )
+        role_cell = worksheet.cell(row=worksheet.max_row, column=2)
+        role_link = to_non_empty_string(offer.get("sourceUrl"))
+        if role_link and is_absolute_http_url(role_link):
+            role_cell.hyperlink = role_link
+            role_cell.style = "Hyperlink"
 
     buffer = io.BytesIO()
     workbook.save(buffer)

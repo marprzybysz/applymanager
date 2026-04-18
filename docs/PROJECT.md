@@ -76,6 +76,13 @@ Aplikacja do prowadzenia procesu aplikowania na oferty pracy:
 - justjoin.it
 - indeed (provider query)
 
+## Pilne usprawnienia (najbliższy czas)
+
+- Ulepszenie warstwy scrapera:
+  - lepsza stabilność parserów po zmianach HTML źródeł,
+  - rozszerzenie mapowania pól (szczególnie warunki pracy poza `pracuj`),
+  - dodatkowe testy regresyjne parserów per-provider.
+
 ## Known UI issues (TODO)
 
 - Tryb edycji - panel akcji pod prawym blokiem (`Widok/Filtry/Szukaj`) ma sporadyczne problemy z pełnym wyrównaniem wysokości i "pływaniem" przycisków (`Wyczyść zaznaczenie` vs przyciski ikonowe) podczas hover/animacji.
