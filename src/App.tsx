@@ -121,6 +121,7 @@ type CanonicalStatus =
   | "Odrzucono"
   | "Odmowa";
 type NotificationTone = "success" | "error" | "warning" | "neutral";
+type RowExitAnimationKind = "archive" | "delete";
 type AppNotification = {
   id: number;
   text: string;
@@ -360,6 +361,7 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
 }
 
 const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
+const ROW_EXIT_ANIMATION_MS = 320;
 
 function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
   const normalized = normalizeStatusKey(status);
@@ -461,6 +463,7 @@ export function App() {
   const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
   const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
+  const [rowExitAnimations, setRowExitAnimations] = useState<Record<number, RowExitAnimationKind>>({});
   const sortAnimationTimerRef = useRef<number | null>(null);
   const hoverPanelCloseTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -803,11 +806,14 @@ export function App() {
   }
 
   async function archiveOffer(offer: Offer) {
+    const id = getOfferId(offer);
     const nextArchiveValue = offer.archive !== true;
     setLoading(true);
     try {
-      await updateOfferArchiveQuick(offer, nextArchiveValue);
-      await Promise.all([fetchOffers(), fetchStats()]);
+      await runWithRowExitAnimation(id === null ? [] : [id], "archive", async () => {
+        await updateOfferArchiveQuick(offer, nextArchiveValue);
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
       setStatusMessage(String(error));
@@ -823,11 +829,16 @@ export function App() {
     if (targets.length === 0) return;
     const allArchived = targets.every((offer) => offer.archive === true);
     const nextArchiveValue = !allArchived;
+    const targetIds = targets
+      .map((offer) => getOfferId(offer))
+      .filter((id): id is number => typeof id === "number");
 
     setLoading(true);
     try {
-      await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, nextArchiveValue)));
-      await Promise.all([fetchOffers(), fetchStats()]);
+      await runWithRowExitAnimation(targetIds, "archive", async () => {
+        await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, nextArchiveValue)));
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
       setStatusMessage(String(error));
@@ -1009,6 +1020,34 @@ export function App() {
     setSelectedOfferDraft(null);
     setEditingSelectedOffer(false);
     setShowDeleteConfirm(true);
+  }
+
+  async function runWithRowExitAnimation(targetIds: number[], kind: RowExitAnimationKind, task: () => Promise<void>) {
+    const uniqueIds = Array.from(new Set(targetIds.filter((id) => typeof id === "number")));
+    if (uniqueIds.length > 0) {
+      setRowExitAnimations((prev) => {
+        const next = { ...prev };
+        for (const id of uniqueIds) {
+          next[id] = kind;
+        }
+        return next;
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, ROW_EXIT_ANIMATION_MS));
+    }
+
+    try {
+      await task();
+    } finally {
+      if (uniqueIds.length > 0) {
+        setRowExitAnimations((prev) => {
+          const next = { ...prev };
+          for (const id of uniqueIds) {
+            delete next[id];
+          }
+          return next;
+        });
+      }
+    }
   }
 
   function openOfferDetails(offer: Offer) {
@@ -2250,14 +2289,16 @@ export function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/offers/${selectedOffer.id}`, {
-        method: "DELETE",
+      await runWithRowExitAnimation([selectedOffer.id], "delete", async () => {
+        const response = await fetch(`/api/offers/${selectedOffer.id}`, {
+          method: "DELETE",
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!data.ok) {
+          throw new Error(data.error || t.offerAddFailed);
+        }
+        await Promise.all([fetchOffers(), fetchStats()]);
       });
-      const data = (await response.json()) as { ok: boolean; error?: string };
-      if (!data.ok) {
-        throw new Error(data.error || t.offerAddFailed);
-      }
-      await Promise.all([fetchOffers(), fetchStats()]);
       closeOfferDetails();
       setStatusMessage(t.deleted);
     } catch (error) {
@@ -2280,21 +2321,23 @@ export function App() {
     }
     setLoading(true);
     try {
-      const results = await Promise.allSettled(
-        ids.map(async (id) => {
-          const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
-          const data = (await response.json()) as { ok: boolean; error?: string };
-          if (!data.ok) {
-            throw new Error(data.error || t.offerAddFailed);
-          }
-        })
-      );
-      const failed = results.filter((result) => result.status === "rejected");
-      if (failed.length > 0) {
-        const reason = (failed[0] as PromiseRejectedResult).reason;
-        throw new Error(reason instanceof Error ? reason.message : String(reason));
-      }
-      await Promise.all([fetchOffers(), fetchStats()]);
+      await runWithRowExitAnimation(ids, "delete", async () => {
+        const results = await Promise.allSettled(
+          ids.map(async (id) => {
+            const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
+            const data = (await response.json()) as { ok: boolean; error?: string };
+            if (!data.ok) {
+              throw new Error(data.error || t.offerAddFailed);
+            }
+          })
+        );
+        const failed = results.filter((result) => result.status === "rejected");
+        if (failed.length > 0) {
+          const reason = (failed[0] as PromiseRejectedResult).reason;
+          throw new Error(reason instanceof Error ? reason.message : String(reason));
+        }
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
       setSelectedRowIds([]);
       setShowBulkDeleteConfirm(false);
       setStatusMessage(t.deleted);
@@ -2740,12 +2783,15 @@ export function App() {
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
                   {visibleOffers.map((offer, index) => {
                     const rowId = offer.id || null;
+                    const rowExitKind = rowId !== null ? rowExitAnimations[rowId] : undefined;
+                    const isRowExiting = Boolean(rowExitKind);
                     const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
                     const canInteractWithRow = !isQuickStatusLocked || isQuickStatusRow;
                     const hasSelection = selectedRowIds.length > 0;
                     const isBulkQuickStatusActive = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null;
                     const shouldShowRowHoverPanel =
                       editorMode &&
+                      !isRowExiting &&
                       canInteractWithRow &&
                       !isBulkQuickStatusActive &&
                       (!hasSelection || isQuickStatusRow) &&
@@ -2755,10 +2801,17 @@ export function App() {
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""}`}
-                      onMouseEnter={() => handleEditorRowMouseEnter(rowId, canInteractWithRow)}
-                      onMouseLeave={() => handleEditorRowMouseLeave(rowId, canInteractWithRow)}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
+                      onMouseEnter={() => {
+                        if (isRowExiting) return;
+                        handleEditorRowMouseEnter(rowId, canInteractWithRow);
+                      }}
+                      onMouseLeave={() => {
+                        if (isRowExiting) return;
+                        handleEditorRowMouseLeave(rowId, canInteractWithRow);
+                      }}
                       onClick={(event) => {
+                        if (isRowExiting) return;
                         if (editorMode) {
                           const target = event.target as HTMLElement;
                           if (
