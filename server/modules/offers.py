@@ -13,8 +13,8 @@ from server.modules.common import is_absolute_http_url, safe_date, to_boolean_or
 from server.modules.db import get_connection
 
 EXCEL_FIELDS = {
-    "company": ["company", "Company", "firma", "Firma"],
-    "role": ["role", "Role", "position", "Position", "stanowisko", "Stanowisko"],
+    "company": ["company", "Company", "company name", "Company name", "companyName", "firma", "Firma", "nazwa firmy", "Nazwa firmy", "pracodawca", "Pracodawca"],
+    "role": ["role", "Role", "position", "Position", "job title", "Job title", "stanowisko", "Stanowisko", "nazwa stanowiska", "Nazwa stanowiska"],
     "applied": ["applied", "Applied", "aplikowano", "Aplikowano"],
     "status": ["status", "Status"],
     "location": ["location", "Location", "lokalizacja", "Lokalizacja"],
@@ -58,17 +58,73 @@ EXCEL_FIELDS = {
     ],
     "source": ["source", "Source", "portal", "Portal"],
     "sourceUrl": ["url", "URL", "link", "Link", "hyperlink", "Hyperlink", "link oferty", "Link oferty"],
-    "sourceUrlLink": ["__link__url", "__link__URL", "__link__link", "__link__Link", "__link__hyperlink", "__link__Hyperlink", "__link__link oferty", "__link__Link oferty"],
+    "sourceUrlLink": [
+        "__link__url",
+        "__link__URL",
+        "__link__link",
+        "__link__Link",
+        "__link__hyperlink",
+        "__link__Hyperlink",
+        "__link__link oferty",
+        "__link__Link oferty",
+    ],
 }
 DEFAULT_OFFER_DURATION_DAYS = 30
 
 
-def pick_first_value(row: dict[str, Any], candidates: list[str]) -> str | None:
+def _normalize_header_name(value: Any) -> str:
+    raw = to_non_empty_string(value)
+    if not raw:
+        return ""
+    base = raw.strip().lower()
+    replacements = str.maketrans(
+        {
+            "ą": "a",
+            "ć": "c",
+            "ę": "e",
+            "ł": "l",
+            "ń": "n",
+            "ó": "o",
+            "ś": "s",
+            "ź": "z",
+            "ż": "z",
+        }
+    )
+    base = base.translate(replacements)
+    # Normalize separators and punctuation so "Company Name", "company_name" and "company-name" match.
+    base = re.sub(r"[^a-z0-9]+", " ", base).strip()
+    return re.sub(r"\s+", " ", base)
+
+
+def _find_matching_row_key(row: dict[str, Any], candidates: list[str]) -> str | None:
     for key in candidates:
-        value = to_non_empty_string(row.get(key))
-        if value:
-            return value
+        if key in row:
+            return key
+
+    normalized_to_original: dict[str, str] = {}
+    for row_key in row.keys():
+        normalized = _normalize_header_name(row_key)
+        if normalized and normalized not in normalized_to_original:
+            normalized_to_original[normalized] = str(row_key)
+
+    for key in candidates:
+        normalized = _normalize_header_name(key)
+        if normalized and normalized in normalized_to_original:
+            return normalized_to_original[normalized]
     return None
+
+
+def pick_first_value_with_key(row: dict[str, Any], candidates: list[str]) -> tuple[str | None, str | None]:
+    key = _find_matching_row_key(row, candidates)
+    if not key:
+        return None, None
+    value = to_non_empty_string(row.get(key))
+    return value, key
+
+
+def pick_first_value(row: dict[str, Any], candidates: list[str]) -> str | None:
+    value, _ = pick_first_value_with_key(row, candidates)
+    return value
 
 
 def _json_safe_value(value: Any) -> Any:
@@ -106,10 +162,12 @@ def _extract_hyperlink_formula_parts(value: Any) -> tuple[str | None, str | None
     text = to_non_empty_string(value)
     if not text:
         return None, None
-    # Handles formulas like: =HYPERLINK("https://example.com","Role")
-    # and locale variant with semicolon separator.
-    match = re.match(
-        r'^\s*=\s*HYPERLINK\s*\(\s*"([^"]+)"(?:\s*[,;]\s*"([^"]*)")?\s*\)\s*$',
+    # Handles formulas like:
+    # =HYPERLINK("https://example.com","Role")
+    # =IFERROR(HYPERLINK("https://example.com";"Role"),"")
+    # and locale variants HIPERLACZE / HIPERŁĄCZE.
+    match = re.search(
+        r'(?:_xlfn\.)?(?:HYPERLINK|HIPERLACZE|HIPERŁĄCZE)\s*\(\s*"([^"]+)"(?:\s*[,;]\s*"([^"]*)")?',
         text,
         flags=re.IGNORECASE,
     )
@@ -122,7 +180,105 @@ def _extract_hyperlink_formula_parts(value: Any) -> tuple[str | None, str | None
     return url, label
 
 
-def _pick_role_hyperlink(row: dict[str, Any]) -> str | None:
+def _split_excel_concat_parts(expression: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    in_quotes = False
+    i = 0
+    while i < len(expression):
+        ch = expression[i]
+        if ch == '"':
+            current.append(ch)
+            if in_quotes and i + 1 < len(expression) and expression[i + 1] == '"':
+                # Escaped quote in Excel string literal.
+                current.append('"')
+                i += 2
+                continue
+            in_quotes = not in_quotes
+            i += 1
+            continue
+        if ch == "&" and not in_quotes:
+            part = "".join(current).strip()
+            if part:
+                parts.append(part)
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+
+    tail = "".join(current).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _normalize_cell_ref(token: str) -> str | None:
+    match = re.match(r"^\$?([A-Z]{1,3})\$?(\d+)$", token.strip(), flags=re.IGNORECASE)
+    if not match:
+        return None
+    return f"{match.group(1).upper()}{match.group(2)}"
+
+
+def _evaluate_text_formula_cell(
+    worksheet_values: Any,
+    worksheet_links: Any,
+    cell_ref: str,
+    visiting: set[str],
+) -> str | None:
+    normalized_ref = _normalize_cell_ref(cell_ref)
+    if not normalized_ref:
+        return None
+    if normalized_ref in visiting:
+        # Circular dependency.
+        return None
+
+    visiting.add(normalized_ref)
+    try:
+        value_cell = worksheet_values[normalized_ref]
+        if value_cell.value is not None:
+            return str(value_cell.value)
+
+        formula_cell = worksheet_links[normalized_ref]
+        formula_text = to_non_empty_string(formula_cell.value)
+        if not formula_text or not formula_text.startswith("="):
+            return None
+
+        expression = formula_text[1:].strip()
+        parts = _split_excel_concat_parts(expression)
+        if not parts:
+            return None
+
+        resolved: list[str] = []
+        for part in parts:
+            if re.match(r'^".*"$', part, flags=re.DOTALL):
+                # Strip outer quotes and unescape doubled quotes.
+                literal = part[1:-1].replace('""', '"')
+                resolved.append(literal)
+                continue
+
+            reference = _normalize_cell_ref(part)
+            if not reference:
+                # Unsupported formula token (function, arithmetic, etc.).
+                return None
+
+            nested = _evaluate_text_formula_cell(worksheet_values, worksheet_links, reference, visiting)
+            if nested is None:
+                return None
+            resolved.append(nested)
+
+        return "".join(resolved)
+    finally:
+        visiting.remove(normalized_ref)
+
+
+def _pick_role_hyperlink(row: dict[str, Any], role_key: str | None = None) -> str | None:
+    if role_key:
+        link_key = f"__link__{role_key}"
+        link_value = to_non_empty_string(row.get(link_key))
+        if link_value and is_absolute_http_url(link_value):
+            return link_value
+
     for role_header in EXCEL_FIELDS["role"]:
         link_key = f"__link__{role_header}"
         link_value = to_non_empty_string(row.get(link_key))
@@ -233,14 +389,16 @@ def map_excel_row_to_offer(
     if not _has_meaningful_non_id_data(row):
         return None, None
 
-    company = pick_first_value(row, EXCEL_FIELDS["company"])
-    role = pick_first_value(row, EXCEL_FIELDS["role"])
+    company, company_key = pick_first_value_with_key(row, EXCEL_FIELDS["company"])
+    role, role_key = pick_first_value_with_key(row, EXCEL_FIELDS["role"])
 
-    role_hyperlink = _pick_role_hyperlink(row)
+    role_hyperlink = _pick_role_hyperlink(row, role_key=role_key)
+    company_hyperlink = _pick_role_hyperlink(row, role_key=company_key)
     direct_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrl"])
     linked_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrlLink"])
     source_url = (
         role_hyperlink
+        or company_hyperlink
         or linked_source_url
         or (direct_source_url if is_absolute_http_url(direct_source_url) else None)
         or _pick_any_row_hyperlink(row)
@@ -264,8 +422,13 @@ def map_excel_row_to_offer(
     }
 
     missing_fields: list[str] = []
+    formula_issues: list[str] = []
     if not company:
         missing_fields.append("company")
+        if company_key:
+            formula_value = to_non_empty_string(row.get(f"__formula__{company_key}"))
+            if formula_value and formula_value.startswith("="):
+                formula_issues.append("unresolved_company_formula")
     if not role:
         missing_fields.append("role")
 
@@ -279,7 +442,6 @@ def map_excel_row_to_offer(
                 "role": mapped_offer.get("role"),
                 "status": mapped_offer.get("status"),
                 "location": mapped_offer.get("location"),
-                "appliedAt": mapped_offer.get("appliedAt"),
                 "datePosted": mapped_offer.get("datePosted"),
                 "expiresAt": mapped_offer.get("expiresAt"),
                 "source": mapped_offer.get("source"),
@@ -288,6 +450,8 @@ def map_excel_row_to_offer(
             },
             "raw": {k: _json_safe_value(v) for k, v in row.items() if not str(k).startswith("__link__")},
         }
+        if formula_issues:
+            issue["formulaIssues"] = formula_issues
 
     if missing_fields:
         return None, issue
@@ -301,6 +465,14 @@ def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
     workbook_links = load_workbook(io.BytesIO(content), data_only=False)
     worksheet_values = workbook_values.worksheets[0]
     worksheet_links = workbook_links.worksheets[0]
+
+    merged_anchor_by_position: dict[tuple[int, int], tuple[int, int]] = {}
+    for merged_range in worksheet_values.merged_cells.ranges:
+        min_col, min_row, max_col, max_row = merged_range.bounds
+        anchor = (min_row, min_col)
+        for row in range(min_row, max_row + 1):
+            for col in range(min_col, max_col + 1):
+                merged_anchor_by_position[(row, col)] = anchor
 
     header_cells = list(next(worksheet_values.iter_rows(min_row=1, max_row=1), []))
     headers = [to_non_empty_string(cell.value) or "" for cell in header_cells]
@@ -319,7 +491,35 @@ def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
             header = headers[idx]
             if not header:
                 continue
-            item[header] = value_cell.value
+            anchor_position = merged_anchor_by_position.get((row_index, idx + 1))
+            if anchor_position and anchor_position != (row_index, idx + 1):
+                anchor_row, anchor_col = anchor_position
+                resolved_value = worksheet_values.cell(row=anchor_row, column=anchor_col).value
+            else:
+                resolved_value = value_cell.value
+
+            formula_cell = worksheet_links.cell(
+                row=anchor_position[0] if anchor_position else row_index,
+                column=anchor_position[1] if anchor_position else (idx + 1),
+            )
+            formula_text = to_non_empty_string(formula_cell.value)
+            if formula_text and formula_text.startswith("="):
+                item[f"__formula__{header}"] = formula_text
+
+            if resolved_value is None:
+                anchor_row = anchor_position[0] if anchor_position else row_index
+                anchor_col = anchor_position[1] if anchor_position else (idx + 1)
+                anchor_ref = worksheet_values.cell(row=anchor_row, column=anchor_col).coordinate
+                evaluated = _evaluate_text_formula_cell(
+                    worksheet_values=worksheet_values,
+                    worksheet_links=worksheet_links,
+                    cell_ref=anchor_ref,
+                    visiting=set(),
+                )
+                if evaluated is not None:
+                    resolved_value = evaluated
+
+            item[header] = resolved_value
             link_cell = row_links[idx] if idx < len(row_links) else None
             if link_cell and link_cell.hyperlink and link_cell.hyperlink.target:
                 item[f"__link__{header}"] = str(link_cell.hyperlink.target).strip()

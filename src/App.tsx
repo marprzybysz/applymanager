@@ -42,6 +42,7 @@ type ScrapedJob = {
 type ExcelImportIssue = {
   rowNumber?: number;
   missingFields?: string[];
+  formulaIssues?: string[];
   parsed?: {
     company?: string | null;
     role?: string | null;
@@ -61,6 +62,12 @@ type ExportAssistantRow = {
   missingFields: string[];
   draft: Offer;
   saved: boolean;
+};
+
+type ImportPreviewMeta = {
+  filename?: string;
+  size?: number;
+  sha256?: string;
 };
 
 type UserPreferences = {
@@ -169,6 +176,25 @@ function getTodayLocalDate() {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function normalizeForDuplicate(value: string | null | undefined): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeUrlForDuplicate(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.replace(/\/+$/, "").toLowerCase();
+}
+
+function normalizeDateForDuplicate(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.slice(0, 10);
 }
 
 function createDefaultOffer(): Offer {
@@ -397,7 +423,9 @@ export function App() {
   const [importedPreviewOffers, setImportedPreviewOffers] = useState<Offer[]>([]);
   const [selectedImportedOfferIds, setSelectedImportedOfferIds] = useState<number[]>([]);
   const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importPreviewMeta, setImportPreviewMeta] = useState<ImportPreviewMeta | null>(null);
   const [pendingImportIssues, setPendingImportIssues] = useState<ExcelImportIssue[]>([]);
+  const [confirmDuplicateImport, setConfirmDuplicateImport] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [importTarget, setImportTarget] = useState<ImportTarget>("offers");
   const [importFormat, setImportFormat] = useState<ImportFormat>("xlsx");
@@ -943,13 +971,85 @@ export function App() {
     setAddOfferOperationMessage("");
   }
 
-  function openImportSummary(importedOffers: Offer[], imported: number, skipped: number, issues: ExcelImportIssue[] = []) {
+  function resetImportAssistantState() {
+    setPendingImportIssues([]);
+    setExportAssistantRows([]);
+    setActiveAssistantIndex(0);
+    setShowImportAssistantPrompt(false);
+    setShowExportAssistant(false);
+    setImportPreviewMeta(null);
+  }
+
+  function openImportSummary(
+    importedOffers: Offer[],
+    imported: number,
+    skipped: number,
+    issues: ExcelImportIssue[] = [],
+    previewMeta: ImportPreviewMeta | null = null
+  ) {
     setImportedPreviewOffers(importedOffers.map((offer) => normalizeImportEntryToOffer(offer)));
     setImportSummary({ imported, skipped });
     setSelectedImportedOfferIds([]);
     setPendingImportIssues(issues);
+    setImportPreviewMeta(previewMeta);
+    setConfirmDuplicateImport(false);
     setShowImportSummaryModal(true);
   }
+
+  const duplicateImportIndexes = useMemo(() => {
+    const existingUrlKeys = new Set<string>();
+    const existingDateKeys = new Set<string>();
+    const existingBaseKeys = new Set<string>();
+
+    for (const offer of offers) {
+      const company = normalizeForDuplicate(offer.company);
+      const role = normalizeForDuplicate(offer.role);
+      if (!company || !role) continue;
+      const base = `${company}||${role}`;
+      existingBaseKeys.add(base);
+
+      const sourceUrl = normalizeUrlForDuplicate(offer.sourceUrl);
+      if (sourceUrl) {
+        existingUrlKeys.add(`${base}||${sourceUrl}`);
+      }
+
+      const appliedAt = normalizeDateForDuplicate(offer.appliedAt);
+      if (appliedAt) {
+        existingDateKeys.add(`${base}||${appliedAt}`);
+      }
+    }
+
+    const indexes: number[] = [];
+    for (let index = 0; index < importedPreviewOffers.length; index += 1) {
+      const offer = importedPreviewOffers[index];
+      const company = normalizeForDuplicate(offer.company);
+      const role = normalizeForDuplicate(offer.role);
+      if (!company || !role) continue;
+      const base = `${company}||${role}`;
+      const sourceUrl = normalizeUrlForDuplicate(offer.sourceUrl);
+      const appliedAt = normalizeDateForDuplicate(offer.appliedAt);
+
+      const isDuplicate =
+        (sourceUrl && existingUrlKeys.has(`${base}||${sourceUrl}`)) ||
+        (appliedAt && existingDateKeys.has(`${base}||${appliedAt}`)) ||
+        (!sourceUrl && !appliedAt && existingBaseKeys.has(base));
+
+      if (isDuplicate) {
+        indexes.push(index);
+      }
+    }
+    return indexes;
+  }, [offers, importedPreviewOffers]);
+
+  const duplicateImportIndexSet = useMemo(() => new Set(duplicateImportIndexes), [duplicateImportIndexes]);
+  const hasDuplicateImports = duplicateImportIndexes.length > 0;
+  const hasUnresolvedCompanyFormulaIssues = useMemo(
+    () =>
+      pendingImportIssues.some((issue) =>
+        (issue.formulaIssues || []).includes("unresolved_company_formula")
+      ),
+    [pendingImportIssues]
+  );
 
   function toggleAddOfferModal() {
     if (showAddOffer) {
@@ -1599,6 +1699,7 @@ export function App() {
       return;
     }
 
+    resetImportAssistantState();
     setImportOperationMessage(t.processingImport);
     setLoading(true);
     try {
@@ -1617,6 +1718,7 @@ export function App() {
           skipped?: number;
           offers?: Offer[];
           issues?: ExcelImportIssue[];
+          _meta?: ImportPreviewMeta;
           error?: string;
         };
         if (!data.ok) {
@@ -1628,7 +1730,7 @@ export function App() {
         setImportOperationMessage("");
         const importedCount = data.imported ?? 0;
         const skippedCount = data.skipped ?? 0;
-        openImportSummary(data.offers || [], importedCount, skippedCount, data.issues || []);
+        openImportSummary(data.offers || [], importedCount, skippedCount, data.issues || [], data._meta || null);
         setStatusMessage(
           t.importWarningSummary
             .replace("{imported}", String(importedCount))
@@ -1649,7 +1751,7 @@ export function App() {
         setShowImportModal(false);
         setImportOperationMessage("");
         const normalizedOffers = entries.map((entry) => normalizeImportEntryToOffer(entry as Partial<Offer>));
-        openImportSummary(normalizedOffers, normalizedOffers.length, 0, []);
+        openImportSummary(normalizedOffers, normalizedOffers.length, 0, [], null);
         setStatusMessage(
           t.importWarningSummary
             .replace("{imported}", String(normalizedOffers.length))
@@ -1694,12 +1796,27 @@ export function App() {
       prev.filter((_, index) => !selectedImportedOfferIds.includes(index))
     );
     setSelectedImportedOfferIds([]);
+    setConfirmDuplicateImport(false);
   }
 
   async function handleConfirmImport() {
     if (importedPreviewOffers.length === 0) {
       setStatusMessage(t.noImportedRows);
       return;
+    }
+    if (hasUnresolvedCompanyFormulaIssues) {
+      setStatusMessage(t.unresolvedCompanyFormulaImportBlocked);
+      return;
+    }
+    if (hasDuplicateImports && !confirmDuplicateImport) {
+      const accepted = window.confirm(
+        t.duplicateImportConfirmPrompt.replace("{count}", String(duplicateImportIndexes.length))
+      );
+      if (!accepted) {
+        setStatusMessage(t.duplicateImportBlocked);
+        return;
+      }
+      setConfirmDuplicateImport(true);
     }
     setImportOperationMessage(t.processingImport);
     setLoading(true);
@@ -1732,6 +1849,7 @@ export function App() {
       setImportOperationMessage("");
       setPendingImportIssues([]);
       setImportSummary(null);
+      setImportPreviewMeta(null);
       setStatusMessage(
         t.excelImported
           .replace("{imported}", String(importedCount))
@@ -2309,6 +2427,7 @@ export function App() {
                       type="button"
                       className="ghost-btn"
                       onClick={() => {
+                        resetImportAssistantState();
                         setShowImportModal(true);
                         setShowExportModal(false);
                         setShowUserMenu(false);
@@ -2435,6 +2554,7 @@ export function App() {
                   onClick={() => {
                     setImportTarget("offers");
                     setImportFormat("xlsx");
+                    resetImportAssistantState();
                     setShowImportModal(true);
                     setShowExportModal(false);
                     setShowUserMenu(false);
@@ -3753,11 +3873,41 @@ export function App() {
             <p className="hint">
               {t.importedRecords}: {importSummary?.imported ?? 0} | {t.skippedRecords}: {importSummary?.skipped ?? 0}
             </p>
+            {importPreviewMeta?.filename ? (
+              <p className="hint">
+                {t.importPreviewFile}: {importPreviewMeta.filename}
+                {importPreviewMeta.sha256 ? ` | sha256: ${importPreviewMeta.sha256.slice(0, 12)}...` : ""}
+              </p>
+            ) : null}
+            {hasUnresolvedCompanyFormulaIssues ? (
+              <p className="hint operation-hint">
+                {t.unresolvedCompanyFormulaImportBlocked}
+              </p>
+            ) : null}
+            {hasDuplicateImports ? (
+              <div className="hint operation-hint">
+                <p>
+                  {t.duplicateRowsDetected.replace("{count}", String(duplicateImportIndexes.length))}
+                </p>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={confirmDuplicateImport}
+                    onChange={(event) => setConfirmDuplicateImport(event.target.checked)}
+                  />
+                  <span>{t.duplicateConfirmImport}</span>
+                </label>
+              </div>
+            ) : null}
 
             {importedPreviewOffers.length > 0 ? (
               <>
                 <div className="row">
-                  <button type="button" onClick={handleConfirmImport} disabled={loading || importedPreviewOffers.length === 0}>
+                  <button
+                    type="button"
+                    onClick={handleConfirmImport}
+                    disabled={loading || importedPreviewOffers.length === 0 || hasUnresolvedCompanyFormulaIssues}
+                  >
                     {t.importNow}
                   </button>
                   <button
@@ -3810,7 +3960,12 @@ export function App() {
                               />
                             </td>
                             <td>{offer.company || "-"}</td>
-                            <td>{offer.role || "-"}</td>
+                            <td>
+                              {offer.role || "-"}
+                              {duplicateImportIndexSet.has(index) ? (
+                                <span className="hint"> ({t.duplicateLabel})</span>
+                              ) : null}
+                            </td>
                             <td>{offer.status || "-"}</td>
                             <td>{offer.appliedAt || "-"}</td>
                             <td>{offer.source || "-"}</td>

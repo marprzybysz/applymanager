@@ -97,6 +97,7 @@ export const I18N = {
     savingOffer: "Zapisywanie oferty...",
     processingImport: "Przetwarzanie importu...",
     importSummaryTitle: "Podsumowanie importu",
+    importPreviewFile: "Plik",
     importedRecords: "Wczytano",
     skippedRecords: "Pominieto",
     selectAll: "Zaznacz wszystko",
@@ -114,6 +115,14 @@ export const I18N = {
     excelImportFailed: "Import Excel nie powiodl sie",
     excelImported: "Zaimportowano z Excela: {imported}, pominieto: {skipped}",
     importWarningSummary: "Uwaga: Wczytano: {imported}, pominieto: {skipped}.",
+    duplicateRowsDetected: "Wykryto potencjalne duplikaty: {count}.",
+    duplicateConfirmImport: "Tak, chce mimo to zaimportowac duplikaty.",
+    duplicateImportConfirmPrompt:
+      "Wykryto {count} potencjalnych duplikatow. Czy na pewno chcesz zduplikowac wiersze, ktore istnieja juz w bazie?",
+    duplicateLabel: "duplikat",
+    duplicateImportBlocked: "Wykryto duplikaty. Potwierdz import duplikatow, aby kontynuowac.",
+    unresolvedCompanyFormulaImportBlocked:
+      "Import zablokowany: plik zawiera nierozwiazywalne formuly w kolumnie firmy. Otworz plik i zamien formule w kolumnie Firma na wartosci, potem importuj ponownie.",
     exportAssistantPromptTitle: "Wykryto braki po imporcie",
     exportAssistantPromptBody:
       "W wielu wierszach wykryto puste rubryki. Czy chcesz skorzystac z ImportManagera, aby uzupelnic braki?",
@@ -285,6 +294,7 @@ export const I18N = {
     savingOffer: "Saving offer...",
     processingImport: "Processing import...",
     importSummaryTitle: "Import summary",
+    importPreviewFile: "File",
     importedRecords: "Imported",
     skippedRecords: "Skipped",
     selectAll: "Select all",
@@ -302,6 +312,14 @@ export const I18N = {
     excelImportFailed: "Excel import failed",
     excelImported: "Excel imported: {imported}, skipped: {skipped}",
     importWarningSummary: "Warning: Imported: {imported}, skipped: {skipped}.",
+    duplicateRowsDetected: "Potential duplicates detected: {count}.",
+    duplicateConfirmImport: "Yes, import these duplicates anyway.",
+    duplicateImportConfirmPrompt:
+      "Detected {count} potential duplicates. Are you sure you want to duplicate rows that already exist in the database?",
+    duplicateLabel: "duplicate",
+    duplicateImportBlocked: "Duplicates detected. Confirm duplicate import to continue.",
+    unresolvedCompanyFormulaImportBlocked:
+      "Import blocked: the file contains unresolved formulas in the company column. Open the file, convert company formulas to values, then import again.",
     exportAssistantPromptTitle: "Missing fields detected",
     exportAssistantPromptBody:
       "Multiple rows contain empty fields. Do you want to use ImportManager to fill missing values?",

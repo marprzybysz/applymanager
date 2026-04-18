@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import logging
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
@@ -23,6 +26,7 @@ from server.modules.scrape import list_sources, normalize_scrape_url, scrape_que
 
 router = APIRouter(prefix="/api")
 SCRAPE_RATE_LIMITER = FixedWindowRateLimiter(max_requests=30, window_seconds=60)
+LOGGER = logging.getLogger("uvicorn.error")
 
 
 def is_manual_offer(offer_input: dict) -> bool:
@@ -179,7 +183,30 @@ async def import_excel(file: UploadFile = File(...)):
 async def import_excel_preview(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        return preview_offers_from_excel(content)
+        result = preview_offers_from_excel(content)
+        file_sha256 = hashlib.sha256(content).hexdigest()
+        issues = result.get("issues") or []
+        issue_rows = [issue.get("rowNumber") for issue in issues[:5]]
+        print(
+            "excel_preview",
+            {
+                "filename": file.filename,
+                "size": len(content),
+                "sha256": file_sha256,
+                "imported": result.get("imported"),
+                "skipped": result.get("skipped"),
+                "ignored": result.get("ignored"),
+                "issues": len(issues),
+                "issue_rows": issue_rows,
+            },
+            flush=True,
+        )
+        result["_meta"] = {
+            "filename": file.filename,
+            "size": len(content),
+            "sha256": file_sha256,
+        }
+        return result
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
