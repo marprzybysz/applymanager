@@ -35,6 +35,7 @@ def ensure_schema() -> None:
                   expires_at DATE,
                   source TEXT,
                   source_url TEXT,
+                  archive BOOLEAN NOT NULL DEFAULT FALSE,
                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
@@ -46,6 +47,10 @@ def ensure_schema() -> None:
             cur.execute("ALTER TABLE applications ALTER COLUMN applied SET NOT NULL")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source TEXT")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS source_url TEXT")
+            cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS archive BOOLEAN")
+            cur.execute("UPDATE applications SET archive = FALSE WHERE archive IS NULL")
+            cur.execute("ALTER TABLE applications ALTER COLUMN archive SET DEFAULT FALSE")
+            cur.execute("ALTER TABLE applications ALTER COLUMN archive SET NOT NULL")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS date_posted DATE")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS expires_at DATE")
             cur.execute("ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_types TEXT[]")

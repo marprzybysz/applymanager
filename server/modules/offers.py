@@ -57,6 +57,7 @@ EXCEL_FIELDS = {
         "Termin",
     ],
     "source": ["source", "Source", "portal", "Portal"],
+    "archive": ["archive", "Archive", "archiwum", "Archiwum", "archived", "Archived", "zarchiwizowano", "Zarchiwizowano"],
     "sourceUrl": ["url", "URL", "link", "Link", "hyperlink", "Hyperlink", "link oferty", "Link oferty"],
     "sourceUrlLink": [
         "__link__url",
@@ -361,11 +362,14 @@ def _format_created_at_for_export(value: Any, user_utc_offset_minutes: int | Non
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
+    archived = to_boolean_or_null(body.get("archive"))
+    archive_value = False if archived is None else archived
 
     return {
         "company": to_non_empty_string(body.get("company")) or "",
         "role": to_non_empty_string(body.get("role")) or "",
         "applied": applied_value,
+        "archive": archive_value,
         "status": normalize_offer_status(body.get("status"), applied_value),
         "location": to_non_empty_string(body.get("location")),
         "notes": to_non_empty_string(body.get("notes")),
@@ -411,6 +415,7 @@ def map_excel_row_to_offer(
         "company": company,
         "role": role,
         "applied": applied_value,
+        "archive": to_boolean_or_null(pick_first_value(row, EXCEL_FIELDS["archive"])) is True,
         "status": normalize_offer_status(explicit_status, applied_value),
         "location": pick_first_value(row, EXCEL_FIELDS["location"]),
         "notes": pick_first_value(row, EXCEL_FIELDS["notes"]),
@@ -544,6 +549,7 @@ def list_offers() -> list[dict[str, Any]]:
                     company,
                     role,
                     applied,
+                    archive,
                     status,
                     location,
                     notes,
@@ -577,11 +583,11 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 INSERT INTO applications (
-                    company, role, applied, status, location, notes, applied_at, date_posted, expires_at, source, source_url,
+                    company, role, applied, archive, status, location, notes, applied_at, date_posted, expires_at, source, source_url,
                     employment_types, work_time, work_mode, shift_count, working_hours
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, company, role, applied, status, location, notes,
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, company, role, applied, archive, status, location, notes,
                           applied_at AS "appliedAt", date_posted AS "datePosted", expires_at AS "expiresAt",
                           CASE
                             WHEN expires_at IS NULL THEN NULL
@@ -596,6 +602,7 @@ def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:
                     offer["company"],
                     offer["role"],
                     offer.get("applied", True),
+                    offer.get("archive", False),
                     normalize_offer_status(offer.get("status"), offer.get("applied") is not False),
                     offer.get("location") or None,
                     offer.get("notes") or None,
@@ -626,6 +633,7 @@ def update_offer(offer_id: int, offer: dict[str, Any]) -> dict[str, Any] | None:
                     company = %s,
                     role = %s,
                     applied = %s,
+                    archive = %s,
                     status = %s,
                     location = %s,
                     notes = %s,
@@ -641,7 +649,7 @@ def update_offer(offer_id: int, offer: dict[str, Any]) -> dict[str, Any] | None:
                     working_hours = %s,
                     updated_at = NOW()
                 WHERE id = %s
-                RETURNING id, company, role, applied, status, location, notes,
+                RETURNING id, company, role, applied, archive, status, location, notes,
                           applied_at AS "appliedAt", date_posted AS "datePosted", expires_at AS "expiresAt",
                           CASE
                             WHEN expires_at IS NULL THEN NULL
@@ -656,6 +664,7 @@ def update_offer(offer_id: int, offer: dict[str, Any]) -> dict[str, Any] | None:
                     offer["company"],
                     offer["role"],
                     offer.get("applied", True),
+                    offer.get("archive", False),
                     normalize_offer_status(offer.get("status"), offer.get("applied") is not False),
                     offer.get("location") or None,
                     offer.get("notes") or None,
@@ -742,6 +751,7 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
         "company",
         "role",
         "applied",
+        "archive",
         "status",
         "location",
         "notes",
@@ -774,6 +784,7 @@ def export_offers_to_excel_bytes(user_utc_offset_minutes: int | None = None) -> 
                 offer.get("company") or "",
                 offer.get("role") or "",
                 offer.get("applied") if offer.get("applied") is not None else True,
+                offer.get("archive") is True,
                 offer.get("status") or "",
                 offer.get("location") or "",
                 offer.get("notes") or "",
