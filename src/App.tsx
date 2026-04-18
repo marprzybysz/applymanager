@@ -3720,7 +3720,7 @@ export function App() {
                 <span>Plik</span>
                 <input
                   type="file"
-                  accept={importFormat === "xlsx" ? ".xlsx,.xls" : ".json"}
+                  accept={importFormat === "xlsx" ? ".xlsx" : ".json"}
                   onChange={(event) => setImportFile(event.target.files?.[0] || null)}
                 />
               </label>

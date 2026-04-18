@@ -202,7 +202,7 @@ npm run build:desktop
 - `POST /api/offers` - dodanie oferty
 - `PUT /api/offers/{offer_id}` - edycja oferty
 - `DELETE /api/offers/{offer_id}` - usunięcie oferty
-- `POST /api/offers/import-excel` - import `.xlsx/.xls`
+- `POST /api/offers/import-excel` - import `.xlsx` (walidacja i parsowanie po stronie backendu)
 - `GET /api/offers/export-excel` - eksport `.xlsx`
   - opcjonalny query param: `tzOffsetMinutes` (lokalna strefa użytkownika dla dat/czasu w eksporcie)
 
