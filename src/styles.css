@@ -2155,6 +2155,18 @@ button:disabled {
   color: #111111;
 }
 
+.archive-btn {
+  background: #6b7280;
+  border-color: #4b5563;
+  color: #f9fafb;
+}
+
+.archive-btn:hover {
+  background: #4b5563;
+  border-color: #374151;
+  color: #ffffff;
+}
+
 .item-actions {
   display: flex;
   gap: 0.5rem;

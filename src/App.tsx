@@ -2284,6 +2284,25 @@ export function App() {
     setShowDeleteConfirm(true);
   }
 
+  async function handleToggleArchiveOfferDetails() {
+    if (!selectedOfferDraft?.id) return;
+    const nextArchiveValue = selectedOfferDraft.archive !== true;
+    setLoading(true);
+    try {
+      await updateOfferArchiveQuick(selectedOfferDraft, nextArchiveValue);
+      await Promise.all([fetchOffers(), fetchStats()]);
+      const normalized = normalizeOfferForEdit({ ...selectedOfferDraft, archive: nextArchiveValue });
+      setSelectedOffer(normalized);
+      setSelectedOfferDraft(normalized);
+      setEditingSelectedOffer(false);
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function confirmDeleteOfferDetails() {
     if (!selectedOffer?.id) return;
 
@@ -3426,6 +3445,16 @@ export function App() {
                 {editingSelectedOffer ? (
                   <button type="submit" disabled={loading || !isSelectedOfferDirty}>
                     {t.save}
+                  </button>
+                ) : null}
+                {!editingSelectedOffer ? (
+                  <button
+                    type="button"
+                    className="archive-btn"
+                    onClick={handleToggleArchiveOfferDetails}
+                    disabled={loading}
+                  >
+                    {selectedOfferDraft.archive === true ? t.restoreArchive : t.archive}
                   </button>
                 ) : null}
                 <button
