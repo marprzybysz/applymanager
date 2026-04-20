@@ -1096,11 +1096,11 @@ export function App() {
     }
   }
 
-  function openOfferDetails(offer: Offer) {
+  function openOfferDetails(offer: Offer, startInEditMode = false) {
     const normalized = normalizeOfferForEdit(offer);
     setSelectedOffer(normalized);
     setSelectedOfferDraft(normalized);
-    setEditingSelectedOffer(false);
+    setEditingSelectedOffer(startInEditMode);
   }
 
   function closeOfferDetails() {
@@ -1109,6 +1109,14 @@ export function App() {
     setEditingSelectedOffer(false);
     setShowDeleteConfirm(false);
     setShowBulkDeleteConfirm(false);
+  }
+
+  function requestCloseOfferDetails() {
+    if (editingSelectedOffer && isSelectedOfferDirty) {
+      const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+      if (!shouldDiscard) return;
+    }
+    closeOfferDetails();
   }
 
   function closeAddOfferModal() {
@@ -2927,7 +2935,7 @@ export function App() {
                               <button
                                 type="button"
                                 className="row-action-btn row-action-btn--edit row-action-btn--expand"
-                                onClick={() => openOfferDetails(offer)}
+                                onClick={() => openOfferDetails(offer, true)}
                                 title={t.edit}
                               >
                                 <span className="row-action-btn__icon">✏️</span>
@@ -3309,7 +3317,7 @@ export function App() {
             <button
               type="button"
               className="modal-close"
-              onClick={closeOfferDetails}
+              onClick={requestCloseOfferDetails}
               aria-label={t.close}
             >
               X
@@ -3464,19 +3472,7 @@ export function App() {
                   <button type="button" className="warning-btn" onClick={() => setEditingSelectedOffer(true)}>
                     {t.edit}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="danger-btn"
-                    onClick={() => {
-                      setSelectedOfferDraft(selectedOffer ? normalizeOfferForEdit(selectedOffer) : null);
-                      setEditingSelectedOffer(false);
-                    }}
-                    disabled={loading}
-                  >
-                    {t.cancel}
-                  </button>
-                )}
+                ) : null}
                 {editingSelectedOffer ? (
                   <button type="submit" disabled={loading || !isSelectedOfferDirty}>
                     {t.save}
@@ -3492,14 +3488,16 @@ export function App() {
                     {selectedOfferDraft.archive === true ? t.restoreArchive : t.archive}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="danger-btn danger-btn--keep-color-disabled"
-                  onClick={handleDeleteOfferDetails}
-                  disabled={loading || (editingSelectedOffer && !isSelectedOfferDirty)}
-                >
-                  {t.delete}
-                </button>
+                {!editingSelectedOffer ? (
+                  <button
+                    type="button"
+                    className="danger-btn danger-btn--keep-color-disabled"
+                    onClick={handleDeleteOfferDetails}
+                    disabled={loading}
+                  >
+                    {t.delete}
+                  </button>
+                ) : null}
               </div>
             </form>
           </div>
