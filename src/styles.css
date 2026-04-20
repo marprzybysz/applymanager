@@ -1901,6 +1901,19 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+.stats-chart-card {
+  min-height: 336px;
+}
+
+.stats-chart-card h3 {
+  margin: 0 0 0.5rem;
+}
+
+.stats-chart-wrap {
+  width: 100%;
+  height: 260px;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

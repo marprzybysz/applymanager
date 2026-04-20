@@ -1,5 +1,19 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { I18N, type Language } from "./i18n/translations";
 
 type Offer = {
@@ -168,6 +182,7 @@ const STATUS_OPTIONS: CanonicalStatus[] = [
   "Odrzucono",
   "Odmowa",
 ];
+const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
 
 function isAbsoluteHttpUrl(value: string) {
   try {
@@ -415,6 +430,15 @@ function formatDaysToExpire(daysToExpire: number | null | undefined): string {
   return `${daysToExpire} dni`;
 }
 
+function formatChartDateLabel(dateIso: string): string {
+  const parsed = Date.parse(dateIso);
+  if (Number.isNaN(parsed)) return dateIso;
+  const date = new Date(parsed);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${day}.${month}`;
+}
+
 export function App() {
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
@@ -543,6 +567,39 @@ export function App() {
     [notifications]
   );
   const visibleMenuNotifications = useMemo(() => notifications.filter((item) => item.menuVisible), [notifications]);
+  const trendOffersData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      counts.set(date, (counts.get(date) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, count]) => ({
+        date,
+        label: formatChartDateLabel(date),
+        count,
+      }));
+  }, [offers]);
+  const statusChartData = useMemo(
+    () =>
+      Object.entries(stats.statusCounts)
+        .map(([name, count]) => ({ name, count: Number(count || 0) }))
+        .filter((entry) => entry.count > 0)
+        .sort((a, b) => b.count - a.count),
+    [stats.statusCounts]
+  );
+  const sourceChartData = useMemo(
+    () =>
+      Object.entries(stats.sourceCounts)
+        .map(([name, count]) => ({ name, count: Number(count || 0) }))
+        .filter((entry) => entry.count > 0)
+        .sort((a, b) => b.count - a.count),
+    [stats.sourceCounts]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -2998,23 +3055,63 @@ export function App() {
             <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
           </div>
           <div className="stats-grid">
-            <article className="card">
-              <h3>{t.statusBreakdown}</h3>
-              <div className="list">
-                {Object.entries(stats.statusCounts).map(([name, count]) => (
-                  <p key={name}>{name}: {count}</p>
-                ))}
-                {Object.keys(stats.statusCounts).length === 0 ? <p className="hint">-</p> : null}
-              </div>
+            <article className="card stats-chart-card">
+              <h3>Naplyw ofert (30 ostatnich dni z danymi)</h3>
+              {trendOffersData.length === 0 ? (
+                <p className="hint">-</p>
+              ) : (
+                <div className="stats-chart-wrap">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </article>
-            <article className="card">
+            <article className="card stats-chart-card">
+              <h3>{t.statusBreakdown}</h3>
+              {statusChartData.length === 0 ? (
+                <p className="hint">-</p>
+              ) : (
+                <div className="stats-chart-wrap">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={statusChartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Bar dataKey="count" radius={[7, 7, 0, 0]}>
+                        {statusChartData.map((entry, index) => (
+                          <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </article>
+            <article className="card stats-chart-card">
               <h3>{t.sourceBreakdown}</h3>
-              <div className="list">
-                {Object.entries(stats.sourceCounts).map(([name, count]) => (
-                  <p key={name}>{name}: {count}</p>
-                ))}
-                {Object.keys(stats.sourceCounts).length === 0 ? <p className="hint">-</p> : null}
-              </div>
+              {sourceChartData.length === 0 ? (
+                <p className="hint">-</p>
+              ) : (
+                <div className="stats-chart-wrap">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label />
+                      {sourceChartData.map((entry, index) => (
+                        <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </article>
           </div>
         </section>
