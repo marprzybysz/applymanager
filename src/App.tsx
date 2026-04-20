@@ -7,6 +7,7 @@ import {
   Cell,
   Line,
   LineChart,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -439,6 +440,21 @@ function formatChartDateLabel(dateIso: string): string {
   return `${day}.${month}`;
 }
 
+function normalizeStatusForChart(statusName: string): string {
+  const normalized = normalizeStatusKey(statusName);
+  if (normalized.includes("odrzu") || normalized.includes("odmow") || normalized.includes("rejected")) {
+    return "Odrzucono/Odmowa";
+  }
+  return statusName;
+}
+
+function getStatusBarColor(statusName: string, index: number): string {
+  if (statusName === "Odrzucono/Odmowa") {
+    return "#ef4444";
+  }
+  return CHART_COLORS[index % CHART_COLORS.length];
+}
+
 export function App() {
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
@@ -506,6 +522,7 @@ export function App() {
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
+  const [showTotalOffersBreakdown, setShowTotalOffersBreakdown] = useState(false);
   const [sortAnimating, setSortAnimating] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
   const [hoveredOfferId, setHoveredOfferId] = useState<number | null>(null);
@@ -585,11 +602,18 @@ export function App() {
       }));
   }, [offers]);
   const statusChartData = useMemo(
-    () =>
-      Object.entries(stats.statusCounts)
-        .map(([name, count]) => ({ name, count: Number(count || 0) }))
-        .filter((entry) => entry.count > 0)
-        .sort((a, b) => b.count - a.count),
+    () => {
+      const merged = new Map<string, number>();
+      for (const [rawName, rawCount] of Object.entries(stats.statusCounts)) {
+        const name = normalizeStatusForChart(rawName);
+        const count = Number(rawCount || 0);
+        if (count <= 0) continue;
+        merged.set(name, (merged.get(name) || 0) + count);
+      }
+      return Array.from(merged.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+    },
     [stats.statusCounts]
   );
   const sourceChartData = useMemo(
@@ -600,6 +624,32 @@ export function App() {
         .sort((a, b) => b.count - a.count),
     [stats.sourceCounts]
   );
+  const invitationsReadTrendData = useMemo(() => {
+    const counts = new Map<string, { invitations: number; read: number }>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      const normalizedStatus = normalizeOfferStatus(offer.status, offer.applied !== false);
+      const entry = counts.get(date) || { invitations: 0, read: 0 };
+      if (normalizedStatus === "Odczytano") {
+        entry.read += 1;
+      }
+      if (normalizedStatus === "Rozmowa" || normalizedStatus === "Oferta") {
+        entry.invitations += 1;
+      }
+      counts.set(date, entry);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, value]) => ({
+        date,
+        label: formatChartDateLabel(date),
+        invitations: value.invitations,
+        read: value.read,
+      }));
+  }, [offers]);
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -3047,7 +3097,31 @@ export function App() {
         <section className="card" id="stats">
           <h2>{t.stats}</h2>
           <div className="stats-grid">
-            <article className="stats-box"><strong>{stats.totalOffers}</strong><span>{t.totalOffers}</span></article>
+            <article
+              className={`stats-box stats-box--interactive ${showTotalOffersBreakdown ? "is-open" : ""}`}
+              onClick={() => setShowTotalOffersBreakdown((prev) => !prev)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setShowTotalOffersBreakdown((prev) => !prev);
+                }
+              }}
+            >
+              <strong>{stats.totalOffers}</strong>
+              <span>{t.totalOffers}</span>
+              {showTotalOffersBreakdown ? (
+                <div className="stats-box-breakdown">
+                  <p>
+                    {t.appliedOffers}: <strong>{stats.appliedOffers}</strong>
+                  </p>
+                  <p>
+                    Zapisane: <strong>{Math.max(stats.totalOffers - stats.appliedOffers, 0)}</strong>
+                  </p>
+                </div>
+              ) : null}
+            </article>
             <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
             <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
             <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
@@ -3074,6 +3148,40 @@ export function App() {
               )}
             </article>
             <article className="card stats-chart-card">
+              <h3>Zaproszenia i odczytane (dziennie)</h3>
+              {invitationsReadTrendData.length === 0 ? (
+                <p className="hint">-</p>
+              ) : (
+                <div className="stats-chart-wrap">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line
+                        type="monotone"
+                        dataKey="invitations"
+                        name="Zaproszenia"
+                        stroke="#f59e0b"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="read"
+                        name="Odczytane"
+                        stroke="#ec4899"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </article>
+            <article className="card stats-chart-card">
               <h3>{t.statusBreakdown}</h3>
               {statusChartData.length === 0 ? (
                 <p className="hint">-</p>
@@ -3087,7 +3195,7 @@ export function App() {
                       <Tooltip />
                       <Bar dataKey="count" radius={[7, 7, 0, 0]}>
                         {statusChartData.map((entry, index) => (
-                          <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
                         ))}
                       </Bar>
                     </BarChart>

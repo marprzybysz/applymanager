@@ -1901,6 +1901,34 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+.stats-box--interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.stats-box--interactive:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border) 45%);
+}
+
+.stats-box--interactive:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 80%, #ffffff 20%);
+  outline-offset: 2px;
+}
+
+.stats-box-breakdown {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, #ffffff 15%);
+  display: grid;
+  gap: 0.18rem;
+}
+
+.stats-box-breakdown p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-soft);
+}
+
 .stats-chart-card {
   min-height: 336px;
 }
