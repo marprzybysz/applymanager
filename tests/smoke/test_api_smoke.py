@@ -17,10 +17,10 @@ def _build_test_client() -> TestClient:
 def test_greet_endpoint_smoke() -> None:
     client = _build_test_client()
 
-    response = client.get("/api/greet", params={"name": "Marcin"})
+    response = client.get("/api/greet", params={"name": "User"})
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Hello, Marcin! Python FastAPI backend is connected."
+    assert response.json()["message"] == "Hello, User! Python FastAPI backend is connected."
 
 
 def test_local_health_endpoint_smoke() -> None:
