@@ -91,6 +91,7 @@ type OfferStats = {
 };
 
 type ThemeMode = "auto" | "light" | "dark";
+type SettingsTab = "general" | "notifications" | "about";
 type AddOfferMode = "link" | "manual";
 type ImportTarget = "offers" | "preferences";
 type ImportFormat = "xlsx" | "json";
@@ -121,6 +122,14 @@ type CanonicalStatus =
   | "Odrzucono"
   | "Odmowa";
 type NotificationTone = "success" | "error" | "warning" | "neutral";
+type NotificationSettings = {
+  enableToasts: boolean;
+  enableBellHistory: boolean;
+  allowSuccess: boolean;
+  allowWarning: boolean;
+  allowError: boolean;
+  allowNeutral: boolean;
+};
 type RowExitAnimationKind = "archive" | "delete";
 type AppNotification = {
   id: number;
@@ -363,6 +372,17 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
 const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
 const ROW_EXIT_ANIMATION_MS = 320;
 
+function createDefaultNotificationSettings(): NotificationSettings {
+  return {
+    enableToasts: true,
+    enableBellHistory: true,
+    allowSuccess: true,
+    allowWarning: true,
+    allowError: true,
+    allowNeutral: true,
+  };
+}
+
 function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
   const normalized = normalizeStatusKey(status);
   if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
@@ -408,6 +428,17 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationIdRef = useRef(1);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    if (typeof window === "undefined") return createDefaultNotificationSettings();
+    try {
+      const raw = window.localStorage.getItem("notificationSettings");
+      if (!raw) return createDefaultNotificationSettings();
+      const parsed = JSON.parse(raw) as Partial<NotificationSettings>;
+      return { ...createDefaultNotificationSettings(), ...parsed };
+    } catch {
+      return createDefaultNotificationSettings();
+    }
+  });
   const [showImportAssistantPrompt, setShowImportAssistantPrompt] = useState(false);
   const [showExportAssistant, setShowExportAssistant] = useState(false);
   const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
@@ -419,11 +450,11 @@ export function App() {
   const [addOfferOperationMessage, setAddOfferOperationMessage] = useState("");
   const [showAddOfferForm, setShowAddOfferForm] = useState(false);
   const [addOfferMode, setAddOfferMode] = useState<AddOfferMode>("link");
-  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showDataManagementMenu, setShowDataManagementMenu] = useState(false);
-  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importOperationMessage, setImportOperationMessage] = useState("");
@@ -490,7 +521,7 @@ export function App() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const isUrlMode = isAbsoluteHttpUrl(scrapeQuery.trim());
-  const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsMenu;
+  const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsModal;
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
   const aboutReleaseDate = useMemo(() => getTodayLocalDate(), []);
@@ -529,6 +560,13 @@ export function App() {
         : /warning|uwaga|pominieto|skipped/i.test(nextMessage)
           ? "warning"
           : "success");
+    const allowedByTone =
+      (tone === "success" && notificationSettings.allowSuccess) ||
+      (tone === "warning" && notificationSettings.allowWarning) ||
+      (tone === "error" && notificationSettings.allowError) ||
+      (tone === "neutral" && notificationSettings.allowNeutral);
+    if (!allowedByTone) return;
+    if (!notificationSettings.enableToasts && !notificationSettings.enableBellHistory) return;
     const id = notificationIdRef.current;
     notificationIdRef.current += 1;
     const notification: AppNotification = {
@@ -536,8 +574,8 @@ export function App() {
       text: nextMessage,
       tone,
       read: false,
-      surfaceVisible: true,
-      menuVisible: true,
+      surfaceVisible: notificationSettings.enableToasts,
+      menuVisible: notificationSettings.enableBellHistory,
       surfaceClosing: false,
       menuClosing: false,
       kind: "operational",
@@ -549,6 +587,10 @@ export function App() {
         dismissSurfaceNotification(id);
       }, hideAfterMs);
     }
+  }
+
+  function updateNotificationSetting<K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) {
+    setNotificationSettings((prev) => ({ ...prev, [key]: value }));
   }
 
   function dismissSurfaceNotification(id: number) {
@@ -728,7 +770,7 @@ export function App() {
     setAddOfferUrl("");
     setAddOfferOperationMessage("");
     setOfferForm(createDefaultOffer());
-    setShowSettingsMenu(false);
+    setShowSettingsModal(false);
   }
 
   function clearOfferFilters() {
@@ -1247,7 +1289,7 @@ export function App() {
 
     const closeUserMenuOnScroll = () => {
       setShowUserMenu(false);
-      setShowSettingsMenu(false);
+      setShowSettingsModal(false);
       setShowDataManagementMenu(false);
     };
 
@@ -1360,6 +1402,25 @@ export function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("language", language);
   }, [language]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("notificationSettings", JSON.stringify(notificationSettings));
+  }, [notificationSettings]);
+
+  useEffect(() => {
+    if (notificationSettings.enableToasts) return;
+    setNotifications((prev) =>
+      prev.map((item) => (item.surfaceVisible ? { ...item, surfaceVisible: false, surfaceClosing: false } : item))
+    );
+  }, [notificationSettings.enableToasts]);
+
+  useEffect(() => {
+    if (notificationSettings.enableBellHistory) return;
+    setNotifications((prev) =>
+      prev.map((item) => (item.menuVisible ? { ...item, menuVisible: false, menuClosing: false, read: true } : item))
+    );
+  }, [notificationSettings.enableBellHistory]);
 
   useEffect(() => {
     if (!showExportAssistant) return;
@@ -2445,7 +2506,7 @@ export function App() {
               onClick={() => {
                 const next = !showNotificationsMenu;
                 setShowNotificationsMenu(next);
-                setShowSettingsMenu(false);
+                setShowSettingsModal(false);
                 setShowUserMenu(false);
                 if (next) {
                   setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
@@ -2502,7 +2563,7 @@ export function App() {
               onClick={() => {
                 setShowUserMenu((prev) => !prev);
                 setShowNotificationsMenu(false);
-                setShowSettingsMenu(false);
+                setShowSettingsModal(false);
                 setShowDataManagementMenu(false);
               }}
             >
@@ -2512,38 +2573,17 @@ export function App() {
               <div className="menu-panel">
                 <button
                   type="button"
-                  className="ghost-btn menu-toggle-btn"
+                  className="ghost-btn"
                   onClick={() => {
-                    setShowSettingsMenu((prev) => !prev);
+                    setShowSettingsModal(true);
+                    setSettingsTab("general");
+                    setShowRoadmap(false);
+                    setShowUserMenu(false);
                     setShowDataManagementMenu(false);
                   }}
                 >
-                  <span>{t.settings}</span>
-                  <span>{showSettingsMenu ? "▴" : "▾"}</span>
+                  {t.settings}
                 </button>
-                {showSettingsMenu ? (
-                  <div className="menu-subpanel">
-                    <label htmlFor="theme-select">{t.theme}</label>
-                    <select
-                      id="theme-select"
-                      value={themeMode}
-                      onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
-                    >
-                      <option value="auto">Auto</option>
-                      <option value="light">Jasny</option>
-                      <option value="dark">Ciemny</option>
-                    </select>
-                    <label htmlFor="language-select">{t.language}</label>
-                    <select
-                      id="language-select"
-                      value={language}
-                      onChange={(event) => setLanguage(event.target.value as Language)}
-                    >
-                      <option value="pl">Polski</option>
-                      <option value="en">English</option>
-                    </select>
-                  </div>
-                ) : null}
                 <button
                   type="button"
                   className="ghost-btn"
@@ -2552,7 +2592,7 @@ export function App() {
                     setShowImportModal(false);
                     setShowExportModal(false);
                     setShowUserMenu(false);
-                    setShowSettingsMenu(false);
+                    setShowSettingsModal(false);
                     setShowDataManagementMenu(false);
                   }}
                 >
@@ -2563,7 +2603,7 @@ export function App() {
                   className="ghost-btn menu-toggle-btn"
                   onClick={() => {
                     setShowDataManagementMenu((prev) => !prev);
-                    setShowSettingsMenu(false);
+                    setShowSettingsModal(false);
                   }}
                 >
                   <span>{t.dataManagement}</span>
@@ -2598,18 +2638,6 @@ export function App() {
                     </button>
                   </div>
                 ) : null}
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => {
-                    setShowAboutModal(true);
-                    setShowUserMenu(false);
-                    setShowSettingsMenu(false);
-                    setShowDataManagementMenu(false);
-                  }}
-                >
-                  {t.about}
-                </button>
               </div>
             ) : null}
           </div>
@@ -3856,6 +3884,195 @@ export function App() {
         </div>
       ) : null}
 
+      {showSettingsModal ? (
+        <div className="modal-backdrop">
+          <div className="modal" id="settings-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => {
+                setShowSettingsModal(false);
+                setShowRoadmap(false);
+              }}
+              aria-label={t.close}
+            >
+              X
+            </button>
+            <h3>{t.settings}</h3>
+            <div className="settings-tabs">
+              <button
+                type="button"
+                className={`ghost-btn settings-tab-btn ${settingsTab === "general" ? "is-active" : ""}`}
+                onClick={() => setSettingsTab("general")}
+              >
+                {t.settingsTabGeneral}
+              </button>
+              <button
+                type="button"
+                className={`ghost-btn settings-tab-btn ${settingsTab === "notifications" ? "is-active" : ""}`}
+                onClick={() => setSettingsTab("notifications")}
+              >
+                {t.settingsTabNotifications}
+              </button>
+              <button
+                type="button"
+                className={`ghost-btn settings-tab-btn ${settingsTab === "about" ? "is-active" : ""}`}
+                onClick={() => setSettingsTab("about")}
+              >
+                {t.about}
+              </button>
+            </div>
+            <div className="grid">
+              {settingsTab === "general" ? (
+                <>
+                  <label className="form-field span-2" htmlFor="settings-theme-select">
+                    <span>{t.theme}</span>
+                    <select
+                      id="settings-theme-select"
+                      value={themeMode}
+                      onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="light">Jasny</option>
+                      <option value="dark">Ciemny</option>
+                    </select>
+                  </label>
+                  <label className="form-field span-2" htmlFor="settings-language-select">
+                    <span>{t.language}</span>
+                    <select
+                      id="settings-language-select"
+                      value={language}
+                      onChange={(event) => setLanguage(event.target.value as Language)}
+                    >
+                      <option value="pl">Polski</option>
+                      <option value="en">English</option>
+                    </select>
+                  </label>
+                </>
+              ) : settingsTab === "notifications" ? (
+                <div className="form-field span-2 notification-settings">
+                  <span className="notification-settings__title">{t.notificationSettingsTitle}</span>
+                  <label className="notification-settings__option">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.enableToasts}
+                      onChange={(event) => updateNotificationSetting("enableToasts", event.target.checked)}
+                    />
+                    <span>{t.notificationSettingToasts}</span>
+                  </label>
+                  <label className="notification-settings__option">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.enableBellHistory}
+                      onChange={(event) => updateNotificationSetting("enableBellHistory", event.target.checked)}
+                    />
+                    <span>{t.notificationSettingBellHistory}</span>
+                  </label>
+                  <div className="notification-settings__tones">
+                    <label className="notification-settings__option">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.allowSuccess}
+                        onChange={(event) => updateNotificationSetting("allowSuccess", event.target.checked)}
+                      />
+                      <span>{t.notificationToneSuccess}</span>
+                    </label>
+                    <label className="notification-settings__option">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.allowWarning}
+                        onChange={(event) => updateNotificationSetting("allowWarning", event.target.checked)}
+                      />
+                      <span>{t.notificationToneWarning}</span>
+                    </label>
+                    <label className="notification-settings__option">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.allowError}
+                        onChange={(event) => updateNotificationSetting("allowError", event.target.checked)}
+                      />
+                      <span>{t.notificationToneError}</span>
+                    </label>
+                    <label className="notification-settings__option">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.allowNeutral}
+                        onChange={(event) => updateNotificationSetting("allowNeutral", event.target.checked)}
+                      />
+                      <span>{t.notificationToneNeutral}</span>
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="form-field span-2 about-modal-content">
+                  <h3 className="about-app-name">{t.aboutAppName}</h3>
+                  <p>
+                    <strong>{t.aboutVersionLabel}</strong> {t.aboutVersionValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutReleaseDateLabel}</strong> {aboutReleaseDate}
+                  </p>
+                  <p>
+                    <strong>{t.aboutAuthorLabel}</strong>{" "}
+                    <a href="https://github.com/marprzybysz" target="_blank" rel="noreferrer">
+                      {t.aboutAuthorName}
+                    </a>
+                  </p>
+                  <p>
+                    <strong>{t.aboutFrontendLabel}</strong> {t.aboutFrontendValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutBackendLabel}</strong> {t.aboutBackendValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutDatabaseLabel}</strong> {t.aboutDatabaseValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutScrapingLabel}</strong> {t.aboutScrapingValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutToolsLabel}</strong> {t.aboutToolsValue}
+                  </p>
+                  <p>
+                    <strong>{t.aboutEditorLabel}</strong> {t.aboutEditorValue}
+                  </p>
+                  <div className="about-thanks">
+                    <p>
+                      <strong>{t.thanksLabel}</strong>
+                    </p>
+                    <p>
+                      <a href="https://www.youtube.com/@PawelCyrklafDevOps" target="_blank" rel="noreferrer">
+                        Pawel Cyrklaf
+                      </a>{" "}
+                      - {t.thanksPawel}
+                    </p>
+                    <p>
+                      <a href="https://www.linkedin.com/in/adam-kozłowski-ten-od-api/" target="_blank" rel="noreferrer">
+                        Adam Kozlowski
+                      </a>{" "}
+                      - {t.thanksAdam}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-btn about-roadmap-btn"
+                    onClick={() => setShowRoadmap((prev) => !prev)}
+                  >
+                    {t.roadmap} {showRoadmap ? "▴" : "▾"}
+                  </button>
+                  {showRoadmap ? (
+                    <div className="about-roadmap-panel">
+                      <p>{t.roadmapLine}</p>
+                      <small>{t.roadmapNote}</small>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showPreferences ? (
         <div className="modal-backdrop">
           <div className="modal" id="preferences-modal">
@@ -4205,86 +4422,6 @@ export function App() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
-      {showAboutModal ? (
-        <div className="modal-backdrop">
-          <div className="modal" id="about-modal">
-            <button
-              type="button"
-              className="modal-close"
-              onClick={() => {
-                setShowAboutModal(false);
-                setShowRoadmap(false);
-              }}
-              aria-label={t.close}
-            >
-              X
-            </button>
-            <h3 className="about-app-name">{t.aboutAppName}</h3>
-            <div className="about-modal-content">
-              <p>
-                <strong>{t.aboutVersionLabel}</strong> {t.aboutVersionValue}
-              </p>
-              <p>
-                <strong>{t.aboutReleaseDateLabel}</strong> {aboutReleaseDate}
-              </p>
-              <p>
-                <strong>{t.aboutAuthorLabel}</strong>{" "}
-                <a href="https://github.com/marprzybysz" target="_blank" rel="noreferrer">
-                  {t.aboutAuthorName}
-                </a>
-              </p>
-              <p>
-                <strong>{t.aboutFrontendLabel}</strong> {t.aboutFrontendValue}
-              </p>
-              <p>
-                <strong>{t.aboutBackendLabel}</strong> {t.aboutBackendValue}
-              </p>
-              <p>
-                <strong>{t.aboutDatabaseLabel}</strong> {t.aboutDatabaseValue}
-              </p>
-              <p>
-                <strong>{t.aboutScrapingLabel}</strong> {t.aboutScrapingValue}
-              </p>
-              <p>
-                <strong>{t.aboutToolsLabel}</strong> {t.aboutToolsValue}
-              </p>
-              <p>
-                <strong>{t.aboutEditorLabel}</strong> {t.aboutEditorValue}
-              </p>
-              <div className="about-thanks">
-                <p>
-                  <strong>{t.thanksLabel}</strong>
-                </p>
-                <p>
-                  <a href="https://www.youtube.com/@PawelCyrklafDevOps" target="_blank" rel="noreferrer">
-                    Pawel Cyrklaf
-                  </a>{" "}
-                  - {t.thanksPawel}
-                </p>
-                <p>
-                  <a href="https://www.linkedin.com/in/adam-kozłowski-ten-od-api/" target="_blank" rel="noreferrer">
-                    Adam Kozlowski
-                  </a>{" "}
-                  - {t.thanksAdam}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="ghost-btn about-roadmap-btn"
-                onClick={() => setShowRoadmap((prev) => !prev)}
-              >
-                {t.roadmap} {showRoadmap ? "▴" : "▾"}
-              </button>
-              {showRoadmap ? (
-                <div className="about-roadmap-panel">
-                  <p>{t.roadmapLine}</p>
-                  <small>{t.roadmapNote}</small>
-                </div>
-              ) : null}
-            </div>
           </div>
         </div>
       ) : null}
