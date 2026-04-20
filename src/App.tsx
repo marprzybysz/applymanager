@@ -7,6 +7,7 @@ type Offer = {
   company: string;
   role: string;
   applied: boolean;
+  archive?: boolean;
   status: string;
   location?: string | null;
   notes?: string | null;
@@ -120,6 +121,7 @@ type CanonicalStatus =
   | "Odrzucono"
   | "Odmowa";
 type NotificationTone = "success" | "error" | "warning" | "neutral";
+type RowExitAnimationKind = "archive" | "delete";
 type AppNotification = {
   id: number;
   text: string;
@@ -146,6 +148,7 @@ const WORK_TIMES = ["dowolny", "pełny etat", "pół etatu"];
 const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
 const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
 const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
+const ARCHIVED_FILTER_VALUE = "__archived__";
 const STATUS_OPTIONS: CanonicalStatus[] = [
   "Wyslano",
   "Zapisano",
@@ -202,6 +205,7 @@ function createDefaultOffer(): Offer {
     company: "",
     role: "",
     applied: true,
+    archive: false,
     status: "Wyslano",
     location: "",
     notes: "",
@@ -228,6 +232,7 @@ function normalizeImportEntryToOffer(entry: Partial<Offer>): Offer {
     role: String(entry.role || "").trim(),
     status: normalizedStatus,
     applied: inferAppliedFromStatus(normalizedStatus),
+    archive: entry.archive === true,
     location: String(entry.location || "").trim(),
     notes: String(entry.notes || ""),
     appliedAt: entry.appliedAt || getTodayDate(),
@@ -297,6 +302,7 @@ function normalizeDateForInput(value: string | null | undefined): string {
 function normalizeOfferForEdit(offer: Offer): Offer {
   return {
     ...offer,
+    archive: offer.archive === true,
     company: String(offer.company || ""),
     role: String(offer.role || ""),
     status: normalizeOfferStatus(offer.status, offer.applied !== false),
@@ -355,6 +361,7 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
 }
 
 const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
+const ROW_EXIT_ANIMATION_MS = 320;
 
 function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
   const normalized = normalizeStatusKey(status);
@@ -400,6 +407,7 @@ export function App() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const notificationIdRef = useRef(1);
   const [showImportAssistantPrompt, setShowImportAssistantPrompt] = useState(false);
   const [showExportAssistant, setShowExportAssistant] = useState(false);
   const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
@@ -456,6 +464,7 @@ export function App() {
   const [quickStatusMode, setQuickStatusMode] = useState<"single" | "bulk">("single");
   const [closingHoverPanelRowId, setClosingHoverPanelRowId] = useState<number | null>(null);
   const [pinnedOfferIds, setPinnedOfferIds] = useState<number[]>([]);
+  const [rowExitAnimations, setRowExitAnimations] = useState<Record<number, RowExitAnimationKind>>({});
   const sortAnimationTimerRef = useRef<number | null>(null);
   const hoverPanelCloseTimerRef = useRef<number | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -511,15 +520,17 @@ export function App() {
     return baseline !== current;
   }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
 
-  function setStatusMessage(nextMessage: string) {
+  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
     const tone: NotificationTone =
-      /error|failed|invalid|http\s*\d+/i.test(nextMessage)
+      toneOverride ||
+      (/error|failed|invalid|http\s*\d+/i.test(nextMessage)
         ? "error"
         : /warning|uwaga|pominieto|skipped/i.test(nextMessage)
           ? "warning"
-          : "success";
-    const id = Date.now() + Math.floor(Math.random() * 1000);
+          : "success");
+    const id = notificationIdRef.current;
+    notificationIdRef.current += 1;
     const notification: AppNotification = {
       id,
       text: nextMessage,
@@ -662,7 +673,14 @@ export function App() {
   const visibleOffers = useMemo(() => {
     const textQuery = filterText.trim().toLowerCase();
     const filtered = offers.filter((offer) => {
-      if (filterStatus !== "all" && (offer.status || "") !== filterStatus) return false;
+      if (filterStatus === ARCHIVED_FILTER_VALUE) {
+        if (offer.archive !== true) return false;
+      } else if (filterStatus === "all") {
+        if (offer.archive === true) return false;
+      } else {
+        if (offer.archive === true) return false;
+        if ((offer.status || "") !== filterStatus) return false;
+      }
       if (filterSource !== "all" && (offer.source || "manual") !== filterSource) return false;
       if (!matchesPeriodFilter(offer, filterPeriod)) return false;
       if (!textQuery) return true;
@@ -772,6 +790,65 @@ export function App() {
       if (!newIds.length) return prev;
       return [...newIds, ...prev];
     });
+  }
+
+  async function updateOfferArchiveQuick(offer: Offer, archiveValue: boolean) {
+    const id = getOfferId(offer);
+    if (id === null) return;
+    const payload = normalizeOfferForEdit(offer);
+    payload.archive = archiveValue;
+    const response = await fetch(`/api/offers/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as { ok: boolean; offer?: Offer; error?: string };
+    if (!data.ok || !data.offer) {
+      throw new Error(data.error || t.offerAddFailed);
+    }
+  }
+
+  async function archiveOffer(offer: Offer) {
+    const id = getOfferId(offer);
+    const nextArchiveValue = offer.archive !== true;
+    setLoading(true);
+    try {
+      await runWithRowExitAnimation(id === null ? [] : [id], "archive", async () => {
+        await updateOfferArchiveQuick(offer, nextArchiveValue);
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function archiveSelectedOffers() {
+    const targets = selectedRowIds
+      .map((id) => findOfferById(id))
+      .filter((entry): entry is Offer => Boolean(entry));
+    if (targets.length === 0) return;
+    const allArchived = targets.every((offer) => offer.archive === true);
+    const nextArchiveValue = !allArchived;
+    const targetIds = targets
+      .map((offer) => getOfferId(offer))
+      .filter((id): id is number => typeof id === "number");
+
+    setLoading(true);
+    try {
+      await runWithRowExitAnimation(targetIds, "archive", async () => {
+        await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, nextArchiveValue)));
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
+      setSelectedRowIds([]);
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function updateOfferStatusQuick(offer: Offer, status: CanonicalStatus) {
@@ -949,6 +1026,34 @@ export function App() {
     setShowDeleteConfirm(true);
   }
 
+  async function runWithRowExitAnimation(targetIds: number[], kind: RowExitAnimationKind, task: () => Promise<void>) {
+    const uniqueIds = Array.from(new Set(targetIds.filter((id) => typeof id === "number")));
+    if (uniqueIds.length > 0) {
+      setRowExitAnimations((prev) => {
+        const next = { ...prev };
+        for (const id of uniqueIds) {
+          next[id] = kind;
+        }
+        return next;
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, ROW_EXIT_ANIMATION_MS));
+    }
+
+    try {
+      await task();
+    } finally {
+      if (uniqueIds.length > 0) {
+        setRowExitAnimations((prev) => {
+          const next = { ...prev };
+          for (const id of uniqueIds) {
+            delete next[id];
+          }
+          return next;
+        });
+      }
+    }
+  }
+
   function openOfferDetails(offer: Offer) {
     const normalized = normalizeOfferForEdit(offer);
     setSelectedOffer(normalized);
@@ -1061,16 +1166,20 @@ export function App() {
 
   async function fetchOffers() {
     const response = await fetch("/api/offers");
-    const data = (await response.json()) as { ok: boolean; offers?: Offer[]; error?: string };
+    const data = (await response.json()) as { ok: boolean; offers?: Offer[]; autoArchived?: number; error?: string };
     if (!data.ok) {
       throw new Error(data.error || t.failedFetchOffers);
     }
     setOffers(
       (data.offers || []).map((offer) => ({
         ...offer,
+        archive: offer.archive === true,
         status: normalizeOfferStatus(offer.status, offer.applied !== false),
       }))
     );
+    if ((data.autoArchived || 0) > 0) {
+      setStatusMessage(t.autoArchivedExpired.replace("{count}", String(data.autoArchived || 0)), "neutral");
+    }
   }
 
   async function fetchPreferences() {
@@ -1385,6 +1494,7 @@ export function App() {
     const hasSelection = selectedRowIds.length > 0;
     const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
     const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
     const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
     return (
       <div
@@ -1414,6 +1524,18 @@ export function App() {
           >
             <span className="row-action-btn__icon">?</span>
             <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              archiveSelectedOffers();
+            }}
+            title={allSelectedArchived ? t.restoreArchive : t.archive}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
+            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
           </button>
           <button
             type="button"
@@ -1535,6 +1657,7 @@ export function App() {
           <span>{t.filterByStatus}</span>
           <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
             <option value="all">{t.all}</option>
+            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
             {statusFilterOptions.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -2032,6 +2155,7 @@ export function App() {
           company: jobs[0].company || t.company,
           role: jobs[0].title || t.role,
           applied: true,
+          archive: false,
           status: "Wyslano",
           location: jobs[0].location,
           notes: "",
@@ -2061,6 +2185,7 @@ export function App() {
       company: job.company || t.company,
       role: job.title || t.role,
       applied: true,
+      archive: false,
       status: "Wyslano",
       location: job.location,
       notes: "",
@@ -2166,19 +2291,40 @@ export function App() {
     setShowDeleteConfirm(true);
   }
 
+  async function handleToggleArchiveOfferDetails() {
+    if (!selectedOfferDraft?.id) return;
+    const nextArchiveValue = selectedOfferDraft.archive !== true;
+    setLoading(true);
+    try {
+      await updateOfferArchiveQuick(selectedOfferDraft, nextArchiveValue);
+      await Promise.all([fetchOffers(), fetchStats()]);
+      const normalized = normalizeOfferForEdit({ ...selectedOfferDraft, archive: nextArchiveValue });
+      setSelectedOffer(normalized);
+      setSelectedOfferDraft(normalized);
+      setEditingSelectedOffer(false);
+      setStatusMessage(nextArchiveValue ? t.archived : t.restored);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function confirmDeleteOfferDetails() {
     if (!selectedOffer?.id) return;
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/offers/${selectedOffer.id}`, {
-        method: "DELETE",
+      await runWithRowExitAnimation([selectedOffer.id], "delete", async () => {
+        const response = await fetch(`/api/offers/${selectedOffer.id}`, {
+          method: "DELETE",
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!data.ok) {
+          throw new Error(data.error || t.offerAddFailed);
+        }
+        await Promise.all([fetchOffers(), fetchStats()]);
       });
-      const data = (await response.json()) as { ok: boolean; error?: string };
-      if (!data.ok) {
-        throw new Error(data.error || t.offerAddFailed);
-      }
-      await Promise.all([fetchOffers(), fetchStats()]);
       closeOfferDetails();
       setStatusMessage(t.deleted);
     } catch (error) {
@@ -2201,21 +2347,23 @@ export function App() {
     }
     setLoading(true);
     try {
-      const results = await Promise.allSettled(
-        ids.map(async (id) => {
-          const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
-          const data = (await response.json()) as { ok: boolean; error?: string };
-          if (!data.ok) {
-            throw new Error(data.error || t.offerAddFailed);
-          }
-        })
-      );
-      const failed = results.filter((result) => result.status === "rejected");
-      if (failed.length > 0) {
-        const reason = (failed[0] as PromiseRejectedResult).reason;
-        throw new Error(reason instanceof Error ? reason.message : String(reason));
-      }
-      await Promise.all([fetchOffers(), fetchStats()]);
+      await runWithRowExitAnimation(ids, "delete", async () => {
+        const results = await Promise.allSettled(
+          ids.map(async (id) => {
+            const response = await fetch(`/api/offers/${id}`, { method: "DELETE" });
+            const data = (await response.json()) as { ok: boolean; error?: string };
+            if (!data.ok) {
+              throw new Error(data.error || t.offerAddFailed);
+            }
+          })
+        );
+        const failed = results.filter((result) => result.status === "rejected");
+        if (failed.length > 0) {
+          const reason = (failed[0] as PromiseRejectedResult).reason;
+          throw new Error(reason instanceof Error ? reason.message : String(reason));
+        }
+        await Promise.all([fetchOffers(), fetchStats()]);
+      });
       setSelectedRowIds([]);
       setShowBulkDeleteConfirm(false);
       setStatusMessage(t.deleted);
@@ -2661,12 +2809,15 @@ export function App() {
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
                   {visibleOffers.map((offer, index) => {
                     const rowId = offer.id || null;
+                    const rowExitKind = rowId !== null ? rowExitAnimations[rowId] : undefined;
+                    const isRowExiting = Boolean(rowExitKind);
                     const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
                     const canInteractWithRow = !isQuickStatusLocked || isQuickStatusRow;
                     const hasSelection = selectedRowIds.length > 0;
                     const isBulkQuickStatusActive = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null;
                     const shouldShowRowHoverPanel =
                       editorMode &&
+                      !isRowExiting &&
                       canInteractWithRow &&
                       !isBulkQuickStatusActive &&
                       (!hasSelection || isQuickStatusRow) &&
@@ -2676,10 +2827,17 @@ export function App() {
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${index}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""}`}
-                      onMouseEnter={() => handleEditorRowMouseEnter(rowId, canInteractWithRow)}
-                      onMouseLeave={() => handleEditorRowMouseLeave(rowId, canInteractWithRow)}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
+                      onMouseEnter={() => {
+                        if (isRowExiting) return;
+                        handleEditorRowMouseEnter(rowId, canInteractWithRow);
+                      }}
+                      onMouseLeave={() => {
+                        if (isRowExiting) return;
+                        handleEditorRowMouseLeave(rowId, canInteractWithRow);
+                      }}
                       onClick={(event) => {
+                        if (isRowExiting) return;
                         if (editorMode) {
                           const target = event.target as HTMLElement;
                           if (
@@ -2705,11 +2863,13 @@ export function App() {
                             onClick={(event) => event.stopPropagation()}
                           >
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </a>
                         ) : (
                           <>
                             {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </>
                         )}
@@ -2753,6 +2913,15 @@ export function App() {
                               >
                                 <span className="row-action-btn__icon">?</span>
                                 <span className="row-action-btn__label">{t.quickStatus}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn row-action-btn--archive row-action-btn--expand"
+                                onClick={() => archiveOffer(offer)}
+                                title={offer.archive === true ? t.restoreArchive : t.archive}
+                              >
+                                <span className="row-action-btn__icon">{offer.archive === true ? "📂" : "🗃️"}</span>
+                                <span className="row-action-btn__label">{offer.archive === true ? t.restoreArchive : t.archive}</span>
                               </button>
                               <button
                                 type="button"
@@ -3283,6 +3452,16 @@ export function App() {
                 {editingSelectedOffer ? (
                   <button type="submit" disabled={loading || !isSelectedOfferDirty}>
                     {t.save}
+                  </button>
+                ) : null}
+                {!editingSelectedOffer ? (
+                  <button
+                    type="button"
+                    className="archive-btn"
+                    onClick={handleToggleArchiveOfferDetails}
+                    disabled={loading}
+                  >
+                    {selectedOfferDraft.archive === true ? t.restoreArchive : t.archive}
                   </button>
                 ) : null}
                 <button

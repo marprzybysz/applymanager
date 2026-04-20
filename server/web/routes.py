@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from server.modules.common import to_non_empty_string
 from server.modules.db import get_connection
 from server.modules.offers import (
+    auto_archive_expired_offers,
     delete_offer,
     export_offers_to_excel_bytes,
     get_offer_stats,
@@ -108,7 +109,8 @@ async def update_preferences(request: Request):
 @router.get("/offers")
 def get_offers():
     try:
-        return {"ok": True, "offers": list_offers()}
+        auto_archived_count = auto_archive_expired_offers()
+        return {"ok": True, "offers": list_offers(auto_archive_expired=False), "autoArchived": auto_archived_count}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 

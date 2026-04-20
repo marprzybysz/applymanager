@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS applications (
   expires_at DATE,
   source TEXT,
   source_url TEXT,
+  archive BOOLEAN NOT NULL DEFAULT FALSE,
   employment_types TEXT[],
   work_time TEXT,
   work_mode TEXT,
