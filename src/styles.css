@@ -499,6 +499,12 @@ body {
   color: #fecaca;
 }
 
+.notification-item--neutral {
+  border-color: #6b7280;
+  background: #2b313b;
+  color: #e5e7eb;
+}
+
 .notification-item-close {
   flex: 0 0 auto;
   margin-top: 1px;
@@ -574,6 +580,12 @@ body {
   color: #fecaca;
 }
 
+.toast--neutral {
+  border-color: #6b7280;
+  background: #2b313b;
+  color: #e5e7eb;
+}
+
 .toast--closing {
   opacity: 0;
   transform: translateX(16px);
@@ -619,6 +631,16 @@ body {
 
 .toast-close--error:hover {
   background: #7f1d1d;
+}
+
+.toast-close--neutral {
+  background: #374151;
+  border-color: #6b7280;
+  color: #f3f4f6;
+}
+
+.toast-close--neutral:hover {
+  background: #1f2937;
 }
 
 .inline-notifications {

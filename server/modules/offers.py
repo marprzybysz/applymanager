@@ -359,6 +359,25 @@ def _format_created_at_for_export(value: Any, user_utc_offset_minutes: int | Non
     return dt.astimezone(target_tz).isoformat(timespec="seconds")
 
 
+def auto_archive_expired_offers() -> int:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE applications
+                SET
+                    archive = TRUE,
+                    updated_at = NOW()
+                WHERE archive = FALSE
+                  AND expires_at IS NOT NULL
+                  AND expires_at < CURRENT_DATE
+                """
+            )
+            updated_count = cur.rowcount or 0
+        conn.commit()
+    return int(updated_count)
+
+
 def map_offer_for_insert_from_request(body: dict[str, Any]) -> dict[str, Any]:
     applied = to_boolean_or_null(body.get("applied"))
     applied_value = True if applied is None else applied
@@ -539,7 +558,10 @@ def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
     return rows
 
 
-def list_offers() -> list[dict[str, Any]]:
+def list_offers(*, auto_archive_expired: bool = True) -> list[dict[str, Any]]:
+    if auto_archive_expired:
+        auto_archive_expired_offers()
+
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(

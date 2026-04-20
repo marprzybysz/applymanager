@@ -197,6 +197,7 @@ export const I18N = {
     archivedStatus: "Archiwizowano",
     archived: "Oferta zarchiwizowana",
     restored: "Oferta przywrocona",
+    autoArchivedExpired: "Automatycznie zarchiwizowano wygasle oferty: {count}",
     selectedRows: "Zaznaczone",
     clearSelectionRows: "Wyczysc zaznaczenie",
     pinNeedsNoSort: "Uwaga: przypinanie dziala tylko gdy sortowanie jest wylaczone."
@@ -399,6 +400,7 @@ export const I18N = {
     archivedStatus: "Archived",
     archived: "Offer archived",
     restored: "Offer restored",
+    autoArchivedExpired: "Automatically archived expired offers: {count}",
     selectedRows: "Selected",
     clearSelectionRows: "Clear selection",
     pinNeedsNoSort: "Warning: pinning works only when sorting is disabled."

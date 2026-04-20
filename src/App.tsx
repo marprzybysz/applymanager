@@ -407,6 +407,7 @@ export function App() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const notificationIdRef = useRef(1);
   const [showImportAssistantPrompt, setShowImportAssistantPrompt] = useState(false);
   const [showExportAssistant, setShowExportAssistant] = useState(false);
   const [exportAssistantRows, setExportAssistantRows] = useState<ExportAssistantRow[]>([]);
@@ -519,15 +520,17 @@ export function App() {
     return baseline !== current;
   }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
 
-  function setStatusMessage(nextMessage: string) {
+  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
     const tone: NotificationTone =
-      /error|failed|invalid|http\s*\d+/i.test(nextMessage)
+      toneOverride ||
+      (/error|failed|invalid|http\s*\d+/i.test(nextMessage)
         ? "error"
         : /warning|uwaga|pominieto|skipped/i.test(nextMessage)
           ? "warning"
-          : "success";
-    const id = Date.now() + Math.floor(Math.random() * 1000);
+          : "success");
+    const id = notificationIdRef.current;
+    notificationIdRef.current += 1;
     const notification: AppNotification = {
       id,
       text: nextMessage,
@@ -839,6 +842,7 @@ export function App() {
         await Promise.all(targets.map((offer) => updateOfferArchiveQuick(offer, nextArchiveValue)));
         await Promise.all([fetchOffers(), fetchStats()]);
       });
+      setSelectedRowIds([]);
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
       setStatusMessage(String(error));
@@ -1162,7 +1166,7 @@ export function App() {
 
   async function fetchOffers() {
     const response = await fetch("/api/offers");
-    const data = (await response.json()) as { ok: boolean; offers?: Offer[]; error?: string };
+    const data = (await response.json()) as { ok: boolean; offers?: Offer[]; autoArchived?: number; error?: string };
     if (!data.ok) {
       throw new Error(data.error || t.failedFetchOffers);
     }
@@ -1173,6 +1177,9 @@ export function App() {
         status: normalizeOfferStatus(offer.status, offer.applied !== false),
       }))
     );
+    if ((data.autoArchived || 0) > 0) {
+      setStatusMessage(t.autoArchivedExpired.replace("{count}", String(data.autoArchived || 0)), "neutral");
+    }
   }
 
   async function fetchPreferences() {
