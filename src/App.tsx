@@ -91,7 +91,7 @@ type OfferStats = {
 };
 
 type ThemeMode = "auto" | "light" | "dark";
-type SettingsTab = "general" | "notifications" | "about";
+type SettingsTab = "general" | "notifications" | "preferences" | "about";
 type AddOfferMode = "link" | "manual";
 type ImportTarget = "offers" | "preferences";
 type ImportFormat = "xlsx" | "json";
@@ -470,7 +470,6 @@ export function App() {
   const [importFormat, setImportFormat] = useState<ImportFormat>("xlsx");
   const [exportTarget, setExportTarget] = useState<ExportTarget>("offers");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
-  const [showPreferences, setShowPreferences] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("offers");
@@ -1366,8 +1365,8 @@ export function App() {
     });
   }
 
-  async function handleSavePreferences(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSavePreferences(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     setLoading(true);
     try {
       const response = await fetch("/api/preferences", {
@@ -1380,7 +1379,8 @@ export function App() {
         throw new Error(data.error || t.preferencesSaveFailed);
       }
       setStatusMessage(t.preferencesSaved);
-      setShowPreferences(false);
+      setShowSettingsModal(false);
+      setShowRoadmap(false);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -2591,20 +2591,6 @@ export function App() {
                   }}
                 >
                   {t.settings}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => {
-                    setShowPreferences(true);
-                    setShowImportModal(false);
-                    setShowExportModal(false);
-                    setShowUserMenu(false);
-                    setShowSettingsModal(false);
-                    setShowDataManagementMenu(false);
-                  }}
-                >
-                  {t.preferences}
                 </button>
                 <button
                   type="button"
@@ -3914,6 +3900,13 @@ export function App() {
               </button>
               <button
                 type="button"
+                className={`ghost-btn settings-tab-btn ${settingsTab === "preferences" ? "is-active" : ""}`}
+                onClick={() => setSettingsTab("preferences")}
+              >
+                {t.settingsTabPreferences}
+              </button>
+              <button
+                type="button"
                 className={`ghost-btn settings-tab-btn ${settingsTab === "about" ? "is-active" : ""}`}
                 onClick={() => setSettingsTab("about")}
               >
@@ -4001,6 +3994,113 @@ export function App() {
                     </label>
                   </div>
                 </div>
+              ) : settingsTab === "preferences" ? (
+                <>
+                  <label className="form-field span-2">
+                    <span>{t.contractTypes}</span>
+                    <div className="preference-chip-group">
+                      {CONTRACT_TYPES.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`preference-chip ${
+                            preferences.preferredContractTypes.includes(option)
+                              ? "preference-chip--active"
+                              : "preference-chip--inactive"
+                          }`}
+                          onClick={() => togglePreferenceChip("preferredContractTypes", option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+
+                  <label className="form-field span-2">
+                    <span>{t.workTimes}</span>
+                    <div className="preference-chip-group">
+                      {WORK_TIMES.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`preference-chip ${
+                            preferences.preferredWorkTimes.includes(option)
+                              ? "preference-chip--active"
+                              : "preference-chip--inactive"
+                          }`}
+                          onClick={() => togglePreferenceChip("preferredWorkTimes", option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+
+                  <label className="form-field span-2">
+                    <span>{t.workModes}</span>
+                    <div className="preference-chip-group">
+                      {WORK_MODES.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`preference-chip ${
+                            preferences.preferredWorkModes.includes(option)
+                              ? "preference-chip--active"
+                              : "preference-chip--inactive"
+                          }`}
+                          onClick={() => togglePreferenceChip("preferredWorkModes", option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+
+                  <label className="form-field span-2">
+                    <span>{t.shiftCounts}</span>
+                    <div className="preference-chip-group">
+                      {SHIFT_COUNTS.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`preference-chip ${
+                            preferences.preferredShiftCounts.includes(option)
+                              ? "preference-chip--active"
+                              : "preference-chip--inactive"
+                          }`}
+                          onClick={() => togglePreferenceChip("preferredShiftCounts", option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+
+                  <label className="form-field span-2">
+                    <span>{t.workHoursRange}</span>
+                    <div className="preference-chip-group">
+                      {WORKING_HOURS_OPTIONS.map((option) => {
+                        const selected = parseWorkingHoursSelection(preferences.preferredWorkingHours).includes(option);
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            className={`preference-chip ${selected ? "preference-chip--active" : "preference-chip--inactive"}`}
+                            onClick={() => toggleWorkingHoursChip(option)}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </label>
+
+                  <div className="modal-actions span-2">
+                    <button type="button" onClick={() => handleSavePreferences()} disabled={loading}>
+                      {t.savePreferences}
+                    </button>
+                  </div>
+                </>
               ) : (
                 <div className="form-field span-2 about-modal-content">
                   <h3 className="about-app-name">{t.aboutAppName}</h3>
@@ -4067,131 +4167,6 @@ export function App() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showPreferences ? (
-        <div className="modal-backdrop">
-          <div className="modal" id="preferences-modal">
-            <button
-              type="button"
-              className="modal-close"
-              onClick={() => setShowPreferences(false)}
-              aria-label={t.close}
-            >
-              X
-            </button>
-            <h3>{t.preferences}</h3>
-            <form className="grid" onSubmit={handleSavePreferences}>
-              <label className="form-field span-2">
-                <span>{t.contractTypes}</span>
-                <div className="preference-chip-group">
-                  {CONTRACT_TYPES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`preference-chip ${
-                        preferences.preferredContractTypes.includes(option)
-                          ? "preference-chip--active"
-                          : "preference-chip--inactive"
-                      }`}
-                      onClick={() => togglePreferenceChip("preferredContractTypes", option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <label className="form-field span-2">
-                <span>{t.workTimes}</span>
-                <div className="preference-chip-group">
-                  {WORK_TIMES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`preference-chip ${
-                        preferences.preferredWorkTimes.includes(option)
-                          ? "preference-chip--active"
-                          : "preference-chip--inactive"
-                      }`}
-                      onClick={() => togglePreferenceChip("preferredWorkTimes", option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <label className="form-field span-2">
-                <span>{t.workModes}</span>
-                <div className="preference-chip-group">
-                  {WORK_MODES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`preference-chip ${
-                        preferences.preferredWorkModes.includes(option)
-                          ? "preference-chip--active"
-                          : "preference-chip--inactive"
-                      }`}
-                      onClick={() => togglePreferenceChip("preferredWorkModes", option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <label className="form-field span-2">
-                <span>{t.shiftCounts}</span>
-                <div className="preference-chip-group">
-                  {SHIFT_COUNTS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`preference-chip ${
-                        preferences.preferredShiftCounts.includes(option)
-                          ? "preference-chip--active"
-                          : "preference-chip--inactive"
-                      }`}
-                      onClick={() => togglePreferenceChip("preferredShiftCounts", option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <label className="form-field span-2">
-                <span>{t.workHoursRange}</span>
-                <div className="preference-chip-group">
-                  {WORKING_HOURS_OPTIONS.map((option) => {
-                    const selected = parseWorkingHoursSelection(preferences.preferredWorkingHours).includes(option);
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        className={`preference-chip ${selected ? "preference-chip--active" : "preference-chip--inactive"}`}
-                        onClick={() => toggleWorkingHoursChip(option)}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </label>
-
-              <div className="modal-actions span-2">
-                <button type="button" className="ghost-btn" onClick={() => setShowPreferences(false)} disabled={loading}>
-                  {t.close}
-                </button>
-                <button type="submit" disabled={loading}>
-                  {t.savePreferences}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       ) : null}
