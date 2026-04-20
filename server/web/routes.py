@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
 from server.modules.common import to_non_empty_string
+from server.modules.cv import parse_pdf_document
 from server.modules.db import get_connection
 from server.modules.offers import (
     auto_archive_expired_offers,
@@ -230,6 +231,21 @@ def export_excel(tzOffsetMinutes: int | None = None):
 @router.get("/scrape/sources")
 def scrape_sources():
     return list_sources()
+
+
+@router.post("/cv/parse-pdf")
+async def parse_cv_pdf(file: UploadFile = File(...)):
+    filename = (file.filename or "").lower()
+    if filename and not filename.endswith(".pdf"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "only .pdf files are supported"})
+
+    try:
+        content = await file.read()
+        return parse_pdf_document(content)
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(error)})
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
 
 @router.post("/scrape")

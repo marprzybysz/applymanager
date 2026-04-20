@@ -22,6 +22,11 @@ MODULES = [
         "usedIn": {"web": True, "local": True},
     },
     {
+        "name": "cv-pdf-parser",
+        "description": "Wczytywanie danych tekstowych z plikow PDF (modul CV)",
+        "usedIn": {"web": True, "local": True},
+    },
+    {
         "name": "static-web-build",
         "description": "Serwowanie React dist przez FastAPI",
         "usedIn": {"web": True, "local": False},

@@ -97,7 +97,7 @@ type ImportTarget = "offers" | "preferences";
 type ImportFormat = "xlsx" | "json";
 type ExportTarget = "offers" | "preferences" | "all";
 type ExportFormat = "xlsx" | "json";
-type TopTab = "offers" | "stats";
+type TopTab = "offers" | "stats" | "cv";
 type PeriodFilter = "all" | "month" | "quarter" | "year";
 type SortDirection = "none" | "asc" | "desc";
 type SortType = "text" | "date" | "number";
@@ -2465,6 +2465,13 @@ export function App() {
           >
             {t.stats}
           </button>
+          <button
+            type="button"
+            className={`ghost-btn nav-btn ${activeTopTab === "cv" ? "nav-btn--active" : ""}`}
+            onClick={() => setActiveTopTab("cv")}
+          >
+            {t.cv}
+          </button>
         </nav>
 
         <div className="header-actions">
@@ -2986,7 +2993,7 @@ export function App() {
           )}
         </section>
         )
-      ) : (
+      ) : activeTopTab === "stats" ? (
         <section className="card" id="stats">
           <h2>{t.stats}</h2>
           <div className="stats-grid">
@@ -3018,6 +3025,8 @@ export function App() {
             </article>
           </div>
         </section>
+      ) : (
+        <section id="cv" />
       )}
 
       {showAddOffer ? (
