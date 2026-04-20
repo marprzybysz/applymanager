@@ -458,6 +458,7 @@ function getStatusBarColor(statusName: string, index: number): string {
 export function App() {
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
+  const statsNavSettingsRef = useRef<HTMLDivElement | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
   const [scrapeQuery, setScrapeQuery] = useState("frontend react");
@@ -517,12 +518,19 @@ export function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [showSearchInput, setShowSearchInput] = useState(false);
+  const [showStatsNavSettings, setShowStatsNavSettings] = useState(false);
+  const [statsVisibility, setStatsVisibility] = useState({
+    summary: true,
+    trend: true,
+    invitesRead: true,
+    status: true,
+    source: true,
+  });
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("none");
-  const [showTotalOffersBreakdown, setShowTotalOffersBreakdown] = useState(false);
   const [sortAnimating, setSortAnimating] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
   const [hoveredOfferId, setHoveredOfferId] = useState<number | null>(null);
@@ -656,6 +664,24 @@ export function App() {
     const current = JSON.stringify(normalizeOfferForEdit(selectedOfferDraft));
     return baseline !== current;
   }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
+
+  useEffect(() => {
+    if (activeTopTab !== "stats") {
+      setShowStatsNavSettings(false);
+    }
+  }, [activeTopTab]);
+
+  useEffect(() => {
+    if (!showStatsNavSettings) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (statsNavSettingsRef.current?.contains(target)) return;
+      setShowStatsNavSettings(false);
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, [showStatsNavSettings]);
 
   function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
@@ -2760,7 +2786,6 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
-
       {visibleCenterNotifications.length > 0 ? (
         <div
           className="toast-stack toast-stack--center"
@@ -3094,134 +3119,193 @@ export function App() {
         </section>
         )
       ) : (
-        <section className="card" id="stats">
-          <h2>{t.stats}</h2>
-          <div className="stats-grid">
-            <article
-              className={`stats-box stats-box--interactive ${showTotalOffersBreakdown ? "is-open" : ""}`}
-              onClick={() => setShowTotalOffersBreakdown((prev) => !prev)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setShowTotalOffersBreakdown((prev) => !prev);
-                }
-              }}
+        <section className={`card ${stats.totalOffers === 0 ? "stats-empty-card" : ""}`} id="stats">
+          <div className="stats-floating-settings" ref={statsNavSettingsRef}>
+            <button
+              type="button"
+              className={`ghost-btn stats-floating-settings-btn ${showStatsNavSettings ? "is-open" : ""}`}
+              onClick={() => setShowStatsNavSettings((prev) => !prev)}
+              aria-label="Ustawienia statystyk"
+              title="Ustawienia statystyk"
             >
-              <strong>{stats.totalOffers}</strong>
-              <span>{t.totalOffers}</span>
-              {showTotalOffersBreakdown ? (
-                <div className="stats-box-breakdown">
-                  <p>
-                    {t.appliedOffers}: <strong>{stats.appliedOffers}</strong>
-                  </p>
-                  <p>
-                    Zapisane: <strong>{Math.max(stats.totalOffers - stats.appliedOffers, 0)}</strong>
-                  </p>
+              📊
+            </button>
+            {showStatsNavSettings ? (
+              <div className="stats-floating-settings-panel">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={statsVisibility.summary}
+                    onChange={(event) =>
+                      setStatsVisibility((prev) => ({ ...prev, summary: event.target.checked }))
+                    }
+                  />
+                  <span>Karty podsumowania</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={statsVisibility.trend}
+                    onChange={(event) =>
+                      setStatsVisibility((prev) => ({ ...prev, trend: event.target.checked }))
+                    }
+                  />
+                  <span>Naplyw ofert</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={statsVisibility.invitesRead}
+                    onChange={(event) =>
+                      setStatsVisibility((prev) => ({ ...prev, invitesRead: event.target.checked }))
+                    }
+                  />
+                  <span>Zaproszenia i odczytane</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={statsVisibility.status}
+                    onChange={(event) =>
+                      setStatsVisibility((prev) => ({ ...prev, status: event.target.checked }))
+                    }
+                  />
+                  <span>Rozklad statusow</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={statsVisibility.source}
+                    onChange={(event) =>
+                      setStatsVisibility((prev) => ({ ...prev, source: event.target.checked }))
+                    }
+                  />
+                  <span>Rozklad zrodel</span>
+                </label>
+              </div>
+            ) : null}
+          </div>
+          {stats.totalOffers === 0 ? (
+            <p className="stats-empty-state">Tu jeszcze nic nie ma 😏</p>
+          ) : (
+            <>
+              {statsVisibility.summary ? (
+                <div className="stats-grid">
+                  <article className="stats-box">
+                    <strong>{stats.totalOffers}</strong>
+                    <span>{t.totalOffers}</span>
+                  </article>
+                  <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
+                  <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
+                  <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
+                  <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
+                  <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
                 </div>
               ) : null}
-            </article>
-            <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
-            <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
-            <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
-            <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
-            <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
-          </div>
-          <div className="stats-grid">
-            <article className="card stats-chart-card">
-              <h3>Naplyw ofert (30 ostatnich dni z danymi)</h3>
-              {trendOffersData.length === 0 ? (
-                <p className="hint">-</p>
-              ) : (
-                <div className="stats-chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </article>
-            <article className="card stats-chart-card">
-              <h3>Zaproszenia i odczytane (dziennie)</h3>
-              {invitationsReadTrendData.length === 0 ? (
-                <p className="hint">-</p>
-              ) : (
-                <div className="stats-chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Line
-                        type="monotone"
-                        dataKey="invitations"
-                        name="Zaproszenia"
-                        stroke="#f59e0b"
-                        strokeWidth={2.5}
-                        dot={{ r: 3 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="read"
-                        name="Odczytane"
-                        stroke="#ec4899"
-                        strokeWidth={2.5}
-                        dot={{ r: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </article>
-            <article className="card stats-chart-card">
-              <h3>{t.statusBreakdown}</h3>
-              {statusChartData.length === 0 ? (
-                <p className="hint">-</p>
-              ) : (
-                <div className="stats-chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={statusChartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" radius={[7, 7, 0, 0]}>
-                        {statusChartData.map((entry, index) => (
-                          <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </article>
-            <article className="card stats-chart-card">
-              <h3>{t.sourceBreakdown}</h3>
-              {sourceChartData.length === 0 ? (
-                <p className="hint">-</p>
-              ) : (
-                <div className="stats-chart-wrap">
-                  <ResponsiveContainer width="100%" height={260}>
-                    <PieChart>
-                      <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label />
-                      {sourceChartData.map((entry, index) => (
-                        <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </article>
-          </div>
+              <div className="stats-grid">
+                {statsVisibility.trend ? (
+                  <article className="card stats-chart-card">
+                    <h3>Naplyw ofert (30 ostatnich dni z danymi)</h3>
+                    {trendOffersData.length === 0 ? (
+                      <p className="hint">-</p>
+                    ) : (
+                      <div className="stats-chart-wrap">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                ) : null}
+                {statsVisibility.invitesRead ? (
+                  <article className="card stats-chart-card">
+                    <h3>Zaproszenia i odczytane (dziennie)</h3>
+                    {invitationsReadTrendData.length === 0 ? (
+                      <p className="hint">-</p>
+                    ) : (
+                      <div className="stats-chart-wrap">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                            <Line
+                              type="monotone"
+                              dataKey="invitations"
+                              name="Zaproszenia"
+                              stroke="#f59e0b"
+                              strokeWidth={2.5}
+                              dot={{ r: 3 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="read"
+                              name="Odczytane"
+                              stroke="#ec4899"
+                              strokeWidth={2.5}
+                              dot={{ r: 3 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                ) : null}
+                {statsVisibility.status ? (
+                  <article className="card stats-chart-card">
+                    <h3>{t.statusBreakdown}</h3>
+                    {statusChartData.length === 0 ? (
+                      <p className="hint">-</p>
+                    ) : (
+                      <div className="stats-chart-wrap">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={statusChartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="count" radius={[7, 7, 0, 0]}>
+                              {statusChartData.map((entry, index) => (
+                                <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                ) : null}
+                {statsVisibility.source ? (
+                  <article className="card stats-chart-card">
+                    <h3>{t.sourceBreakdown}</h3>
+                    {sourceChartData.length === 0 ? (
+                      <p className="hint">-</p>
+                    ) : (
+                      <div className="stats-chart-wrap">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <PieChart>
+                            <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label />
+                            {sourceChartData.map((entry, index) => (
+                              <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                ) : null}
+              </div>
+            </>
+          )}
         </section>
       )}
 
