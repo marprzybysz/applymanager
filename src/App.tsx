@@ -2946,6 +2946,13 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           >
             {t.stats}
           </button>
+          <button
+            type="button"
+            className={`ghost-btn nav-btn ${activeTopTab === "cv" ? "nav-btn--active" : ""}`}
+            onClick={() => setActiveTopTab("cv")}
+          >
+            {t.cv}
+          </button>
         </nav>
 
         <div className="header-actions">
@@ -3586,7 +3593,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           )}
         </section>
         )
-      ) : (
+      ) : activeTopTab === "stats" ? (
         <section className={`card ${offers.length === 0 ? "stats-empty-card" : ""}`} id="stats">
           {offers.length === 0 ? (
             <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
@@ -3977,6 +3984,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           </div>
           )}
         </section>
+      ) : (
+        <section id="cv" />
       )}
 
       {showAddOffer ? (

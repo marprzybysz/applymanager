@@ -7,3 +7,4 @@ requests==2.32.3
 playwright==1.58.0
 python-multipart==0.0.20
 pandas==2.2.3
+pypdf==5.9.0
