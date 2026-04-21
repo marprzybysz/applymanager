@@ -2786,6 +2786,73 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
+      {activeTopTab === "stats" ? (
+        <div className="stats-floating-settings" ref={statsNavSettingsRef}>
+          <button
+            type="button"
+            className={`ghost-btn stats-floating-settings-btn ${showStatsNavSettings ? "is-open" : ""}`}
+            onClick={() => setShowStatsNavSettings((prev) => !prev)}
+            aria-label="Ustawienia statystyk"
+            title="Ustawienia statystyk"
+          >
+            📊
+          </button>
+          {showStatsNavSettings ? (
+            <div className="stats-floating-settings-panel">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={statsVisibility.summary}
+                  onChange={(event) =>
+                    setStatsVisibility((prev) => ({ ...prev, summary: event.target.checked }))
+                  }
+                />
+                <span>Karty podsumowania</span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={statsVisibility.trend}
+                  onChange={(event) =>
+                    setStatsVisibility((prev) => ({ ...prev, trend: event.target.checked }))
+                  }
+                />
+                <span>Naplyw ofert</span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={statsVisibility.invitesRead}
+                  onChange={(event) =>
+                    setStatsVisibility((prev) => ({ ...prev, invitesRead: event.target.checked }))
+                  }
+                />
+                <span>Zaproszenia i odczytane</span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={statsVisibility.status}
+                  onChange={(event) =>
+                    setStatsVisibility((prev) => ({ ...prev, status: event.target.checked }))
+                  }
+                />
+                <span>Rozklad statusow</span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={statsVisibility.source}
+                  onChange={(event) =>
+                    setStatsVisibility((prev) => ({ ...prev, source: event.target.checked }))
+                  }
+                />
+                <span>Rozklad zrodel</span>
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {visibleCenterNotifications.length > 0 ? (
         <div
           className="toast-stack toast-stack--center"
@@ -3120,77 +3187,12 @@ export function App() {
         )
       ) : (
         <section className={`card ${stats.totalOffers === 0 ? "stats-empty-card" : ""}`} id="stats">
-          <div className="stats-floating-settings" ref={statsNavSettingsRef}>
-            <button
-              type="button"
-              className={`ghost-btn stats-floating-settings-btn ${showStatsNavSettings ? "is-open" : ""}`}
-              onClick={() => setShowStatsNavSettings((prev) => !prev)}
-              aria-label="Ustawienia statystyk"
-              title="Ustawienia statystyk"
-            >
-              📊
-            </button>
-            {showStatsNavSettings ? (
-              <div className="stats-floating-settings-panel">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={statsVisibility.summary}
-                    onChange={(event) =>
-                      setStatsVisibility((prev) => ({ ...prev, summary: event.target.checked }))
-                    }
-                  />
-                  <span>Karty podsumowania</span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={statsVisibility.trend}
-                    onChange={(event) =>
-                      setStatsVisibility((prev) => ({ ...prev, trend: event.target.checked }))
-                    }
-                  />
-                  <span>Naplyw ofert</span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={statsVisibility.invitesRead}
-                    onChange={(event) =>
-                      setStatsVisibility((prev) => ({ ...prev, invitesRead: event.target.checked }))
-                    }
-                  />
-                  <span>Zaproszenia i odczytane</span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={statsVisibility.status}
-                    onChange={(event) =>
-                      setStatsVisibility((prev) => ({ ...prev, status: event.target.checked }))
-                    }
-                  />
-                  <span>Rozklad statusow</span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={statsVisibility.source}
-                    onChange={(event) =>
-                      setStatsVisibility((prev) => ({ ...prev, source: event.target.checked }))
-                    }
-                  />
-                  <span>Rozklad zrodel</span>
-                </label>
-              </div>
-            ) : null}
-          </div>
           {stats.totalOffers === 0 ? (
             <p className="stats-empty-state">Tu jeszcze nic nie ma 😏</p>
           ) : (
             <>
               {statsVisibility.summary ? (
-                <div className="stats-grid">
+                <div className="stats-grid stats-summary-grid">
                   <article className="stats-box">
                     <strong>{stats.totalOffers}</strong>
                     <span>{t.totalOffers}</span>
