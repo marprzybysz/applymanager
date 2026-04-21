@@ -13,6 +13,11 @@ from server.web.routes import router as web_router
 
 PORT = int(os.getenv("PORT", "3000"))
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dist"))
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 app = FastAPI()
 app.add_middleware(
@@ -37,25 +42,19 @@ if os.path.isdir(DIST_DIR):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
-def _serve_index():
+def _serve_index() -> FileResponse:
     index_file = os.path.join(DIST_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(
-            index_file,
-            headers={
-                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
-        )
+        return FileResponse(index_file, headers=NO_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="Frontend build not found")
 
 
 @app.get("/")
-def spa_root():
+def spa_root() -> FileResponse:
     return _serve_index()
 
 
 @app.get("/{full_path:path}")
-def spa_fallback(full_path: str):
+def spa_fallback(full_path: str) -> FileResponse:
+    _ = full_path
     return _serve_index()

@@ -1558,214 +1558,6 @@ export function App() {
     }, 170);
   }
 
-  function renderEditorSelectionBar() {
-    if (!editorMode) return null;
-    const hasSelection = selectedRowIds.length > 0;
-    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
-    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
-    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
-    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
-    return (
-      <div
-        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
-      >
-        <div className="editor-selection-bar">
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              pinSelectedOffers();
-            }}
-            title={allSelectedPinned ? t.unpin : t.pin}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">📌</span>
-            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              if (firstSelected) openQuickStatus(firstSelected, "bulk");
-            }}
-            title={t.quickStatus}
-            disabled={isQuickStatusLocked || !firstSelected}
-          >
-            <span className="row-action-btn__icon">?</span>
-            <span className="row-action-btn__label">{t.quickStatus}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              archiveSelectedOffers();
-            }}
-            title={allSelectedArchived ? t.restoreArchive : t.archive}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
-            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              openBulkDeleteConfirm();
-            }}
-            title={t.delete}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">🗑️</span>
-            <span className="row-action-btn__label">{t.delete}</span>
-          </button>
-          <button
-            type="button"
-            className="ghost-btn selection-clear-btn"
-            onClick={() => {
-              setSelectedRowIds([]);
-              closeQuickStatusEditor();
-            }}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            {t.clearSelectionRows}
-          </button>
-        </div>
-        {showBulkQuickStatusEditor ? (
-          <div className="editor-selection-quick-status">
-            <div className="quick-status-box">
-              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
-                <button
-                  type="button"
-                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
-                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
-                  aria-expanded={quickStatusMenuOpen}
-                >
-                  <span>{quickStatusValue}</span>
-                  <span className="quick-status-picker__chevron">▾</span>
-                </button>
-              </div>
-              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
-                {t.save}
-              </button>
-              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
-                {t.cancel}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderOfferTools(isDocked: boolean) {
-    const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
-    const filtersLabel = `⏷ ${t.filters}`;
-    const searchLabel = `🔍 ${t.search}`;
-    return (
-      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
-        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => setCompactView((prev) => !prev)}
-            aria-label={t.viewMode}
-            title={t.viewMode}
-            disabled={isQuickStatusLocked}
-          >
-            {viewLabel}
-          </button>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => setShowFilters((prev) => !prev)}
-            aria-label={t.filters}
-            title={t.filters}
-            disabled={isQuickStatusLocked}
-          >
-            {filtersLabel}
-          </button>
-          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
-            <button
-              type="button"
-              className="ghost-btn toolbar-search-trigger"
-              onClick={() => setShowSearchInput(true)}
-              aria-label={t.search}
-              title={t.search}
-              disabled={isQuickStatusLocked}
-            >
-              {searchLabel}
-            </button>
-            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
-              <button
-                type="button"
-                className="toolbar-search-icon-btn"
-                onClick={() => setShowSearchInput(false)}
-                aria-label={t.search}
-              >
-                🔍
-              </button>
-              <input
-                value={filterText}
-                onChange={(event) => setFilterText(event.target.value)}
-                placeholder={t.search}
-                className="toolbar-search-input"
-                ref={searchInputRef}
-              />
-            </div>
-          </div>
-        </div>
-        {renderEditorSelectionBar()}
-      </div>
-    );
-  }
-
-  function renderOfferFilters(className = "offers-filters") {
-    return (
-      <div className={className}>
-        <label className="form-field">
-          <span>{t.filterByStatus}</span>
-          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
-            <option value="all">{t.all}</option>
-            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
-            {statusFilterOptions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>{t.filterBySource}</span>
-          <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
-            <option value="all">{t.all}</option>
-            {sourceFilterOptions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>{t.filterByPeriod}</span>
-          <select
-            value={filterPeriod}
-            onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
-          >
-            <option value="all">{t.periodAll}</option>
-            <option value="month">{t.periodMonth}</option>
-            <option value="quarter">{t.periodQuarter}</option>
-            <option value="year">{t.periodYear}</option>
-          </select>
-        </label>
-        <div className="offers-filters-actions">
-          <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
-            {t.clearFilters}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (addOfferMode === "manual") {
@@ -2441,6 +2233,214 @@ export function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function renderEditorSelectionBar() {
+    if (!editorMode) return null;
+    const hasSelection = selectedRowIds.length > 0;
+    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
+    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
+    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
+    return (
+      <div
+        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
+      >
+        <div className="editor-selection-bar">
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              pinSelectedOffers();
+            }}
+            title={allSelectedPinned ? t.unpin : t.pin}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">📌</span>
+            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) openQuickStatus(firstSelected, "bulk");
+            }}
+            title={t.quickStatus}
+            disabled={isQuickStatusLocked || !firstSelected}
+          >
+            <span className="row-action-btn__icon">?</span>
+            <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              archiveSelectedOffers();
+            }}
+            title={allSelectedArchived ? t.restoreArchive : t.archive}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
+            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              openBulkDeleteConfirm();
+            }}
+            title={t.delete}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">🗑️</span>
+            <span className="row-action-btn__label">{t.delete}</span>
+          </button>
+          <button
+            type="button"
+            className="ghost-btn selection-clear-btn"
+            onClick={() => {
+              setSelectedRowIds([]);
+              closeQuickStatusEditor();
+            }}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            {t.clearSelectionRows}
+          </button>
+        </div>
+        {showBulkQuickStatusEditor ? (
+          <div className="editor-selection-quick-status">
+            <div className="quick-status-box">
+              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
+                  aria-expanded={quickStatusMenuOpen}
+                >
+                  <span>{quickStatusValue}</span>
+                  <span className="quick-status-picker__chevron">▾</span>
+                </button>
+              </div>
+              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
+                {t.save}
+              </button>
+              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderOfferTools(isDocked: boolean) {
+    const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
+    const filtersLabel = `⏷ ${t.filters}`;
+    const searchLabel = `🔍 ${t.search}`;
+    return (
+      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
+        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setCompactView((prev) => !prev)}
+            aria-label={t.viewMode}
+            title={t.viewMode}
+            disabled={isQuickStatusLocked}
+          >
+            {viewLabel}
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setShowFilters((prev) => !prev)}
+            aria-label={t.filters}
+            title={t.filters}
+            disabled={isQuickStatusLocked}
+          >
+            {filtersLabel}
+          </button>
+          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
+            <button
+              type="button"
+              className="ghost-btn toolbar-search-trigger"
+              onClick={() => setShowSearchInput(true)}
+              aria-label={t.search}
+              title={t.search}
+              disabled={isQuickStatusLocked}
+            >
+              {searchLabel}
+            </button>
+            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+              <button
+                type="button"
+                className="toolbar-search-icon-btn"
+                onClick={() => setShowSearchInput(false)}
+                aria-label={t.search}
+              >
+                🔍
+              </button>
+              <input
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder={t.search}
+                className="toolbar-search-input"
+                ref={searchInputRef}
+              />
+            </div>
+          </div>
+        </div>
+        {renderEditorSelectionBar()}
+      </div>
+    );
+  }
+
+  function renderOfferFilters(className = "offers-filters") {
+    return (
+      <div className={className}>
+        <label className="form-field">
+          <span>{t.filterByStatus}</span>
+          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+            <option value="all">{t.all}</option>
+            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
+            {statusFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterBySource}</span>
+          <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
+            <option value="all">{t.all}</option>
+            {sourceFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterByPeriod}</span>
+          <select
+            value={filterPeriod}
+            onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
+          >
+            <option value="all">{t.periodAll}</option>
+            <option value="month">{t.periodMonth}</option>
+            <option value="quarter">{t.periodQuarter}</option>
+            <option value="year">{t.periodYear}</option>
+          </select>
+        </label>
+        <div className="offers-filters-actions">
+          <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
+            {t.clearFilters}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
