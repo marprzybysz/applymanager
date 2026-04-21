@@ -371,6 +371,10 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
 
 const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
 const ROW_EXIT_ANIMATION_MS = 320;
+const VIRTUALIZATION_THRESHOLD = 120;
+const VIRTUALIZATION_OVERSCAN = 10;
+const ROW_HEIGHT_COMPACT = 46;
+const ROW_HEIGHT_FULL = 52;
 
 function createDefaultNotificationSettings(): NotificationSettings {
   return {
@@ -504,7 +508,10 @@ export function App() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
   const offersToolbarRef = useRef<HTMLDivElement | null>(null);
+  const offersTableScrollRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [offersScrollTop, setOffersScrollTop] = useState(0);
+  const [offersViewportHeight, setOffersViewportHeight] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -761,6 +768,33 @@ export function App() {
   }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
 
   const isQuickStatusLocked = quickStatusOfferId !== null;
+  const offersColumnCount = compactView ? 4 : 15;
+  const shouldVirtualizeOffers = !editorMode && visibleOffers.length > VIRTUALIZATION_THRESHOLD;
+  const virtualRowHeight = compactView ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_FULL;
+  const virtualizedRange = useMemo(() => {
+    if (!shouldVirtualizeOffers) {
+      return {
+        startIndex: 0,
+        endIndex: visibleOffers.length,
+        topSpacerPx: 0,
+        bottomSpacerPx: 0,
+      };
+    }
+
+    const viewportPx = Math.max(offersViewportHeight, virtualRowHeight);
+    const startIndex = Math.max(0, Math.floor(offersScrollTop / virtualRowHeight) - VIRTUALIZATION_OVERSCAN);
+    const visibleCount = Math.ceil(viewportPx / virtualRowHeight) + VIRTUALIZATION_OVERSCAN * 2;
+    const endIndex = Math.min(visibleOffers.length, startIndex + visibleCount);
+    return {
+      startIndex,
+      endIndex,
+      topSpacerPx: startIndex * virtualRowHeight,
+      bottomSpacerPx: Math.max(0, (visibleOffers.length - endIndex) * virtualRowHeight),
+    };
+  }, [shouldVirtualizeOffers, visibleOffers.length, offersViewportHeight, offersScrollTop, virtualRowHeight]);
+  const offersToRender = shouldVirtualizeOffers
+    ? visibleOffers.slice(virtualizedRange.startIndex, virtualizedRange.endIndex)
+    : visibleOffers;
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -1533,6 +1567,32 @@ export function App() {
       closeQuickStatusEditor();
     }
   }, [selectedRowIds.length, quickStatusMode]);
+
+  useEffect(() => {
+    const tableScroll = offersTableScrollRef.current;
+    if (!tableScroll) return;
+
+    const syncViewport = () => {
+      setOffersScrollTop(tableScroll.scrollTop);
+      setOffersViewportHeight(tableScroll.clientHeight);
+    };
+
+    syncViewport();
+    tableScroll.addEventListener("scroll", syncViewport, { passive: true });
+    window.addEventListener("resize", syncViewport);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(syncViewport);
+      resizeObserver.observe(tableScroll);
+    }
+
+    return () => {
+      tableScroll.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      resizeObserver?.disconnect();
+    };
+  }, [activeTopTab, visibleOffers.length, compactView]);
 
   function handleEditorRowMouseEnter(rowId: number | null, canInteractWithRow: boolean) {
     if (!canInteractWithRow) return;
@@ -2761,7 +2821,10 @@ export function App() {
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
           ) : (
             <div className="offers-table-wrap offers-table-wrap--overlay">
-              <div className="offers-table-scroll">
+              <div
+                className={`offers-table-scroll ${shouldVirtualizeOffers ? "offers-table-scroll--virtualized" : ""}`}
+                ref={offersTableScrollRef}
+              >
               <table className={`offers-table ${compactView ? "offers-table--compact" : ""}`}>
                 <thead>
                   <tr>
@@ -2829,7 +2892,16 @@ export function App() {
                   </tr>
                 </thead>
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
-                  {visibleOffers.map((offer, index) => {
+                  {shouldVirtualizeOffers && virtualizedRange.topSpacerPx > 0 ? (
+                    <tr aria-hidden="true" className="offers-table-spacer-row">
+                      <td
+                        colSpan={offersColumnCount}
+                        style={{ height: `${virtualizedRange.topSpacerPx}px`, padding: 0, borderBottom: "none" }}
+                      />
+                    </tr>
+                  ) : null}
+                  {offersToRender.map((offer, index) => {
+                    const absoluteIndex = shouldVirtualizeOffers ? virtualizedRange.startIndex + index : index;
                     const rowId = offer.id || null;
                     const rowExitKind = rowId !== null ? rowExitAnimations[rowId] : undefined;
                     const isRowExiting = Boolean(rowExitKind);
@@ -2848,7 +2920,7 @@ export function App() {
                     const isPanelRow = keepRowHoverPanelMounted || isQuickStatusRow;
                     return (
                     <tr
-                      key={`${offer.id || "offer"}-${index}`}
+                      key={`${offer.id || "offer"}-${absoluteIndex}`}
                       className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
                       onMouseEnter={() => {
                         if (isRowExiting) return;
@@ -2979,6 +3051,14 @@ export function App() {
                     </tr>
                     );
                   })}
+                  {shouldVirtualizeOffers && virtualizedRange.bottomSpacerPx > 0 ? (
+                    <tr aria-hidden="true" className="offers-table-spacer-row">
+                      <td
+                        colSpan={offersColumnCount}
+                        style={{ height: `${virtualizedRange.bottomSpacerPx}px`, padding: 0, borderBottom: "none" }}
+                      />
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
               </div>
