@@ -768,6 +768,17 @@ export function App() {
   }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
 
   const isQuickStatusLocked = quickStatusOfferId !== null;
+  const offersById = useMemo(() => {
+    const next = new Map<number, Offer>();
+    for (const offer of offers) {
+      if (typeof offer.id === "number") {
+        next.set(offer.id, offer);
+      }
+    }
+    return next;
+  }, [offers]);
+  const selectedRowIdSet = useMemo(() => new Set(selectedRowIds), [selectedRowIds]);
+  const pinnedOfferIdSet = useMemo(() => new Set(pinnedOfferIds), [pinnedOfferIds]);
   const offersColumnCount = compactView ? 4 : 15;
   const shouldVirtualizeOffers = !editorMode && visibleOffers.length > VIRTUALIZATION_THRESHOLD;
   const virtualRowHeight = compactView ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_FULL;
@@ -818,7 +829,7 @@ export function App() {
   }
 
   function findOfferById(id: number): Offer | null {
-    return offers.find((offer) => offer.id === id) || null;
+    return offersById.get(id) || null;
   }
 
   function toggleEditorMode() {
@@ -2284,7 +2295,7 @@ export function App() {
     if (!editorMode) return null;
     const hasSelection = selectedRowIds.length > 0;
     const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
-    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
+    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIdSet.has(id));
     const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
     const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
     return (
@@ -2888,6 +2899,8 @@ export function App() {
                   {offersToRender.map((offer, index) => {
                     const absoluteIndex = shouldVirtualizeOffers ? virtualizedRange.startIndex + index : index;
                     const rowId = offer.id || null;
+                    const isSelectedRow = rowId !== null && selectedRowIdSet.has(rowId);
+                    const isPinnedRow = rowId !== null && pinnedOfferIdSet.has(rowId);
                     const rowExitKind = rowId !== null ? rowExitAnimations[rowId] : undefined;
                     const isRowExiting = Boolean(rowExitKind);
                     const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
@@ -2906,7 +2919,7 @@ export function App() {
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${absoluteIndex}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${isSelectedRow ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
                       onMouseEnter={() => {
                         if (isRowExiting) return;
                         handleEditorRowMouseEnter(rowId, canInteractWithRow);
@@ -2941,13 +2954,13 @@ export function App() {
                             rel="noreferrer"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {isPinnedRow ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
                             {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </a>
                         ) : (
                           <>
-                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {isPinnedRow ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
                             {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </>
@@ -2968,11 +2981,11 @@ export function App() {
                                 type="button"
                                 className="row-action-btn row-action-btn--pin row-action-btn--expand"
                                 onClick={() => togglePinOffer(offer)}
-                                title={pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                title={isPinnedRow ? t.unpin : t.pin}
                               >
                                 <span className="row-action-btn__icon">📌</span>
                                 <span className="row-action-btn__label">
-                                  {pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                  {isPinnedRow ? t.unpin : t.pin}
                                 </span>
                               </button>
                               <button
