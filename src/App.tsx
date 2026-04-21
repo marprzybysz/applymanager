@@ -1247,6 +1247,29 @@ export function App() {
     openAddOfferModal();
   }
 
+  function createPendingOfferFromScrapedJob(job: ScrapedJob): Offer {
+    return {
+      company: job.company || t.company,
+      role: job.title || t.role,
+      applied: true,
+      archive: false,
+      status: "Wyslano",
+      location: job.location,
+      notes: "",
+      appliedAt: getTodayDate(),
+      datePosted: job.datePosted || "",
+      expiresAt: job.expiresAt || "",
+      daysToExpire: job.daysToExpire ?? null,
+      source: job.source,
+      sourceUrl: job.url,
+      employmentTypes: job.employmentTypes || [],
+      workTime: job.workTime || "",
+      workMode: job.workMode || "",
+      shiftCount: job.shiftCount || "",
+      workingHours: job.workingHours || "",
+    };
+  }
+
   async function fetchOffers() {
     const response = await fetch("/api/offers");
     const data = (await response.json()) as { ok: boolean; offers?: Offer[]; autoArchived?: number; error?: string };
@@ -2072,26 +2095,7 @@ export function App() {
       setStatusMessage(t.scrapedJobs.replace("{total}", String(data.total ?? 0)));
 
       if (data.mode === "link" && jobs[0]) {
-        setPendingOffer({
-          company: jobs[0].company || t.company,
-          role: jobs[0].title || t.role,
-          applied: true,
-          archive: false,
-          status: "Wyslano",
-          location: jobs[0].location,
-          notes: "",
-          appliedAt: new Date().toISOString().slice(0, 10),
-          datePosted: jobs[0].datePosted || "",
-          expiresAt: jobs[0].expiresAt || "",
-          daysToExpire: jobs[0].daysToExpire ?? null,
-          source: jobs[0].source,
-          sourceUrl: jobs[0].url,
-          employmentTypes: jobs[0].employmentTypes || [],
-          workTime: jobs[0].workTime || "",
-          workMode: jobs[0].workMode || "",
-          shiftCount: jobs[0].shiftCount || "",
-          workingHours: jobs[0].workingHours || "",
-        });
+        setPendingOffer(createPendingOfferFromScrapedJob(jobs[0]));
         setPendingScrapedIndex(0);
       }
     } catch (error) {
@@ -2102,26 +2106,7 @@ export function App() {
   }
 
   function openSaveDialog(job: ScrapedJob, index: number) {
-    setPendingOffer({
-      company: job.company || t.company,
-      role: job.title || t.role,
-      applied: true,
-      archive: false,
-      status: "Wyslano",
-      location: job.location,
-      notes: "",
-      appliedAt: new Date().toISOString().slice(0, 10),
-      datePosted: job.datePosted || "",
-      expiresAt: job.expiresAt || "",
-      daysToExpire: job.daysToExpire ?? null,
-      source: job.source,
-      sourceUrl: job.url,
-      employmentTypes: job.employmentTypes || [],
-      workTime: job.workTime || "",
-      workMode: job.workMode || "",
-      shiftCount: job.shiftCount || "",
-      workingHours: job.workingHours || "",
-    });
+    setPendingOffer(createPendingOfferFromScrapedJob(job));
     setPendingScrapedIndex(index);
   }
 
