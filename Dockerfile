@@ -56,7 +56,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=python-deps /install /usr/local
-RUN python -m playwright install chromium
+RUN python -m playwright install --no-shell chromium
 
 COPY --from=frontend-build /app/dist ./dist
 COPY server ./server
