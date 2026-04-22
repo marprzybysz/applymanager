@@ -170,11 +170,69 @@ body {
   color: var(--text-soft);
 }
 
-.stats-floating-settings-group select {
-  margin-left: auto;
-  min-width: 136px;
-  padding: 0.28rem 0.42rem;
-  font-size: 0.82rem;
+.stats-kpi-drag-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.stats-kpi-visibility-list {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.stats-kpi-visibility-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text-main);
+}
+
+.stats-box--draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.stats-box--draggable:active {
+  cursor: grabbing;
+}
+
+.stats-box--draggable.is-drop-target {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.45) inset;
+  background: color-mix(in srgb, #2563eb 12%, var(--surface-2) 88%);
+}
+
+.stats-box--draggable.is-dragging {
+  opacity: 0.48;
+}
+
+.stats-summary-grid.is-dragging .stats-box {
+  border-style: dashed;
+}
+
+.stats-summary-grid.is-dragging .stats-box.is-drop-target {
+  border-style: solid;
+}
+
+.stats-box--empty-slot {
+  min-height: 96px;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent 20%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-2) 82%, #000 18%);
+}
+
+.stats-box--hidden-empty-slot {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stats-box-empty-label {
+  display: none;
 }
 
 .top-nav .nav-btn {
@@ -1966,6 +2024,9 @@ button:disabled {
   padding: 0.7rem;
   display: grid;
   gap: 0.2rem;
+  height: 96px;
+  box-sizing: border-box;
+  align-content: start;
 }
 
 .stats-box strong {
@@ -1975,6 +2036,10 @@ button:disabled {
 .stats-box span {
   color: var(--text-muted);
   font-size: 0.88rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stats-chart-card {
@@ -2389,7 +2454,7 @@ button:disabled {
   }
 
   .stats-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .stats-floating-settings {
@@ -2539,6 +2604,6 @@ button:disabled {
 
 @media (max-width: 520px) {
   .stats-summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
