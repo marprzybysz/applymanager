@@ -104,6 +104,18 @@ type OfferStats = {
   statusCounts: Record<string, number>;
   sourceCounts: Record<string, number>;
 };
+type SummaryMetricKey =
+  | "totalOffers"
+  | "appliedOffers"
+  | "activeOffers"
+  | "expiredOffers"
+  | "avgDaysLeft"
+  | "recentApplications"
+  | "archivedOffers"
+  | "readOffers"
+  | "invitationOffers"
+  | "rejectedOffers"
+  | "sourceTypes";
 
 type ThemeMode = "auto" | "light" | "dark";
 type SettingsTab = "general" | "notifications" | "preferences" | "about";
@@ -157,6 +169,15 @@ type AppNotification = {
   menuClosing?: boolean;
   kind: "operational";
 };
+
+const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
+  "totalOffers",
+  "appliedOffers",
+  "activeOffers",
+  "expiredOffers",
+  "avgDaysLeft",
+  "recentApplications",
+];
 
 
 const CONTRACT_TYPES = [
@@ -526,6 +547,7 @@ export function App() {
     status: true,
     source: true,
   });
+  const [summaryCardMetrics, setSummaryCardMetrics] = useState<SummaryMetricKey[]>(DEFAULT_SUMMARY_METRICS);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
@@ -658,6 +680,43 @@ export function App() {
         read: value.read,
       }));
   }, [offers]);
+  const summaryMetricOptions = useMemo(() => {
+    const statusCounters = {
+      readOffers: 0,
+      invitationOffers: 0,
+      rejectedOffers: 0,
+    };
+    for (const [rawName, rawCount] of Object.entries(stats.statusCounts)) {
+      const name = normalizeStatusForChart(rawName);
+      const count = Number(rawCount || 0);
+      if (count <= 0) continue;
+      if (name === "Odczytano") statusCounters.readOffers += count;
+      if (name === "Rozmowa" || name === "Oferta") statusCounters.invitationOffers += count;
+      if (name === "Odrzucono/Odmowa") statusCounters.rejectedOffers += count;
+    }
+    const archivedOffers = offers.reduce((acc, offer) => acc + (offer.archive === true ? 1 : 0), 0);
+    const sourceTypes = Object.values(stats.sourceCounts).filter((count) => Number(count || 0) > 0).length;
+    return [
+      { key: "totalOffers", label: t.totalOffers, value: String(stats.totalOffers) },
+      { key: "appliedOffers", label: t.appliedOffers, value: String(stats.appliedOffers) },
+      { key: "activeOffers", label: t.activeOffers, value: String(stats.activeOffers) },
+      { key: "expiredOffers", label: t.expiredOffers, value: String(stats.expiredOffers) },
+      { key: "avgDaysLeft", label: t.avgDaysLeft, value: stats.averageDaysLeft === null ? "-" : String(stats.averageDaysLeft) },
+      { key: "recentApplications", label: t.recentApplications, value: String(stats.recentApplications7d) },
+      { key: "archivedOffers", label: t.archivedOffers, value: String(archivedOffers) },
+      { key: "readOffers", label: t.readOffers, value: String(statusCounters.readOffers) },
+      { key: "invitationOffers", label: t.invitationOffers, value: String(statusCounters.invitationOffers) },
+      { key: "rejectedOffers", label: t.rejectedOffers, value: String(statusCounters.rejectedOffers) },
+      { key: "sourceTypes", label: t.sourceTypes, value: String(sourceTypes) },
+    ] as Array<{ key: SummaryMetricKey; label: string; value: string }>;
+  }, [offers, stats, t]);
+  const summaryMetricMap = useMemo(
+    () =>
+      new Map<SummaryMetricKey, { label: string; value: string }>(
+        summaryMetricOptions.map((entry) => [entry.key, { label: entry.label, value: entry.value }])
+      ),
+    [summaryMetricOptions]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -2799,6 +2858,37 @@ export function App() {
           </button>
           {showStatsNavSettings ? (
             <div className="stats-floating-settings-panel">
+              <div className="stats-floating-settings-group">
+                <strong>Karty KPI</strong>
+                {summaryCardMetrics.map((metric, index) => (
+                  <label key={`kpi-slot-${index}`}>
+                    <span>{`Karta ${index + 1}`}</span>
+                    <select
+                      value={metric}
+                      onChange={(event) =>
+                        setSummaryCardMetrics((prev) =>
+                          prev.map((entry, slotIndex) =>
+                            slotIndex === index ? (event.target.value as SummaryMetricKey) : entry
+                          )
+                        )
+                      }
+                    >
+                      {summaryMetricOptions.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => setSummaryCardMetrics([...DEFAULT_SUMMARY_METRICS])}
+                >
+                  Reset KPI
+                </button>
+              </div>
               <label>
                 <input
                   type="checkbox"
@@ -3193,15 +3283,16 @@ export function App() {
             <>
               {statsVisibility.summary ? (
                 <div className="stats-grid stats-summary-grid">
-                  <article className="stats-box">
-                    <strong>{stats.totalOffers}</strong>
-                    <span>{t.totalOffers}</span>
-                  </article>
-                  <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
-                  <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
-                  <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
-                  <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
-                  <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
+                  {summaryCardMetrics.map((metricKey, index) => {
+                    const metric = summaryMetricMap.get(metricKey);
+                    if (!metric) return null;
+                    return (
+                      <article className="stats-box" key={`summary-metric-${index}-${metricKey}`}>
+                        <strong>{metric.value}</strong>
+                        <span>{metric.label}</span>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : null}
               <div className="stats-grid">
@@ -3294,7 +3385,7 @@ export function App() {
                       <div className="stats-chart-wrap">
                         <ResponsiveContainer width="100%" height={260}>
                           <PieChart>
-                            <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label />
+                            <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label={false} />
                             {sourceChartData.map((entry, index) => (
                               <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                             ))}

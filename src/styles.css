@@ -155,6 +155,28 @@ body {
   user-select: none;
 }
 
+.stats-floating-settings-group {
+  display: grid;
+  gap: 0.4rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.1rem;
+}
+
+.stats-floating-settings-group strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.stats-floating-settings-group select {
+  margin-left: auto;
+  min-width: 136px;
+  padding: 0.28rem 0.42rem;
+  font-size: 0.82rem;
+}
+
 .top-nav .nav-btn {
   text-decoration: none;
   color: var(--text-muted);
