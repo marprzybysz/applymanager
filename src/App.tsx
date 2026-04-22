@@ -178,6 +178,16 @@ const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
   "avgDaysLeft",
   "recentApplications",
 ];
+const SUMMARY_SLOT_COUNT = 8;
+const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
+
+function createDefaultSummarySlots(): Array<SummaryMetricKey | null> {
+  const slots: Array<SummaryMetricKey | null> = Array.from({ length: SUMMARY_SLOT_COUNT }, () => null);
+  DEFAULT_SUMMARY_METRICS.forEach((metric, index) => {
+    if (index < slots.length) slots[index] = metric;
+  });
+  return slots;
+}
 
 
 const CONTRACT_TYPES = [
@@ -547,7 +557,9 @@ export function App() {
     status: true,
     source: true,
   });
-  const [summaryCardMetrics, setSummaryCardMetrics] = useState<SummaryMetricKey[]>(DEFAULT_SUMMARY_METRICS);
+  const [summaryCardMetrics, setSummaryCardMetrics] = useState<Array<SummaryMetricKey | null>>(createDefaultSummarySlots);
+  const [summaryDragIndex, setSummaryDragIndex] = useState<number | null>(null);
+  const [summaryDropTargetIndex, setSummaryDropTargetIndex] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
@@ -717,6 +729,18 @@ export function App() {
       ),
     [summaryMetricOptions]
   );
+  const summaryDisplaySlots = useMemo(() => {
+    const allSlots = summaryCardMetrics.map((metricKey, slotIndex) => ({
+      metricKey,
+      slotIndex,
+      isEmpty: metricKey === null,
+    }));
+    return allSlots;
+  }, [summaryCardMetrics, summaryDragIndex]);
+  const summaryFilledCount = useMemo(
+    () => summaryCardMetrics.reduce((acc, metric) => acc + (metric === null ? 0 : 1), 0),
+    [summaryCardMetrics]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -800,6 +824,22 @@ export function App() {
         prev.map((item) => (item.id === id ? { ...item, menuVisible: false, menuClosing: false, read: true } : item))
       );
     }, NOTIFICATION_CLOSE_ANIMATION_MS);
+  }
+
+  function applySummaryMetricDrop(sourceIndex: number, targetIndex: number) {
+    setSummaryCardMetrics((prev) => {
+      const fromIndex = Math.max(0, Math.min(sourceIndex, prev.length - 1));
+      const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      if (fromIndex === toIndex) return prev;
+      if (prev[fromIndex] === null) return prev;
+      const next = [...prev];
+      const source = next[fromIndex];
+      next[fromIndex] = next[toIndex];
+      next[toIndex] = source;
+      return next;
+    });
+    setSummaryDragIndex(null);
+    setSummaryDropTargetIndex(null);
   }
 
   const statusFilterOptions = useMemo(
@@ -2860,31 +2900,43 @@ export function App() {
             <div className="stats-floating-settings-panel">
               <div className="stats-floating-settings-group">
                 <strong>Karty KPI</strong>
-                {summaryCardMetrics.map((metric, index) => (
-                  <label key={`kpi-slot-${index}`}>
-                    <span>{`Karta ${index + 1}`}</span>
-                    <select
-                      value={metric}
-                      onChange={(event) =>
-                        setSummaryCardMetrics((prev) =>
-                          prev.map((entry, slotIndex) =>
-                            slotIndex === index ? (event.target.value as SummaryMetricKey) : entry
-                          )
-                        )
-                      }
-                    >
-                      {summaryMetricOptions.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
+                <p className="stats-kpi-drag-hint">Zaznacz, ktore metryki maja byc widoczne na panelu.</p>
+                <div className="stats-kpi-visibility-list">
+                  {summaryMetricOptions.map((metric) => {
+                    const checked = summaryCardMetrics.includes(metric.key);
+                    return (
+                      <label key={`kpi-visibility-${metric.key}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            if (event.target.checked) {
+                              setSummaryCardMetrics((prev) => {
+                                if (prev.includes(metric.key)) return prev;
+                                const emptySlotIndex = prev.findIndex((entry) => entry === null);
+                                if (emptySlotIndex === -1) return prev;
+                                const next = [...prev];
+                                next[emptySlotIndex] = metric.key;
+                                return next;
+                              });
+                              return;
+                            }
+                            setSummaryCardMetrics((prev) => prev.map((entry) => (entry === metric.key ? null : entry)));
+                          }}
+                        />
+                        <span>{metric.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
                 <button
                   type="button"
                   className="ghost-btn"
-                  onClick={() => setSummaryCardMetrics([...DEFAULT_SUMMARY_METRICS])}
+                  onClick={() => {
+                    setSummaryCardMetrics(createDefaultSummarySlots());
+                    setSummaryDragIndex(null);
+                    setSummaryDropTargetIndex(null);
+                  }}
                 >
                   Reset KPI
                 </button>
@@ -3282,17 +3334,62 @@ export function App() {
           ) : (
             <>
               {statsVisibility.summary ? (
-                <div className="stats-grid stats-summary-grid">
-                  {summaryCardMetrics.map((metricKey, index) => {
-                    const metric = summaryMetricMap.get(metricKey);
-                    if (!metric) return null;
+                <div className={`stats-grid stats-summary-grid ${summaryDragIndex !== null ? "is-dragging" : ""}`}>
+                  {summaryDisplaySlots.map(({ metricKey, slotIndex, isEmpty }) => {
+                    const metric = metricKey ? summaryMetricMap.get(metricKey) : null;
+                    const isFilled = !isEmpty && Boolean(metricKey && metric);
+                    const isDragging = summaryDragIndex === slotIndex;
+                    const isDropTarget = summaryDropTargetIndex === slotIndex;
+                    const isHiddenEmpty = isEmpty && summaryDragIndex === null;
                     return (
-                      <article className="stats-box" key={`summary-metric-${index}-${metricKey}`}>
-                        <strong>{metric.value}</strong>
-                        <span>{metric.label}</span>
+                      <article
+                        className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`}
+                        key={`summary-metric-${slotIndex}-${metricKey || "empty"}`}
+                        draggable={isFilled}
+                        onDragStart={(event) => {
+                          if (!isFilled || !metricKey) return;
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData(SUMMARY_DND_SLOT_MIME, String(slotIndex));
+                          event.dataTransfer.setData("text/plain", metricKey);
+                          setSummaryDragIndex(slotIndex);
+                          setSummaryDropTargetIndex(slotIndex);
+                        }}
+                        onDragOver={(event) => {
+                          if (summaryDragIndex === null) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          setSummaryDropTargetIndex(slotIndex);
+                        }}
+                        onDragEnter={(event) => {
+                          if (summaryDragIndex === null) return;
+                          event.preventDefault();
+                          if (summaryDropTargetIndex !== slotIndex) setSummaryDropTargetIndex(slotIndex);
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const rawSource = event.dataTransfer.getData(SUMMARY_DND_SLOT_MIME);
+                          const parsed = Number(rawSource);
+                          const sourceIndex = Number.isInteger(parsed) ? parsed : summaryDragIndex;
+                          if (sourceIndex === null) return;
+                          applySummaryMetricDrop(sourceIndex, slotIndex);
+                        }}
+                        onDragEnd={() => {
+                          setSummaryDragIndex(null);
+                          setSummaryDropTargetIndex(null);
+                        }}
+                      >
+                        {metric ? (
+                          <>
+                            <strong>{metric.value}</strong>
+                            <span>{metric.label}</span>
+                          </>
+                        ) : (
+                          <span className="stats-box-empty-label" />
+                        )}
                       </article>
                     );
                   })}
+                  {summaryDragIndex === null && summaryFilledCount === 0 ? <p className="hint">-</p> : null}
                 </div>
               ) : null}
               <div className="stats-grid">
