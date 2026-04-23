@@ -597,7 +597,10 @@ export function App() {
   const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
   const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
   const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
+  const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
+  const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
   const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
+  const statsLayoutEditBaselineRef = useRef<Array<StatsWidgetKey | null> | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
@@ -816,7 +819,6 @@ export function App() {
   useEffect(() => {
     if (activeTopTab !== "stats") {
       setShowStatsNavSettings(false);
-      setStatsLayoutEditMode(false);
     }
   }, [activeTopTab]);
 
@@ -824,6 +826,8 @@ export function App() {
     if (statsLayoutEditMode) return;
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
   }, [statsLayoutEditMode]);
 
@@ -918,6 +922,8 @@ export function App() {
     });
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
   }
 
@@ -936,6 +942,8 @@ export function App() {
     });
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
   }
 
@@ -1117,11 +1125,91 @@ export function App() {
   }
 
   function toggleEditorMode() {
+    function hasStatsLayoutDraftChanges() {
+      const baseline = statsLayoutEditBaselineRef.current;
+      if (!baseline) return false;
+      if (baseline.length !== statsLayoutSlots.length) return true;
+      for (let index = 0; index < baseline.length; index += 1) {
+        if (baseline[index] !== statsLayoutSlots[index]) return true;
+      }
+      return false;
+    }
+
+    function stopStatsLayoutEditModeWithPrompt(promptOnDirty: boolean) {
+      if (!statsLayoutEditMode) {
+        statsLayoutEditBaselineRef.current = null;
+        setShowStatsNavSettings(false);
+        return true;
+      }
+      if (promptOnDirty && hasStatsLayoutDraftChanges()) {
+        const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+        if (!shouldDiscard) return false;
+        if (statsLayoutEditBaselineRef.current) {
+          setStatsLayoutSlots([...statsLayoutEditBaselineRef.current]);
+        }
+      }
+      setStatsLayoutEditMode(false);
+      setShowStatsNavSettings(false);
+      statsLayoutEditBaselineRef.current = null;
+      return true;
+    }
+
+    if (activeTopTab === "stats") {
+      if (statsLayoutEditMode) {
+        const stopped = stopStatsLayoutEditModeWithPrompt(true);
+        if (!stopped) return;
+        setStatusMessage(t.editorModeDisabled);
+      } else {
+        statsLayoutEditBaselineRef.current = [...statsLayoutSlots];
+        setStatsLayoutEditMode(true);
+        setShowStatsNavSettings(true);
+        setStatusMessage(t.editorModeEnabled);
+      }
+      return;
+    }
     setEditorMode((prev) => {
       const next = !prev;
       setStatusMessage(next ? t.editorModeEnabled : t.editorModeDisabled);
       return next;
     });
+  }
+
+  function handleTopTabChange(nextTab: TopTab) {
+    if (nextTab === activeTopTab) return;
+
+    if (editingSelectedOffer && isSelectedOfferDirty) {
+      const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+      if (!shouldDiscard) return;
+      closeOfferDetails();
+    }
+
+    if (activeTopTab === "offers" && editorMode) {
+      setEditorMode(false);
+    }
+
+    if (activeTopTab === "stats" && statsLayoutEditMode) {
+      const baseline = statsLayoutEditBaselineRef.current;
+      let hasStatsDraftChanges = false;
+      if (baseline && baseline.length === statsLayoutSlots.length) {
+        hasStatsDraftChanges = baseline.some((value, index) => value !== statsLayoutSlots[index]);
+      } else if (baseline) {
+        hasStatsDraftChanges = true;
+      }
+
+      if (hasStatsDraftChanges) {
+        const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+        if (!shouldDiscard) return;
+        if (baseline) {
+          setStatsLayoutSlots([...baseline]);
+        }
+      }
+
+      setStatsLayoutEditMode(false);
+      setShowStatsNavSettings(false);
+      statsLayoutEditBaselineRef.current = null;
+    }
+
+    setActiveTopTab(nextTab);
   }
 
   function toggleRowSelection(offer: Offer) {
@@ -2783,14 +2871,14 @@ export function App() {
           <button
             type="button"
             className={`ghost-btn nav-btn ${activeTopTab === "offers" ? "nav-btn--active" : ""}`}
-            onClick={() => setActiveTopTab("offers")}
+            onClick={() => handleTopTabChange("offers")}
           >
             {t.offers}
           </button>
           <button
             type="button"
             className={`ghost-btn nav-btn ${activeTopTab === "stats" ? "nav-btn--active" : ""}`}
-            onClick={() => setActiveTopTab("stats")}
+            onClick={() => handleTopTabChange("stats")}
           >
             {t.stats}
           </button>
@@ -2801,11 +2889,11 @@ export function App() {
             <>
               <button
                 type="button"
-                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${editorMode ? "is-active edit-offer-btn--mode" : ""}`}
+                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${((activeTopTab === "stats" ? statsLayoutEditMode : editorMode) ? "is-active edit-offer-btn--mode" : "")}`}
                 onClick={toggleEditorMode}
                 aria-label={t.edit}
               >
-                {editorMode ? (
+                {(activeTopTab === "stats" ? statsLayoutEditMode : editorMode) ? (
                   <span className="edit-mode-label">{t.editorModeLabel}</span>
                 ) : (
                   <>
@@ -2996,22 +3084,20 @@ export function App() {
           <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
             <div className="stats-drawer__section">
               <strong>Biblioteka Widgetow</strong>
-              <button
-                type="button"
-                className={`ghost-btn ${statsLayoutEditMode ? "is-active" : ""}`}
-                onClick={() => setStatsLayoutEditMode((prev) => !prev)}
-              >
-                {statsLayoutEditMode ? "Wylacz tryb edycji layoutu" : "Wlacz tryb edycji layoutu"}
-              </button>
-              <p className="stats-kpi-drag-hint">Przeciagnij widget na siatke po lewej. Uklad zapisuje sie automatycznie.</p>
+              <p className="stats-kpi-drag-hint">Przeciagnij widget albo kliknij widget, potem kliknij slot. Uklad zapisuje sie automatycznie.</p>
               <div className="stats-kpi-library">
                 {statsWidgetOptions.map((widget) => (
                   <button
                     key={`kpi-lib-${widget.key}`}
                     type="button"
-                    className="ghost-btn stats-kpi-library-item"
+                    className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""}`}
                     draggable={statsLayoutEditMode}
                     disabled={!statsLayoutEditMode}
+                    onClick={() => {
+                      if (!statsLayoutEditMode) return;
+                      setStatsLayoutSelectedSlotIndex(null);
+                      setStatsLayoutSelectedLibraryWidgetKey((prev) => (prev === widget.key ? null : widget.key));
+                    }}
                     onDragStart={(event) => {
                       if (!statsLayoutEditMode) return;
                       event.dataTransfer.effectAllowed = "copyMove";
@@ -3020,10 +3106,13 @@ export function App() {
                       const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
                       statsLayoutDragRef.current = nextState;
                       setStatsLayoutDragState(nextState);
+                      setStatsLayoutSelectedSlotIndex(null);
+                      setStatsLayoutSelectedLibraryWidgetKey(widget.key);
                     }}
                     onDragEnd={() => {
                       setStatsLayoutDragState(null);
                       setStatsLayoutDropTargetIndex(null);
+                      setStatsLayoutSelectedLibraryWidgetKey(null);
                       statsLayoutDragRef.current = null;
                     }}
                   >
@@ -3067,6 +3156,8 @@ export function App() {
                   setStatsLayoutSlots(createDefaultStatsLayoutSlots());
                   setStatsLayoutDragState(null);
                   setStatsLayoutDropTargetIndex(null);
+                  setStatsLayoutSelectedSlotIndex(null);
+                  setStatsLayoutSelectedLibraryWidgetKey(null);
                   statsLayoutDragRef.current = null;
                 }}
               >
@@ -3462,14 +3553,18 @@ export function App() {
         </section>
         )
       ) : (
-        <section className="card" id="stats">
+        <section className={`card ${offers.length === 0 ? "stats-empty-card" : ""}`} id="stats">
+          {offers.length === 0 ? (
+            <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
+          ) : (
           <div className={`stats-grid stats-summary-grid ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
             {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
               const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
               const isFilled = !isEmpty && Boolean(widgetKey && widget);
               const isDragging = statsLayoutDragState?.source === "slot" && statsLayoutDragState.index === slotIndex;
               const isDropTarget = statsLayoutDropTargetIndex === slotIndex;
-              const isHiddenEmpty = isEmpty && (!statsLayoutEditMode || statsLayoutDragState === null);
+              const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
+              const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
               const isWidgetVisible =
                 widgetKey === null
                   ? false
@@ -3485,7 +3580,7 @@ export function App() {
 
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${!isWidgetVisible && isFilled ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${!statsLayoutEditMode && !isWidgetVisible && isFilled ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
                   key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
                   draggable={isFilled && statsLayoutEditMode}
                   onDragStart={(event) => {
@@ -3497,6 +3592,8 @@ export function App() {
                     statsLayoutDragRef.current = nextState;
                     setStatsLayoutDragState(nextState);
                     setStatsLayoutDropTargetIndex(slotIndex);
+                    setStatsLayoutSelectedSlotIndex(slotIndex);
+                    setStatsLayoutSelectedLibraryWidgetKey(null);
                   }}
                   onDragOver={(event) => {
                     if (!statsLayoutEditMode) return;
@@ -3521,6 +3618,14 @@ export function App() {
                         return;
                       }
                     }
+                    const fallbackLibraryKey =
+                      statsLayoutDragRef.current?.source === "library"
+                        ? statsLayoutDragRef.current.widgetKey
+                        : null;
+                    if (fallbackLibraryKey && statsWidgetOptions.some((entry) => entry.key === fallbackLibraryKey)) {
+                      applyStatsLayoutFromLibrary(fallbackLibraryKey, slotIndex);
+                      return;
+                    }
                     const rawSource = event.dataTransfer.getData(SUMMARY_DND_SLOT_MIME);
                     const parsed = Number(rawSource);
                     const sourceIndex =
@@ -3535,7 +3640,27 @@ export function App() {
                   onDragEnd={() => {
                     setStatsLayoutDragState(null);
                     setStatsLayoutDropTargetIndex(null);
+                    setStatsLayoutSelectedSlotIndex(null);
+                    setStatsLayoutSelectedLibraryWidgetKey(null);
                     statsLayoutDragRef.current = null;
+                  }}
+                  onClickCapture={() => {
+                    if (!statsLayoutEditMode) return;
+                    if (statsLayoutSelectedLibraryWidgetKey) {
+                      applyStatsLayoutFromLibrary(statsLayoutSelectedLibraryWidgetKey, slotIndex);
+                      return;
+                    }
+                    if (statsLayoutSelectedSlotIndex === null) {
+                      if (!isFilled) return;
+                      setStatsLayoutSelectedSlotIndex(slotIndex);
+                      setStatsLayoutSelectedLibraryWidgetKey(null);
+                      return;
+                    }
+                    if (statsLayoutSelectedSlotIndex === slotIndex) {
+                      setStatsLayoutSelectedSlotIndex(null);
+                      return;
+                    }
+                    applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
                   }}
                 >
                   {widget?.kind === "summary" ? (
@@ -3633,6 +3758,7 @@ export function App() {
             })}
             {statsLayoutDragState === null && statsLayoutFilledCount === 0 ? <p className="hint">-</p> : null}
           </div>
+          )}
         </section>
       )}
 

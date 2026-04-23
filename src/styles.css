@@ -235,6 +235,12 @@ body {
   cursor: not-allowed;
 }
 
+.stats-kpi-library-item.is-selected-source {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45) inset;
+  background: color-mix(in srgb, #38bdf8 14%, var(--surface) 86%);
+}
+
 .stats-drawer .ghost-btn.is-active {
   border-color: #2563eb;
   background: color-mix(in srgb, #2563eb 18%, var(--surface) 82%);
@@ -255,8 +261,23 @@ body {
   background: color-mix(in srgb, #2563eb 12%, var(--surface-2) 88%);
 }
 
+.stats-box--draggable.is-selected-source {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45) inset;
+}
+
 .stats-box--draggable.is-dragging {
   opacity: 0.48;
+}
+
+.stats-box--layout-editing {
+  position: relative;
+}
+
+/* In layout edit mode charts should not capture pointer interactions, so dragging the tile works consistently. */
+.stats-box--layout-editing.stats-box--chart-widget .recharts-wrapper,
+.stats-box--layout-editing.stats-box--chart-widget .recharts-wrapper * {
+  pointer-events: none;
 }
 
 .stats-summary-grid.is-dragging .stats-box {
@@ -274,7 +295,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--surface-2) 82%, #000 18%);
+  background: color-mix(in srgb, var(--surface-2) 88%, #000 12%);
 }
 
 .stats-box--hidden-empty-slot {
