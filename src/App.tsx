@@ -116,6 +116,12 @@ type SummaryMetricKey =
   | "invitationOffers"
   | "rejectedOffers"
   | "sourceTypes";
+type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
+type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
+type StatsLayoutDragState =
+  | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
+  | { source: "library"; widgetKey: StatsWidgetKey }
+  | null;
 
 type ThemeMode = "auto" | "light" | "dark";
 type SettingsTab = "general" | "notifications" | "preferences" | "about";
@@ -178,13 +184,26 @@ const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
   "avgDaysLeft",
   "recentApplications",
 ];
-const SUMMARY_SLOT_COUNT = 8;
+const STATS_LAYOUT_SLOT_COUNT = 12;
 const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
+const SUMMARY_DND_METRIC_MIME = "application/x-applymanager-summary-metric";
 
-function createDefaultSummarySlots(): Array<SummaryMetricKey | null> {
-  const slots: Array<SummaryMetricKey | null> = Array.from({ length: SUMMARY_SLOT_COUNT }, () => null);
-  DEFAULT_SUMMARY_METRICS.forEach((metric, index) => {
-    if (index < slots.length) slots[index] = metric;
+function createDefaultStatsLayoutSlots(): Array<StatsWidgetKey | null> {
+  const slots: Array<StatsWidgetKey | null> = Array.from({ length: STATS_LAYOUT_SLOT_COUNT }, () => null);
+  const defaults: StatsWidgetKey[] = [
+    "totalOffers",
+    "appliedOffers",
+    "activeOffers",
+    "expiredOffers",
+    "avgDaysLeft",
+    "recentApplications",
+    "chartTrend",
+    "chartInvitesRead",
+    "chartStatus",
+    "chartSource",
+  ];
+  defaults.forEach((key, index) => {
+    if (index < slots.length) slots[index] = key;
   });
   return slots;
 }
@@ -557,9 +576,28 @@ export function App() {
     status: true,
     source: true,
   });
-  const [summaryCardMetrics, setSummaryCardMetrics] = useState<Array<SummaryMetricKey | null>>(createDefaultSummarySlots);
-  const [summaryDragIndex, setSummaryDragIndex] = useState<number | null>(null);
-  const [summaryDropTargetIndex, setSummaryDropTargetIndex] = useState<number | null>(null);
+  const [statsLayoutSlots, setStatsLayoutSlots] = useState<Array<StatsWidgetKey | null>>(() => {
+    if (typeof window === "undefined") return createDefaultStatsLayoutSlots();
+    try {
+      const raw = window.localStorage.getItem("statsLayoutSlots");
+      if (!raw) return createDefaultStatsLayoutSlots();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return createDefaultStatsLayoutSlots();
+      const slots = createDefaultStatsLayoutSlots();
+      for (let index = 0; index < Math.min(parsed.length, slots.length); index += 1) {
+        const value = parsed[index];
+        if (typeof value === "string") slots[index] = value as StatsWidgetKey;
+        if (value === null) slots[index] = null;
+      }
+      return slots;
+    } catch {
+      return createDefaultStatsLayoutSlots();
+    }
+  });
+  const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
+  const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
+  const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
+  const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
@@ -722,6 +760,24 @@ export function App() {
       { key: "sourceTypes", label: t.sourceTypes, value: String(sourceTypes) },
     ] as Array<{ key: SummaryMetricKey; label: string; value: string }>;
   }, [offers, stats, t]);
+  const chartWidgetOptions = useMemo(
+    () =>
+      [
+        { key: "chartTrend", label: "Naplyw ofert (30 dni)", value: "-" },
+        { key: "chartInvitesRead", label: "Zaproszenia i odczytane", value: "-" },
+        { key: "chartStatus", label: t.statusBreakdown, value: "-" },
+        { key: "chartSource", label: t.sourceBreakdown, value: "-" },
+      ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
+    [t]
+  );
+  const statsWidgetOptions = useMemo(
+    () =>
+      [
+        ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const })),
+        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const })),
+      ] as Array<{ key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" }>,
+    [summaryMetricOptions, chartWidgetOptions]
+  );
   const summaryMetricMap = useMemo(
     () =>
       new Map<SummaryMetricKey, { label: string; value: string }>(
@@ -729,17 +785,26 @@ export function App() {
       ),
     [summaryMetricOptions]
   );
-  const summaryDisplaySlots = useMemo(() => {
-    const allSlots = summaryCardMetrics.map((metricKey, slotIndex) => ({
-      metricKey,
+  const statsWidgetMap = useMemo(
+    () =>
+      new Map<StatsWidgetKey, { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" }>(
+        statsWidgetOptions.map((entry) => [
+          entry.key,
+          { key: entry.key, label: entry.label, value: entry.value, kind: entry.kind },
+        ])
+      ),
+    [statsWidgetOptions]
+  );
+  const statsLayoutDisplaySlots = useMemo(() => {
+    return statsLayoutSlots.map((widgetKey, slotIndex) => ({
+      widgetKey,
       slotIndex,
-      isEmpty: metricKey === null,
+      isEmpty: widgetKey === null,
     }));
-    return allSlots;
-  }, [summaryCardMetrics, summaryDragIndex]);
-  const summaryFilledCount = useMemo(
-    () => summaryCardMetrics.reduce((acc, metric) => acc + (metric === null ? 0 : 1), 0),
-    [summaryCardMetrics]
+  }, [statsLayoutSlots]);
+  const statsLayoutFilledCount = useMemo(
+    () => statsLayoutSlots.reduce((acc, widget) => acc + (widget === null ? 0 : 1), 0),
+    [statsLayoutSlots]
   );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
@@ -751,8 +816,16 @@ export function App() {
   useEffect(() => {
     if (activeTopTab !== "stats") {
       setShowStatsNavSettings(false);
+      setStatsLayoutEditMode(false);
     }
   }, [activeTopTab]);
+
+  useEffect(() => {
+    if (statsLayoutEditMode) return;
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    statsLayoutDragRef.current = null;
+  }, [statsLayoutEditMode]);
 
   useEffect(() => {
     if (!showStatsNavSettings) return;
@@ -765,6 +838,11 @@ export function App() {
     window.addEventListener("mousedown", handleClickOutside);
     return () => window.removeEventListener("mousedown", handleClickOutside);
   }, [showStatsNavSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("statsLayoutSlots", JSON.stringify(statsLayoutSlots));
+  }, [statsLayoutSlots]);
 
   function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
@@ -826,8 +904,8 @@ export function App() {
     }, NOTIFICATION_CLOSE_ANIMATION_MS);
   }
 
-  function applySummaryMetricDrop(sourceIndex: number, targetIndex: number) {
-    setSummaryCardMetrics((prev) => {
+  function applyStatsLayoutDrop(sourceIndex: number, targetIndex: number) {
+    setStatsLayoutSlots((prev) => {
       const fromIndex = Math.max(0, Math.min(sourceIndex, prev.length - 1));
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
       if (fromIndex === toIndex) return prev;
@@ -838,8 +916,27 @@ export function App() {
       next[toIndex] = source;
       return next;
     });
-    setSummaryDragIndex(null);
-    setSummaryDropTargetIndex(null);
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    statsLayoutDragRef.current = null;
+  }
+
+  function applyStatsLayoutFromLibrary(widgetKey: StatsWidgetKey, targetIndex: number) {
+    setStatsLayoutSlots((prev) => {
+      const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      const existingIndex = prev.findIndex((entry) => entry === widgetKey);
+      const next = [...prev];
+      if (existingIndex === toIndex) return prev;
+      if (existingIndex !== -1) {
+        const targetValue = next[toIndex];
+        next[existingIndex] = targetValue === widgetKey ? null : targetValue;
+      }
+      next[toIndex] = widgetKey;
+      return next;
+    });
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    statsLayoutDragRef.current = null;
   }
 
   const statusFilterOptions = useMemo(
@@ -2886,61 +2983,98 @@ export function App() {
         />
       ) : null}
       {activeTopTab === "stats" ? (
-        <div className="stats-floating-settings" ref={statsNavSettingsRef}>
+        <div className="stats-drawer-shell" ref={statsNavSettingsRef}>
           <button
             type="button"
-            className={`ghost-btn stats-floating-settings-btn ${showStatsNavSettings ? "is-open" : ""}`}
+            className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""}`}
             onClick={() => setShowStatsNavSettings((prev) => !prev)}
             aria-label="Ustawienia statystyk"
             title="Ustawienia statystyk"
           >
-            📊
+            {showStatsNavSettings ? "✕" : "📊"}
           </button>
-          {showStatsNavSettings ? (
-            <div className="stats-floating-settings-panel">
-              <div className="stats-floating-settings-group">
-                <strong>Karty KPI</strong>
-                <p className="stats-kpi-drag-hint">Zaznacz, ktore metryki maja byc widoczne na panelu.</p>
-                <div className="stats-kpi-visibility-list">
-                  {summaryMetricOptions.map((metric) => {
-                    const checked = summaryCardMetrics.includes(metric.key);
-                    return (
-                      <label key={`kpi-visibility-${metric.key}`}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) => {
-                            if (event.target.checked) {
-                              setSummaryCardMetrics((prev) => {
-                                if (prev.includes(metric.key)) return prev;
-                                const emptySlotIndex = prev.findIndex((entry) => entry === null);
-                                if (emptySlotIndex === -1) return prev;
-                                const next = [...prev];
-                                next[emptySlotIndex] = metric.key;
-                                return next;
-                              });
-                              return;
-                            }
-                            setSummaryCardMetrics((prev) => prev.map((entry) => (entry === metric.key ? null : entry)));
-                          }}
-                        />
-                        <span>{metric.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => {
-                    setSummaryCardMetrics(createDefaultSummarySlots());
-                    setSummaryDragIndex(null);
-                    setSummaryDropTargetIndex(null);
-                  }}
-                >
-                  Reset KPI
-                </button>
+          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
+            <div className="stats-drawer__section">
+              <strong>Biblioteka Widgetow</strong>
+              <button
+                type="button"
+                className={`ghost-btn ${statsLayoutEditMode ? "is-active" : ""}`}
+                onClick={() => setStatsLayoutEditMode((prev) => !prev)}
+              >
+                {statsLayoutEditMode ? "Wylacz tryb edycji layoutu" : "Wlacz tryb edycji layoutu"}
+              </button>
+              <p className="stats-kpi-drag-hint">Przeciagnij widget na siatke po lewej. Uklad zapisuje sie automatycznie.</p>
+              <div className="stats-kpi-library">
+                {statsWidgetOptions.map((widget) => (
+                  <button
+                    key={`kpi-lib-${widget.key}`}
+                    type="button"
+                    className="ghost-btn stats-kpi-library-item"
+                    draggable={statsLayoutEditMode}
+                    disabled={!statsLayoutEditMode}
+                    onDragStart={(event) => {
+                      if (!statsLayoutEditMode) return;
+                      event.dataTransfer.effectAllowed = "copyMove";
+                      event.dataTransfer.setData(SUMMARY_DND_METRIC_MIME, widget.key);
+                      event.dataTransfer.setData("text/plain", widget.label);
+                      const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
+                      statsLayoutDragRef.current = nextState;
+                      setStatsLayoutDragState(nextState);
+                    }}
+                    onDragEnd={() => {
+                      setStatsLayoutDragState(null);
+                      setStatsLayoutDropTargetIndex(null);
+                      statsLayoutDragRef.current = null;
+                    }}
+                  >
+                    <span className="stats-kpi-library-item__title">{widget.label}</span>
+                    <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
+                  </button>
+                ))}
               </div>
+              <div className="stats-kpi-visibility-list">
+                {statsWidgetOptions.map((widget) => {
+                  const checked = statsLayoutSlots.includes(widget.key);
+                  return (
+                    <label key={`kpi-visibility-${widget.key}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          if (event.target.checked) {
+                            setStatsLayoutSlots((prev) => {
+                              if (prev.includes(widget.key)) return prev;
+                              const emptySlotIndex = prev.findIndex((entry) => entry === null);
+                              if (emptySlotIndex === -1) return prev;
+                              const next = [...prev];
+                              next[emptySlotIndex] = widget.key;
+                              return next;
+                            });
+                            return;
+                          }
+                          setStatsLayoutSlots((prev) => prev.map((entry) => (entry === widget.key ? null : entry)));
+                        }}
+                      />
+                      <span>{widget.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  setStatsLayoutSlots(createDefaultStatsLayoutSlots());
+                  setStatsLayoutDragState(null);
+                  setStatsLayoutDropTargetIndex(null);
+                  statsLayoutDragRef.current = null;
+                }}
+              >
+                Reset Layout
+              </button>
+            </div>
+            <div className="stats-drawer__section">
+              <strong>Wykresy</strong>
               <label>
                 <input
                   type="checkbox"
@@ -2992,7 +3126,7 @@ export function App() {
                 <span>Rozklad zrodel</span>
               </label>
             </div>
-          ) : null}
+          </aside>
         </div>
       ) : null}
       {visibleCenterNotifications.length > 0 ? (
@@ -3328,174 +3462,177 @@ export function App() {
         </section>
         )
       ) : (
-        <section className={`card ${stats.totalOffers === 0 ? "stats-empty-card" : ""}`} id="stats">
-          {stats.totalOffers === 0 ? (
-            <p className="stats-empty-state">Tu jeszcze nic nie ma 😏</p>
-          ) : (
-            <>
-              {statsVisibility.summary ? (
-                <div className={`stats-grid stats-summary-grid ${summaryDragIndex !== null ? "is-dragging" : ""}`}>
-                  {summaryDisplaySlots.map(({ metricKey, slotIndex, isEmpty }) => {
-                    const metric = metricKey ? summaryMetricMap.get(metricKey) : null;
-                    const isFilled = !isEmpty && Boolean(metricKey && metric);
-                    const isDragging = summaryDragIndex === slotIndex;
-                    const isDropTarget = summaryDropTargetIndex === slotIndex;
-                    const isHiddenEmpty = isEmpty && summaryDragIndex === null;
-                    return (
-                      <article
-                        className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`}
-                        key={`summary-metric-${slotIndex}-${metricKey || "empty"}`}
-                        draggable={isFilled}
-                        onDragStart={(event) => {
-                          if (!isFilled || !metricKey) return;
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData(SUMMARY_DND_SLOT_MIME, String(slotIndex));
-                          event.dataTransfer.setData("text/plain", metricKey);
-                          setSummaryDragIndex(slotIndex);
-                          setSummaryDropTargetIndex(slotIndex);
-                        }}
-                        onDragOver={(event) => {
-                          if (summaryDragIndex === null) return;
-                          event.preventDefault();
-                          event.dataTransfer.dropEffect = "move";
-                          setSummaryDropTargetIndex(slotIndex);
-                        }}
-                        onDragEnter={(event) => {
-                          if (summaryDragIndex === null) return;
-                          event.preventDefault();
-                          if (summaryDropTargetIndex !== slotIndex) setSummaryDropTargetIndex(slotIndex);
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          const rawSource = event.dataTransfer.getData(SUMMARY_DND_SLOT_MIME);
-                          const parsed = Number(rawSource);
-                          const sourceIndex = Number.isInteger(parsed) ? parsed : summaryDragIndex;
-                          if (sourceIndex === null) return;
-                          applySummaryMetricDrop(sourceIndex, slotIndex);
-                        }}
-                        onDragEnd={() => {
-                          setSummaryDragIndex(null);
-                          setSummaryDropTargetIndex(null);
-                        }}
-                      >
-                        {metric ? (
-                          <>
-                            <strong>{metric.value}</strong>
-                            <span>{metric.label}</span>
-                          </>
-                        ) : (
-                          <span className="stats-box-empty-label" />
-                        )}
-                      </article>
-                    );
-                  })}
-                  {summaryDragIndex === null && summaryFilledCount === 0 ? <p className="hint">-</p> : null}
-                </div>
-              ) : null}
-              <div className="stats-grid">
-                {statsVisibility.trend ? (
-                  <article className="card stats-chart-card">
-                    <h3>Naplyw ofert (30 ostatnich dni z danymi)</h3>
-                    {trendOffersData.length === 0 ? (
-                      <p className="hint">-</p>
-                    ) : (
-                      <div className="stats-chart-wrap">
-                        <ResponsiveContainer width="100%" height={260}>
-                          <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </article>
-                ) : null}
-                {statsVisibility.invitesRead ? (
-                  <article className="card stats-chart-card">
-                    <h3>Zaproszenia i odczytane (dziennie)</h3>
-                    {invitationsReadTrendData.length === 0 ? (
-                      <p className="hint">-</p>
-                    ) : (
-                      <div className="stats-chart-wrap">
-                        <ResponsiveContainer width="100%" height={260}>
-                          <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: 12 }} />
-                            <Line
-                              type="monotone"
-                              dataKey="invitations"
-                              name="Zaproszenia"
-                              stroke="#f59e0b"
-                              strokeWidth={2.5}
-                              dot={{ r: 3 }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="read"
-                              name="Odczytane"
-                              stroke="#ec4899"
-                              strokeWidth={2.5}
-                              dot={{ r: 3 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </article>
-                ) : null}
-                {statsVisibility.status ? (
-                  <article className="card stats-chart-card">
-                    <h3>{t.statusBreakdown}</h3>
-                    {statusChartData.length === 0 ? (
-                      <p className="hint">-</p>
-                    ) : (
-                      <div className="stats-chart-wrap">
-                        <ResponsiveContainer width="100%" height={260}>
-                          <BarChart data={statusChartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Bar dataKey="count" radius={[7, 7, 0, 0]}>
-                              {statusChartData.map((entry, index) => (
-                                <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
+        <section className="card" id="stats">
+          <div className={`stats-grid stats-summary-grid ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
+            {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
+              const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
+              const isFilled = !isEmpty && Boolean(widgetKey && widget);
+              const isDragging = statsLayoutDragState?.source === "slot" && statsLayoutDragState.index === slotIndex;
+              const isDropTarget = statsLayoutDropTargetIndex === slotIndex;
+              const isHiddenEmpty = isEmpty && (!statsLayoutEditMode || statsLayoutDragState === null);
+              const isWidgetVisible =
+                widgetKey === null
+                  ? false
+                  : widgetKey === "chartTrend"
+                    ? statsVisibility.trend
+                    : widgetKey === "chartInvitesRead"
+                      ? statsVisibility.invitesRead
+                      : widgetKey === "chartStatus"
+                        ? statsVisibility.status
+                        : widgetKey === "chartSource"
+                          ? statsVisibility.source
+                          : statsVisibility.summary;
+
+              return (
+                <article
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${!isWidgetVisible && isFilled ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`}
+                  key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
+                  draggable={isFilled && statsLayoutEditMode}
+                  onDragStart={(event) => {
+                    if (!statsLayoutEditMode || !isFilled || !widgetKey) return;
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData(SUMMARY_DND_SLOT_MIME, String(slotIndex));
+                    event.dataTransfer.setData("text/plain", widgetKey);
+                    const nextState: StatsLayoutDragState = { source: "slot", index: slotIndex, widgetKey };
+                    statsLayoutDragRef.current = nextState;
+                    setStatsLayoutDragState(nextState);
+                    setStatsLayoutDropTargetIndex(slotIndex);
+                  }}
+                  onDragOver={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                  }}
+                  onDragEnter={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                  }}
+                  onDrop={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    const rawMetric = event.dataTransfer.getData(SUMMARY_DND_METRIC_MIME);
+                    if (rawMetric) {
+                      const metricKey = rawMetric as StatsWidgetKey;
+                      const isKnownMetric = statsWidgetOptions.some((entry) => entry.key === metricKey);
+                      if (isKnownMetric) {
+                        applyStatsLayoutFromLibrary(metricKey, slotIndex);
+                        return;
+                      }
+                    }
+                    const rawSource = event.dataTransfer.getData(SUMMARY_DND_SLOT_MIME);
+                    const parsed = Number(rawSource);
+                    const sourceIndex =
+                      Number.isInteger(parsed) && parsed >= 0
+                        ? parsed
+                        : statsLayoutDragRef.current?.source === "slot"
+                          ? statsLayoutDragRef.current.index
+                          : null;
+                    if (sourceIndex === null) return;
+                    applyStatsLayoutDrop(sourceIndex, slotIndex);
+                  }}
+                  onDragEnd={() => {
+                    setStatsLayoutDragState(null);
+                    setStatsLayoutDropTargetIndex(null);
+                    statsLayoutDragRef.current = null;
+                  }}
+                >
+                  {widget?.kind === "summary" ? (
+                    <>
+                      <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
+                      <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
+                    </>
+                  ) : widget?.key === "chartTrend" ? (
+                    <>
+                      <h3>Naplyw ofert (30 dni)</h3>
+                      {trendOffersData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip />
+                              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartInvitesRead" ? (
+                    <>
+                      <h3>Zaproszenia i odczytane</h3>
+                      {invitationsReadTrendData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                              <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartStatus" ? (
+                    <>
+                      <h3>{t.statusBreakdown}</h3>
+                      {statusChartData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={statusChartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip />
+                              <Bar dataKey="count" radius={[7, 7, 0, 0]}>
+                                {statusChartData.map((entry, index) => (
+                                  <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartSource" ? (
+                    <>
+                      <h3>{t.sourceBreakdown}</h3>
+                      {sourceChartData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <PieChart>
+                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false} />
+                              {sourceChartData.map((entry, index) => (
+                                <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                               ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </article>
-                ) : null}
-                {statsVisibility.source ? (
-                  <article className="card stats-chart-card">
-                    <h3>{t.sourceBreakdown}</h3>
-                    {sourceChartData.length === 0 ? (
-                      <p className="hint">-</p>
-                    ) : (
-                      <div className="stats-chart-wrap">
-                        <ResponsiveContainer width="100%" height={260}>
-                          <PieChart>
-                            <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={56} outerRadius={94} paddingAngle={2} label={false} />
-                            {sourceChartData.map((entry, index) => (
-                              <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </article>
-                ) : null}
-              </div>
-            </>
-          )}
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="stats-box-empty-label" />
+                  )}
+                </article>
+              );
+            })}
+            {statsLayoutDragState === null && statsLayoutFilledCount === 0 ? <p className="hint">-</p> : null}
+          </div>
         </section>
       )}
 
