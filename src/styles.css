@@ -142,52 +142,19 @@ body {
 }
 
 .stats-drawer-toggle.is-delete-drag-available {
-  border-color: #f59e0b;
-  background: color-mix(in srgb, #f59e0b 18%, var(--surface-2) 82%);
+  border-color: #ef4444;
+  background: color-mix(in srgb, #ef4444 28%, var(--surface-2) 72%);
+  color: #fecaca;
 }
 
 .stats-drawer-toggle.is-delete-drop-active {
-  border-color: #ef4444;
-  background: color-mix(in srgb, #ef4444 24%, var(--surface-2) 76%);
+  border-color: #dc2626;
+  background: color-mix(in srgb, #dc2626 38%, var(--surface-2) 62%);
+  color: #fee2e2;
 }
 
 .stats-drawer-shell.is-open .stats-drawer-toggle {
   right: var(--stats-drawer-width);
-}
-
-.stats-drawer-delete-zone {
-  position: fixed;
-  top: 50%;
-  right: 42px;
-  transform: translateY(-50%);
-  width: 150px;
-  min-height: 64px;
-  padding: 0.5rem 0.6rem;
-  border: 1px dashed color-mix(in srgb, #f59e0b 62%, var(--border) 38%);
-  border-right: 0;
-  border-radius: 12px 0 0 12px;
-  background: color-mix(in srgb, #f59e0b 14%, var(--surface-2) 86%);
-  color: var(--text-main);
-  font-size: 0.78rem;
-  line-height: 1.2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-shadow: -8px 10px 24px rgba(2, 6, 23, 0.22);
-  pointer-events: auto;
-  z-index: 46;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, right 220ms ease;
-}
-
-.stats-drawer-delete-zone.is-active {
-  border-color: color-mix(in srgb, #ef4444 75%, var(--border) 25%);
-  background: color-mix(in srgb, #ef4444 20%, var(--surface-2) 80%);
-  color: #fecaca;
-}
-
-.stats-drawer-shell.is-open .stats-drawer-delete-zone {
-  right: calc(var(--stats-drawer-width) + 42px);
 }
 
 .stats-drawer {

@@ -3131,19 +3131,8 @@ export function App() {
             aria-label="Menu widgetow"
             title="Menu widgetow"
           >
-            {showStatsNavSettings ? "▸" : "◂"}
+            {statsLayoutDragState?.source === "slot" ? "🗑" : showStatsNavSettings ? "▸" : "◂"}
           </button>
-          {statsLayoutDragState?.source === "slot" ? (
-            <div
-              className={`stats-drawer-delete-zone ${statsLayoutDeleteDropActive ? "is-active" : ""}`}
-              onDragOver={handleStatsLayoutDeleteDragOver}
-              onDragEnter={handleStatsLayoutDeleteDragOver}
-              onDragLeave={handleStatsLayoutDeleteDragLeave}
-              onDrop={handleStatsLayoutDeleteDrop}
-            >
-              Upusc tutaj, aby usunac
-            </div>
-          ) : null}
           <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
             <div className="stats-drawer__section">
               <strong>Biblioteka Widgetow</strong>
