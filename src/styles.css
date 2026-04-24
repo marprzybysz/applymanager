@@ -298,9 +298,8 @@ body {
   background: color-mix(in srgb, var(--surface-2) 88%, #000 12%);
 }
 
-.stats-box--hidden-empty-slot {
-  visibility: hidden;
-  pointer-events: none;
+.stats-box.stats-box--hidden-empty-slot {
+  display: none;
 }
 
 .stats-box-empty-label {

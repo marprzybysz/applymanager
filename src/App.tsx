@@ -799,15 +799,21 @@ export function App() {
     [statsWidgetOptions]
   );
   const statsLayoutDisplaySlots = useMemo(() => {
-    return statsLayoutSlots.map((widgetKey, slotIndex) => ({
-      widgetKey,
-      slotIndex,
-      isEmpty: widgetKey === null,
-    }));
-  }, [statsLayoutSlots]);
+    return statsLayoutSlots.map((widgetKey, slotIndex) => {
+      const normalizedWidgetKey =
+        widgetKey && statsWidgetMap.has(widgetKey)
+          ? widgetKey
+          : null;
+      return {
+        widgetKey: normalizedWidgetKey,
+        slotIndex,
+        isEmpty: normalizedWidgetKey === null,
+      };
+    });
+  }, [statsLayoutSlots, statsWidgetMap]);
   const statsLayoutFilledCount = useMemo(
-    () => statsLayoutSlots.reduce((acc, widget) => acc + (widget === null ? 0 : 1), 0),
-    [statsLayoutSlots]
+    () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
+    [statsLayoutSlots, statsWidgetMap]
   );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
