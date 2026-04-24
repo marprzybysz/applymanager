@@ -106,23 +106,33 @@ body {
 }
 
 .stats-drawer-shell {
+  --stats-drawer-width: min(340px, calc(100vw - 1rem));
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  inset: 0;
   z-index: 45;
+  pointer-events: none;
 }
 
 .stats-drawer-toggle {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
   width: 42px;
   min-width: 42px;
-  height: 42px;
+  height: 64px;
   padding: 0;
-  border-radius: 14px;
+  border-radius: 10px 0 0 10px;
+  border-right: 0;
   border-color: var(--border);
   background: var(--surface-2);
-  font-size: 1.05rem;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1;
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.26);
+  box-shadow: -8px 10px 24px rgba(2, 6, 23, 0.26);
+  pointer-events: auto;
+  transition: right 220ms ease, background 180ms ease, border-color 180ms ease;
 }
 
 .stats-drawer-toggle:hover,
@@ -131,11 +141,15 @@ body {
   background: color-mix(in srgb, #2563eb 22%, var(--surface-2) 78%);
 }
 
+.stats-drawer-shell.is-open .stats-drawer-toggle {
+  right: var(--stats-drawer-width);
+}
+
 .stats-drawer {
   position: fixed;
   top: 74px;
   right: 0;
-  width: min(340px, calc(100vw - 1rem));
+  width: var(--stats-drawer-width);
   height: calc(100vh - 74px);
   display: grid;
   gap: 0.65rem;
@@ -188,19 +202,6 @@ body {
   font-size: 0.8rem;
 }
 
-.stats-kpi-visibility-list {
-  display: grid;
-  gap: 0.32rem;
-}
-
-.stats-kpi-visibility-list label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.84rem;
-  color: var(--text-main);
-}
-
 .stats-kpi-library {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -244,6 +245,27 @@ body {
 .stats-drawer .ghost-btn.is-active {
   border-color: #2563eb;
   background: color-mix(in srgb, #2563eb 18%, var(--surface) 82%);
+}
+
+.stats-widget-drag-preview {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  pointer-events: none;
+  padding: 0.4rem 0.55rem;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, #38bdf8 45%, var(--border) 55%);
+  background: color-mix(in srgb, #38bdf8 14%, var(--surface-2) 86%);
+  color: var(--text-main);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.15;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.28);
+  max-width: 240px;
+}
+
+.stats-widget-drag-preview--chart {
+  min-width: 180px;
 }
 
 .stats-box--draggable {
@@ -296,6 +318,20 @@ body {
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--surface-2) 88%, #000 12%);
+  transition: min-height 170ms ease, height 170ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.stats-box--layout-editing.stats-box--empty-slot {
+  border-color: color-mix(in srgb, #60a5fa 38%, var(--border) 62%);
+  background: color-mix(in srgb, var(--surface-2) 76%, #000 24%);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2) inset;
+}
+
+.stats-box--layout-editing.stats-box--drop-preview-chart {
+  min-height: 320px;
+  height: 320px;
+  align-content: start;
+  background: color-mix(in srgb, #2563eb 15%, var(--surface-2) 85%);
 }
 
 .stats-box.stats-box--hidden-empty-slot {
@@ -2546,14 +2582,13 @@ button:disabled {
   }
 
   .stats-drawer-shell {
-    right: 0.75rem;
-    bottom: 0.75rem;
+    --stats-drawer-width: min(300px, calc(100vw - 0.75rem));
   }
 
   .stats-drawer {
     top: 66px;
     height: calc(100vh - 66px);
-    width: min(300px, calc(100vw - 0.75rem));
+    width: var(--stats-drawer-width);
   }
 
   .menu-panel {
