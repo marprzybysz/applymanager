@@ -242,6 +242,13 @@ body {
   background: color-mix(in srgb, #38bdf8 14%, var(--surface) 86%);
 }
 
+.stats-kpi-library-item.is-duplicate,
+.stats-kpi-library-item.is-duplicate.is-selected-source {
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.5) inset;
+  background: color-mix(in srgb, #facc15 16%, var(--surface) 84%);
+}
+
 .stats-drawer .ghost-btn.is-active {
   border-color: #2563eb;
   background: color-mix(in srgb, #2563eb 18%, var(--surface) 82%);

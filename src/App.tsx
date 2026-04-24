@@ -943,13 +943,8 @@ export function App() {
   function applyStatsLayoutFromLibrary(widgetKey: StatsWidgetKey, targetIndex: number) {
     setStatsLayoutSlots((prev) => {
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
-      const existingIndex = prev.findIndex((entry) => entry === widgetKey);
       const next = [...prev];
-      if (existingIndex === toIndex) return prev;
-      if (existingIndex !== -1) {
-        const targetValue = next[toIndex];
-        next[existingIndex] = targetValue === widgetKey ? null : targetValue;
-      }
+      if (next[toIndex] === widgetKey) return prev;
       next[toIndex] = widgetKey;
       return next;
     });
@@ -3099,11 +3094,13 @@ export function App() {
               <strong>Biblioteka Widgetow</strong>
               <p className="stats-kpi-drag-hint">Przeciagnij widget albo kliknij widget, potem kliknij slot. Uklad zapisuje sie automatycznie.</p>
               <div className="stats-kpi-library">
-                {statsWidgetOptions.map((widget) => (
+                {statsWidgetOptions.map((widget) => {
+                  const usageCount = statsLayoutSlots.reduce((acc, entry) => acc + (entry === widget.key ? 1 : 0), 0);
+                  return (
                   <button
                     key={`kpi-lib-${widget.key}`}
                     type="button"
-                    className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""}`}
+                    className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""} ${usageCount > 0 ? "is-duplicate" : ""}`}
                     draggable={statsLayoutEditMode}
                     disabled={!statsLayoutEditMode}
                     onClick={() => {
@@ -3133,7 +3130,7 @@ export function App() {
                     <span className="stats-kpi-library-item__title">{widget.label}</span>
                     <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
                   </button>
-                ))}
+                )})}
               </div>
               <button
                 type="button"
