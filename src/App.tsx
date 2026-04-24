@@ -590,6 +590,7 @@ export function App() {
   const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
   const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
   const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
+  const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
   const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
   const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
   const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
@@ -826,6 +827,7 @@ export function App() {
     setShowStatsNavSettings(false);
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
@@ -935,6 +937,23 @@ export function App() {
     });
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
+    statsLayoutDragRef.current = null;
+  }
+
+  function removeStatsLayoutWidget(sourceIndex: number) {
+    setStatsLayoutSlots((prev) => {
+      const fromIndex = Math.max(0, Math.min(sourceIndex, prev.length - 1));
+      if (prev[fromIndex] === null) return prev;
+      const next = [...prev];
+      next[fromIndex] = null;
+      return next;
+    });
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
@@ -950,9 +969,30 @@ export function App() {
     });
     setStatsLayoutDragState(null);
     setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
     statsLayoutDragRef.current = null;
+  }
+
+  function handleStatsLayoutDeleteDragOver(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (!statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(true);
+  }
+
+  function handleStatsLayoutDeleteDrop(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    event.preventDefault();
+    removeStatsLayoutWidget(statsLayoutDragState.index);
+  }
+
+  function handleStatsLayoutDeleteDragLeave(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setStatsLayoutDeleteDropActive(false);
   }
 
   const statusFilterOptions = useMemo(
@@ -3082,13 +3122,28 @@ export function App() {
         <div className={`stats-drawer-shell ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
           <button
             type="button"
-            className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""}`}
+            className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""} ${statsLayoutDragState?.source === "slot" ? "is-delete-drag-available" : ""} ${statsLayoutDeleteDropActive ? "is-delete-drop-active" : ""}`}
             onClick={() => setShowStatsNavSettings((prev) => !prev)}
+            onDragOver={handleStatsLayoutDeleteDragOver}
+            onDragEnter={handleStatsLayoutDeleteDragOver}
+            onDragLeave={handleStatsLayoutDeleteDragLeave}
+            onDrop={handleStatsLayoutDeleteDrop}
             aria-label="Menu widgetow"
             title="Menu widgetow"
           >
             {showStatsNavSettings ? "▸" : "◂"}
           </button>
+          {statsLayoutDragState?.source === "slot" ? (
+            <div
+              className={`stats-drawer-delete-zone ${statsLayoutDeleteDropActive ? "is-active" : ""}`}
+              onDragOver={handleStatsLayoutDeleteDragOver}
+              onDragEnter={handleStatsLayoutDeleteDragOver}
+              onDragLeave={handleStatsLayoutDeleteDragLeave}
+              onDrop={handleStatsLayoutDeleteDrop}
+            >
+              Upusc tutaj, aby usunac
+            </div>
+          ) : null}
           <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
             <div className="stats-drawer__section">
               <strong>Biblioteka Widgetow</strong>
@@ -3097,40 +3152,44 @@ export function App() {
                 {statsWidgetOptions.map((widget) => {
                   const usageCount = statsLayoutSlots.reduce((acc, entry) => acc + (entry === widget.key ? 1 : 0), 0);
                   return (
-                  <button
-                    key={`kpi-lib-${widget.key}`}
-                    type="button"
-                    className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""} ${usageCount > 0 ? "is-duplicate" : ""}`}
-                    draggable={statsLayoutEditMode}
-                    disabled={!statsLayoutEditMode}
-                    onClick={() => {
-                      if (!statsLayoutEditMode) return;
-                      setStatsLayoutSelectedSlotIndex(null);
-                      setStatsLayoutSelectedLibraryWidgetKey((prev) => (prev === widget.key ? null : widget.key));
-                    }}
-                    onDragStart={(event) => {
-                      if (!statsLayoutEditMode) return;
-                      event.dataTransfer.effectAllowed = "copyMove";
-                      event.dataTransfer.setData(SUMMARY_DND_METRIC_MIME, widget.key);
-                      event.dataTransfer.setData("text/plain", widget.label);
-                      setStatsWidgetDragPreview(event, { label: widget.label, kind: widget.kind });
-                      const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
-                      statsLayoutDragRef.current = nextState;
-                      setStatsLayoutDragState(nextState);
-                      setStatsLayoutSelectedSlotIndex(null);
-                      setStatsLayoutSelectedLibraryWidgetKey(widget.key);
-                    }}
-                    onDragEnd={() => {
-                      setStatsLayoutDragState(null);
-                      setStatsLayoutDropTargetIndex(null);
-                      setStatsLayoutSelectedLibraryWidgetKey(null);
-                      statsLayoutDragRef.current = null;
-                    }}
-                  >
-                    <span className="stats-kpi-library-item__title">{widget.label}</span>
-                    <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
-                  </button>
-                )})}
+                    <button
+                      key={`kpi-lib-${widget.key}`}
+                      type="button"
+                      className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""} ${usageCount > 0 ? "is-duplicate" : ""}`}
+                      draggable={statsLayoutEditMode}
+                      disabled={!statsLayoutEditMode}
+                      onClick={() => {
+                        if (!statsLayoutEditMode) return;
+                        setStatsLayoutSelectedSlotIndex(null);
+                        setStatsLayoutSelectedLibraryWidgetKey((prev) => (prev === widget.key ? null : widget.key));
+                      }}
+                      onDragStart={(event) => {
+                        if (!statsLayoutEditMode) return;
+                        event.dataTransfer.effectAllowed = "copyMove";
+                        event.dataTransfer.setData(SUMMARY_DND_METRIC_MIME, widget.key);
+                        event.dataTransfer.setData("text/plain", widget.label);
+                        setStatsWidgetDragPreview(event, { label: widget.label, kind: widget.kind });
+                        const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
+                        statsLayoutDragRef.current = nextState;
+                        setStatsLayoutDragState(nextState);
+                        setStatsLayoutDropTargetIndex(null);
+                        setStatsLayoutDeleteDropActive(false);
+                        setStatsLayoutSelectedSlotIndex(null);
+                        setStatsLayoutSelectedLibraryWidgetKey(widget.key);
+                      }}
+                      onDragEnd={() => {
+                        setStatsLayoutDragState(null);
+                        setStatsLayoutDropTargetIndex(null);
+                        setStatsLayoutDeleteDropActive(false);
+                        setStatsLayoutSelectedLibraryWidgetKey(null);
+                        statsLayoutDragRef.current = null;
+                      }}
+                    >
+                      <span className="stats-kpi-library-item__title">{widget.label}</span>
+                      <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
+                    </button>
+                  );
+                })}
               </div>
               <button
                 type="button"
@@ -3139,6 +3198,7 @@ export function App() {
                   setStatsLayoutSlots(createDefaultStatsLayoutSlots());
                   setStatsLayoutDragState(null);
                   setStatsLayoutDropTargetIndex(null);
+                  setStatsLayoutDeleteDropActive(false);
                   setStatsLayoutSelectedSlotIndex(null);
                   setStatsLayoutSelectedLibraryWidgetKey(null);
                   statsLayoutDragRef.current = null;
@@ -3516,6 +3576,7 @@ export function App() {
                     statsLayoutDragRef.current = nextState;
                     setStatsLayoutDragState(nextState);
                     setStatsLayoutDropTargetIndex(slotIndex);
+                    setStatsLayoutDeleteDropActive(false);
                     setStatsLayoutSelectedSlotIndex(slotIndex);
                     setStatsLayoutSelectedLibraryWidgetKey(null);
                   }}
@@ -3523,11 +3584,13 @@ export function App() {
                     if (!statsLayoutEditMode) return;
                     event.preventDefault();
                     event.dataTransfer.dropEffect = statsLayoutDragState?.source === "library" ? "copy" : "move";
+                    if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
                     if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
                   }}
                   onDragEnter={(event) => {
                     if (!statsLayoutEditMode) return;
                     event.preventDefault();
+                    if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
                     if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
                   }}
                   onDrop={(event) => {
@@ -3564,6 +3627,7 @@ export function App() {
                   onDragEnd={() => {
                     setStatsLayoutDragState(null);
                     setStatsLayoutDropTargetIndex(null);
+                    setStatsLayoutDeleteDropActive(false);
                     setStatsLayoutSelectedSlotIndex(null);
                     setStatsLayoutSelectedLibraryWidgetKey(null);
                     statsLayoutDragRef.current = null;
