@@ -569,13 +569,6 @@ export function App() {
   const [filterText, setFilterText] = useState("");
   const [showSearchInput, setShowSearchInput] = useState(false);
   const [showStatsNavSettings, setShowStatsNavSettings] = useState(false);
-  const [statsVisibility, setStatsVisibility] = useState({
-    summary: true,
-    trend: true,
-    invitesRead: true,
-    status: true,
-    source: true,
-  });
   const [statsLayoutSlots, setStatsLayoutSlots] = useState<Array<StatsWidgetKey | null>>(() => {
     if (typeof window === "undefined") return createDefaultStatsLayoutSlots();
     try {
@@ -1176,7 +1169,7 @@ export function App() {
 
     if (activeTopTab === "stats") {
       if (statsLayoutEditMode) {
-        const stopped = stopStatsLayoutEditModeWithPrompt(true);
+        const stopped = stopStatsLayoutEditModeWithPrompt(false);
         if (!stopped) return;
         setStatusMessage(t.editorModeDisabled);
       } else {
@@ -3157,59 +3150,6 @@ export function App() {
                 Reset Layout
               </button>
             </div>
-            <div className="stats-drawer__section">
-              <strong>Wykresy</strong>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={statsVisibility.summary}
-                  onChange={(event) =>
-                    setStatsVisibility((prev) => ({ ...prev, summary: event.target.checked }))
-                  }
-                />
-                <span>Karty podsumowania</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={statsVisibility.trend}
-                  onChange={(event) =>
-                    setStatsVisibility((prev) => ({ ...prev, trend: event.target.checked }))
-                  }
-                />
-                <span>Naplyw ofert</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={statsVisibility.invitesRead}
-                  onChange={(event) =>
-                    setStatsVisibility((prev) => ({ ...prev, invitesRead: event.target.checked }))
-                  }
-                />
-                <span>Zaproszenia i odczytane</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={statsVisibility.status}
-                  onChange={(event) =>
-                    setStatsVisibility((prev) => ({ ...prev, status: event.target.checked }))
-                  }
-                />
-                <span>Rozklad statusow</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={statsVisibility.source}
-                  onChange={(event) =>
-                    setStatsVisibility((prev) => ({ ...prev, source: event.target.checked }))
-                  }
-                />
-                <span>Rozklad zrodel</span>
-              </label>
-            </div>
           </aside>
         </div>
       ) : null}
@@ -3564,22 +3504,9 @@ export function App() {
                 (!isFilled || widget?.kind !== "chart");
               const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
               const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
-              const isWidgetVisible =
-                widgetKey === null
-                  ? false
-                  : widgetKey === "chartTrend"
-                    ? statsVisibility.trend
-                    : widgetKey === "chartInvitesRead"
-                      ? statsVisibility.invitesRead
-                      : widgetKey === "chartStatus"
-                        ? statsVisibility.status
-                        : widgetKey === "chartSource"
-                          ? statsVisibility.source
-                          : statsVisibility.summary;
-
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${!statsLayoutEditMode && !isWidgetVisible && isFilled ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
                   key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
                   draggable={isFilled && statsLayoutEditMode}
                   onDragStart={(event) => {

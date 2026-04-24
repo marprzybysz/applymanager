@@ -335,7 +335,11 @@ body {
 }
 
 .stats-box.stats-box--hidden-empty-slot {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .stats-box-empty-label {
