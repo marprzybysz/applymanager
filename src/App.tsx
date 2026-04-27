@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { I18N, type Language } from "./i18n/translations";
+import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
 
 type Offer = {
   id?: number;
@@ -507,6 +508,10 @@ function getStatusBarColor(statusName: string, index: number): string {
 }
 
 export function App() {
+  const initialTopTab: TopTab =
+    typeof window !== "undefined"
+      ? (resolveTopTabFromPathname(window.location.pathname) ?? "offers")
+      : "offers";
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
   const statsNavSettingsRef = useRef<HTMLDivElement | null>(null);
@@ -564,7 +569,7 @@ export function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
-  const [activeTopTab, setActiveTopTab] = useState<TopTab>("offers");
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>(initialTopTab);
   const [compactView, setCompactView] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -938,6 +943,31 @@ export function App() {
       setShowStatsNavSettings(false);
     }
   }, [activeTopTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const currentPath = window.location.pathname;
+    const resolved = resolveTopTabFromPathname(currentPath);
+    if (resolved !== null) return;
+    window.history.replaceState(window.history.state, "", buildPathnameForTopTab(activeTopTab));
+  }, [activeTopTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      const resolved = resolveTopTabFromPathname(window.location.pathname) ?? "offers";
+      setActiveTopTab(resolved);
+      if (resolved !== "offers") {
+        setEditorMode(false);
+      }
+      if (resolved !== "stats") {
+        setStatsLayoutEditMode(false);
+        setShowStatsNavSettings(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (statsLayoutEditMode) return;
@@ -1339,7 +1369,7 @@ export function App() {
     });
   }
 
-  function handleTopTabChange(nextTab: TopTab) {
+  function handleTopTabChange(nextTab: TopTab, historyMode: "push" | "replace" | "none" = "push") {
     if (nextTab === activeTopTab) return;
 
     if (editingSelectedOffer && isSelectedOfferDirty) {
@@ -1375,6 +1405,16 @@ export function App() {
     }
 
     setActiveTopTab(nextTab);
+    if (typeof window !== "undefined" && historyMode !== "none") {
+      const nextPath = buildPathnameForTopTab(nextTab);
+      if (window.location.pathname !== nextPath) {
+        if (historyMode === "replace") {
+          window.history.replaceState(window.history.state, "", nextPath);
+        } else {
+          window.history.pushState(window.history.state, "", nextPath);
+        }
+      }
+    }
   }
 
   function toggleRowSelection(offer: Offer) {
@@ -3310,14 +3350,14 @@ export function App() {
                   );
                 })}
               </div>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={() => {
-                  setStatsLayoutSlots(createDefaultStatsLayoutSlots());
-                  setStatsLayoutDragState(null);
-                  setStatsLayoutDropTargetIndex(null);
-                  setStatsLayoutDeleteDropActive(false);
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setStatsLayoutSlots(createDefaultStatsLayoutSlots());
+                    setStatsLayoutDragState(null);
+                    setStatsLayoutDropTargetIndex(null);
+                    setStatsLayoutDeleteDropActive(false);
                   setStatsLayoutSelectedSlotIndex(null);
                   setStatsLayoutSelectedLibraryWidgetKey(null);
                   statsLayoutDragRef.current = null;
