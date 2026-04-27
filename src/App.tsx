@@ -118,7 +118,7 @@ type SummaryMetricKey =
   | "sourceTypes";
 type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
 type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
-type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" };
+type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart"; size: "1x1" | "1x2" };
 type StatsLayoutDragState =
   | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
   | { source: "library"; widgetKey: StatsWidgetKey }
@@ -771,8 +771,8 @@ export function App() {
   const statsWidgetOptions = useMemo(
     () =>
       [
-        ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const })),
-        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const })),
+        ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const, size: "1x1" as const })),
+        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x2" as const })),
       ] as Array<StatsWidgetOption>,
     [summaryMetricOptions, chartWidgetOptions]
   );
@@ -788,7 +788,7 @@ export function App() {
       new Map<StatsWidgetKey, StatsWidgetOption>(
         statsWidgetOptions.map((entry) => [
           entry.key,
-          { key: entry.key, label: entry.label, value: entry.value, kind: entry.kind },
+          { key: entry.key, label: entry.label, value: entry.value, kind: entry.kind, size: entry.size },
         ])
       ),
     [statsWidgetOptions]
@@ -908,6 +908,7 @@ export function App() {
     }
     return null;
   }
+
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
       const normalizedWidgetKey =
@@ -3256,11 +3257,13 @@ export function App() {
               <div className="stats-kpi-library">
                 {statsWidgetOptions.map((widget) => {
                   const usageCount = statsLayoutSlots.reduce((acc, entry) => acc + (entry === widget.key ? 1 : 0), 0);
+                  const widgetKindLabel = widget.kind === "chart" ? "Wykres" : "KPI";
                   return (
                     <button
                       key={`kpi-lib-${widget.key}`}
                       type="button"
                       className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""} ${usageCount > 0 ? "is-duplicate" : ""}`}
+                      aria-label={`${widget.label}. ${widgetKindLabel} ${widget.size}.`}
                       draggable={statsLayoutEditMode}
                       disabled={!statsLayoutEditMode}
                       onClick={() => {
@@ -3290,9 +3293,19 @@ export function App() {
                         statsLayoutDragRef.current = null;
                       }}
                     >
-                      <span className="stats-kpi-library-item__title">{widget.label}</span>
+                      <span className="stats-kpi-library-item__head">
+                        <span className="stats-kpi-library-item__title">{widget.label}</span>
+                        <span className="stats-kpi-library-item__size">{widget.size}</span>
+                      </span>
                       {renderStatsLibraryWidgetPreview(widget)}
-                      <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
+                      <span className="stats-kpi-library-item__meta">{widgetKindLabel}</span>
+                      <span className="stats-kpi-library-item__hover-hint" aria-hidden="true">
+                        <span>{widgetKindLabel}</span>
+                        <span className="stats-kpi-library-item__hint-sep">•</span>
+                        <span>{widget.size}</span>
+                        <span className="stats-kpi-library-item__hint-sep">•</span>
+                        <span>Przeciagnij lub kliknij</span>
+                      </span>
                     </button>
                   );
                 })}

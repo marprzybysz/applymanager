@@ -177,6 +177,7 @@ body {
   pointer-events: none;
   transition: transform 220ms ease, opacity 180ms ease;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .stats-drawer.is-open {
@@ -221,6 +222,7 @@ body {
 }
 
 .stats-kpi-library-item {
+  position: relative;
   text-align: left;
   justify-content: flex-start;
   min-height: 90px;
@@ -231,17 +233,85 @@ body {
   gap: 0.28rem;
 }
 
+.stats-kpi-library-item__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.36rem;
+}
+
 .stats-kpi-library-item__title {
   font-size: 0.82rem;
   color: var(--text-main);
   line-height: 1.2;
+  padding-right: 0.12rem;
 }
 
 .stats-kpi-library-item__meta {
-  font-size: 0.72rem;
+  display: block;
+  align-items: center;
+  font-size: 0.68rem;
   color: var(--text-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  opacity: 0.92;
+}
+
+.stats-kpi-library-item__size {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  height: 1.02rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #38bdf8 52%, #0f172a 48%);
+  background: color-mix(in srgb, #0f172a 82%, #1f2937 18%);
+  color: #cce7ff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  box-shadow: 0 1px 0 rgba(56, 189, 248, 0.24) inset;
+}
+
+.stats-kpi-library-item__hover-hint {
+  position: absolute;
+  left: 0.46rem;
+  right: 0.46rem;
+  bottom: 0.46rem;
+  z-index: 2;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 100%;
+  width: auto;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #38bdf8 58%, #0f172a 42%);
+  background: color-mix(in srgb, #0f172a 86%, #1e293b 14%);
+  color: #e6f4ff;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.15;
+  padding: 0.24rem 0.34rem;
+  box-shadow: 0 8px 16px rgba(2, 6, 23, 0.32);
+  transform: translateY(6px);
+  opacity: 0;
+  transition: opacity 140ms ease, transform 140ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-kpi-library-item:hover .stats-kpi-library-item__hover-hint,
+.stats-kpi-library-item:focus-visible .stats-kpi-library-item__hover-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stats-kpi-library-item__hint-sep {
+  color: #60a5fa;
+  opacity: 0.95;
 }
 
 .stats-kpi-library-item__preview {
