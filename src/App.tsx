@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Bar,
@@ -18,510 +18,96 @@ import {
 import { I18N, type Language } from "./i18n/translations";
 import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
 
-type Offer = {
-  id?: number;
-  company: string;
-  role: string;
-  applied: boolean;
-  archive?: boolean;
-  status: string;
-  location?: string | null;
-  notes?: string | null;
-  appliedAt?: string | null;
-  datePosted?: string | null;
-  expiresAt?: string | null;
-  daysToExpire?: number | null;
-  source?: string | null;
-  sourceUrl?: string | null;
-  employmentTypes?: string[] | null;
-  workTime?: string | null;
-  workMode?: string | null;
-  shiftCount?: string | null;
-  workingHours?: string | null;
-};
-
-type ScrapedJob = {
-  source: string;
-  title: string | null;
-  company: string | null;
-  location: string | null;
-  url: string | null;
-  datePosted: string | null;
-  expiresAt?: string | null;
-  daysToExpire?: number | null;
-  employmentTypes?: string[] | null;
-  workTime?: string | null;
-  workMode?: string | null;
-  shiftCount?: string | null;
-  workingHours?: string | null;
-};
-
-type ExcelImportIssue = {
-  rowNumber?: number;
-  missingFields?: string[];
-  formulaIssues?: string[];
-  parsed?: {
-    company?: string | null;
-    role?: string | null;
-    status?: string | null;
-    location?: string | null;
-    appliedAt?: string | null;
-    source?: string | null;
-    sourceUrl?: string | null;
-    notes?: string | null;
-  };
-  raw?: Record<string, unknown>;
-};
-
-type ExportAssistantRow = {
-  rowNumber: number;
-  raw: Record<string, unknown>;
-  missingFields: string[];
-  draft: Offer;
-  saved: boolean;
-};
-
-type ImportPreviewMeta = {
-  filename?: string;
-  size?: number;
-  sha256?: string;
-};
-
-type UserPreferences = {
-  preferredContractTypes: string[];
-  preferredWorkTimes: string[];
-  preferredWorkModes: string[];
-  preferredShiftCounts: string[];
-  preferredWorkingHours: string;
-};
-
-type OfferStats = {
-  totalOffers: number;
-  appliedOffers: number;
-  activeOffers: number;
-  expiredOffers: number;
-  averageDaysLeft: number | null;
-  recentApplications7d: number;
-  statusCounts: Record<string, number>;
-  sourceCounts: Record<string, number>;
-};
-type SummaryMetricKey =
-  | "totalOffers"
-  | "appliedOffers"
-  | "activeOffers"
-  | "expiredOffers"
-  | "avgDaysLeft"
-  | "recentApplications"
-  | "archivedOffers"
-  | "readOffers"
-  | "invitationOffers"
-  | "rejectedOffers"
-  | "sourceTypes";
-type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
-type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
-type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart"; size: "1x1" | "1x2" };
-type StatsLayoutDragState =
-  | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
-  | { source: "library"; widgetKey: StatsWidgetKey }
-  | null;
-
-type ThemeMode = "auto" | "light" | "dark";
-type SettingsTab = "general" | "notifications" | "preferences" | "about";
-type AddOfferMode = "link" | "manual";
-type ImportTarget = "offers" | "preferences";
-type ImportFormat = "xlsx" | "json";
-type ExportTarget = "offers" | "preferences" | "all";
-type ExportFormat = "xlsx" | "json";
-type TopTab = "offers" | "stats";
-type PeriodFilter = "all" | "month" | "quarter" | "year";
-type SortDirection = "none" | "asc" | "desc";
-type SortType = "text" | "date" | "number";
-type SortColumn =
-  | "role"
-  | "company"
-  | "status"
-  | "location"
-  | "appliedAt"
-  | "datePosted"
-  | "expiresAt"
-  | "daysToExpire"
-  | "source";
-type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral" | "pink";
-type CanonicalStatus =
-  | "Zapisano"
-  | "Wyslano"
-  | "Odczytano"
-  | "W trakcie"
-  | "Rozmowa"
-  | "Oferta"
-  | "Odrzucono"
-  | "Odmowa";
-type NotificationTone = "success" | "error" | "warning" | "neutral";
-type NotificationSettings = {
-  enableToasts: boolean;
-  enableBellHistory: boolean;
-  allowSuccess: boolean;
-  allowWarning: boolean;
-  allowError: boolean;
-  allowNeutral: boolean;
-};
-type RowExitAnimationKind = "archive" | "delete";
-type AppNotification = {
-  id: number;
-  text: string;
-  tone: NotificationTone;
-  read: boolean;
-  surfaceVisible: boolean;
-  menuVisible: boolean;
-  surfaceClosing?: boolean;
-  menuClosing?: boolean;
-  kind: "operational";
-};
-
-const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
-  "totalOffers",
-  "appliedOffers",
-  "activeOffers",
-  "expiredOffers",
-  "avgDaysLeft",
-  "recentApplications",
-];
-const STATS_LAYOUT_SLOT_COUNT = 12;
-const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
-const SUMMARY_DND_METRIC_MIME = "application/x-applymanager-summary-metric";
-
-function createDefaultStatsLayoutSlots(): Array<StatsWidgetKey | null> {
-  const slots: Array<StatsWidgetKey | null> = Array.from({ length: STATS_LAYOUT_SLOT_COUNT }, () => null);
-  const defaults: StatsWidgetKey[] = [
-    "totalOffers",
-    "appliedOffers",
-    "activeOffers",
-    "expiredOffers",
-    "avgDaysLeft",
-    "recentApplications",
-    "chartTrend",
-    "chartInvitesRead",
-    "chartStatus",
-    "chartSource",
-  ];
-  defaults.forEach((key, index) => {
-    if (index < slots.length) slots[index] = key;
-  });
-  return slots;
-}
-
-
-const CONTRACT_TYPES = [
-  "dowolny",
-  "umowa o pracę",
-  "umowa b2b",
-  "umowa zlecenie",
-  "umowa o dzieło",
-  "umowa agencyjna",
-  "samozatrudnienie",
-];
-const WORK_TIMES = ["dowolny", "pełny etat", "pół etatu"];
-const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
-const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
-const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
-const ARCHIVED_FILTER_VALUE = "__archived__";
-const STATUS_OPTIONS: CanonicalStatus[] = [
-  "Wyslano",
-  "Zapisano",
-  "Odczytano",
-  "W trakcie",
-  "Rozmowa",
-  "Oferta",
-  "Odrzucono",
-  "Odmowa",
-];
-const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
-
-function isAbsoluteHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getTodayLocalDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function normalizeForDuplicate(value: string | null | undefined): string {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function normalizeUrlForDuplicate(value: string | null | undefined): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  return raw.replace(/\/+$/, "").toLowerCase();
-}
-
-function normalizeDateForDuplicate(value: string | null | undefined): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  return raw.slice(0, 10);
-}
-
-function createDefaultOffer(): Offer {
-  return {
-    company: "",
-    role: "",
-    applied: true,
-    archive: false,
-    status: "Wyslano",
-    location: "",
-    notes: "",
-    appliedAt: getTodayDate(),
-    datePosted: "",
-    expiresAt: "",
-    daysToExpire: null,
-    source: "manual",
-    sourceUrl: "",
-    employmentTypes: [],
-    workTime: "",
-    workMode: "",
-    shiftCount: "",
-    workingHours: "",
-  };
-}
-
-function normalizeImportEntryToOffer(entry: Partial<Offer>): Offer {
-  const normalizedStatus = normalizeOfferStatus(entry.status, entry.applied !== false);
-  return {
-    ...createDefaultOffer(),
-    ...entry,
-    company: String(entry.company || "").trim(),
-    role: String(entry.role || "").trim(),
-    status: normalizedStatus,
-    applied: inferAppliedFromStatus(normalizedStatus),
-    archive: entry.archive === true,
-    location: String(entry.location || "").trim(),
-    notes: String(entry.notes || ""),
-    appliedAt: entry.appliedAt || getTodayDate(),
-    source: String(entry.source || "import_excel").trim() || "import_excel",
-    sourceUrl: String(entry.sourceUrl || "").trim(),
-  };
-}
-
-function createDefaultPreferences(): UserPreferences {
-  return {
-    preferredContractTypes: [],
-    preferredWorkTimes: [],
-    preferredWorkModes: [],
-    preferredShiftCounts: [],
-    preferredWorkingHours: "",
-  };
-}
-
-function createDefaultStats(): OfferStats {
-  return {
-    totalOffers: 0,
-    appliedOffers: 0,
-    activeOffers: 0,
-    expiredOffers: 0,
-    averageDaysLeft: null,
-    recentApplications7d: 0,
-    statusCounts: {},
-    sourceCounts: {},
-  };
-}
-
-function parseWorkingHoursSelection(value: string): string[] {
-  return value
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
-function serializeWorkingHoursSelection(values: string[]): string {
-  return values.join(", ");
-}
-
-function normalizeDateForInput(value: string | null | undefined): string {
-  const text = String(value || "").trim();
-  if (!text) return "";
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return text;
-  }
-
-  const dotted = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (dotted) {
-    const day = dotted[1].padStart(2, "0");
-    const month = dotted[2].padStart(2, "0");
-    const year = dotted[3];
-    return `${year}-${month}-${day}`;
-  }
-
-  const parsed = Date.parse(text);
-  if (!Number.isNaN(parsed)) {
-    return new Date(parsed).toISOString().slice(0, 10);
-  }
-
-  return "";
-}
-
-function normalizeOfferForEdit(offer: Offer): Offer {
-  return {
-    ...offer,
-    archive: offer.archive === true,
-    company: String(offer.company || ""),
-    role: String(offer.role || ""),
-    status: normalizeOfferStatus(offer.status, offer.applied !== false),
-    location: offer.location || "",
-    notes: offer.notes || "",
-    appliedAt: normalizeDateForInput(offer.appliedAt),
-    datePosted: normalizeDateForInput(offer.datePosted),
-    expiresAt: normalizeDateForInput(offer.expiresAt),
-    source: offer.source || "",
-    sourceUrl: offer.sourceUrl || "",
-    employmentTypes: [...(offer.employmentTypes || [])],
-    workTime: offer.workTime || "",
-    workMode: offer.workMode || "",
-    shiftCount: offer.shiftCount || "",
-    workingHours: offer.workingHours || "",
-  };
-}
-
-function inferAppliedFromStatus(status: string | null | undefined): boolean {
-  const normalized = normalizeStatusKey(status);
-  return normalized !== "zapisano" && normalized !== "saved";
-}
-
-function getPrimaryLocation(location: string | null | undefined): string {
-  const text = String(location || "").trim();
-  if (!text) return "-";
-  return text.split(",")[0]?.trim() || text;
-}
-
-function getAssistantFieldLabel(field: string): string {
-  const labels: Record<string, string> = {
-    company: "Firma",
-    role: "Stanowisko",
-    location: "Lokalizacja",
-    status: "Status",
-    source: "Zrodlo",
-    sourceUrl: "Link",
-    notes: "Notatki",
-  };
-  return labels[field] || field;
-}
-
-function normalizeStatusKey(status: string | null | undefined): string {
-  return String(status || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function getNotificationAutoHideMs(tone: NotificationTone): number | null {
-  if (tone === "success") return 5000;
-  if (tone === "warning") return 30000;
-  if (tone === "error") return null;
-  return 10000;
-}
-
-const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
-const ROW_EXIT_ANIMATION_MS = 320;
-const VIRTUALIZATION_THRESHOLD = 120;
-const VIRTUALIZATION_OVERSCAN = 10;
-const ROW_HEIGHT_COMPACT = 46;
-const ROW_HEIGHT_FULL = 52;
-
-function createDefaultNotificationSettings(): NotificationSettings {
-  return {
-    enableToasts: true,
-    enableBellHistory: true,
-    allowSuccess: true,
-    allowWarning: true,
-    allowError: true,
-    allowNeutral: true,
-  };
-}
-
-function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
-  const normalized = normalizeStatusKey(status);
-  if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
-
-  if (["applied", "wyslano", "sent", "zaaplikowano"].includes(normalized)) return "Wyslano";
-  if (["saved", "zapisano", "draft"].includes(normalized)) return "Zapisano";
-  if (["odczytano", "odczytana", "read"].includes(normalized)) return "Odczytano";
-  if (["interview", "in progress", "w trakcie", "proces"].includes(normalized)) return "W trakcie";
-  if (["rozmowa", "rozmowa umowiona", "umowienie na rozmowe"].includes(normalized)) return "Rozmowa";
-  if (["offer", "oferta"].includes(normalized)) return "Oferta";
-  if (normalized.includes("odrzu") || normalized.includes("rejected")) return "Odrzucono";
-  if (normalized.includes("odmow")) return "Odmowa";
-
-  return appliedDefault ? "Wyslano" : "Zapisano";
-}
-
-function getExpiryTone(daysToExpire: number | null | undefined): StatusTone | "expired" {
-  if (daysToExpire === null || daysToExpire === undefined) return "neutral";
-  if (daysToExpire < 0) return "expired";
-  if (daysToExpire >= 21) return "green";
-  if (daysToExpire >= 10) return "yellow";
-  return "red";
-}
-
-function formatDaysToExpire(daysToExpire: number | null | undefined): string {
-  if (daysToExpire === null || daysToExpire === undefined) return "-";
-  if (daysToExpire < 0) return "Wygaslo";
-  if (daysToExpire === 0) return "0 dni";
-  if (daysToExpire === 1) return "1 dzien";
-  return `${daysToExpire} dni`;
-}
-
-function formatChartDateLabel(dateIso: string): string {
-  const parsed = Date.parse(dateIso);
-  if (Number.isNaN(parsed)) return dateIso;
-  const date = new Date(parsed);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${day}.${month}`;
-}
-
-function normalizeStatusForChart(statusName: string): string {
-  const normalized = normalizeStatusKey(statusName);
-  if (normalized.includes("odrzu") || normalized.includes("odmow") || normalized.includes("rejected")) {
-    return "Odrzucono/Odmowa";
-  }
-  return statusName;
-}
-
-function getStatusBarColor(statusName: string, index: number): string {
-  if (statusName === "Odrzucono/Odmowa") {
-    return "#ef4444";
-  }
-  return CHART_COLORS[index % CHART_COLORS.length];
-}
+import {
+  STATUS_OPTIONS,
+  inferAppliedFromStatus,
+  normalizeOfferStatus,
+  normalizeStatusForChart,
+} from "./domain/status";
+import type {
+  AddOfferMode,
+  AppNotification,
+  CanonicalStatus,
+  ExcelImportIssue,
+  ExportAssistantRow,
+  ExportFormat,
+  ExportTarget,
+  ImportFormat,
+  ImportPreviewMeta,
+  ImportTarget,
+  NotificationSettings,
+  NotificationTone,
+  Offer,
+  OfferStats,
+  PeriodFilter,
+  RowExitAnimationKind,
+  ScrapedJob,
+  SettingsTab,
+  SortColumn,
+  SortDirection,
+  SortType,
+  StatusTone,
+  StatsChartWidgetKey,
+  StatsLayoutDragState,
+  StatsWidgetKey,
+  StatsWidgetOption,
+  SummaryMetricKey,
+  ThemeMode,
+  TopTab,
+  UserPreferences,
+} from "./types/app";
+import {
+  ARCHIVED_FILTER_VALUE,
+  CHART_COLORS,
+  CONTRACT_TYPES,
+  DEFAULT_SUMMARY_METRICS,
+  ROW_EXIT_ANIMATION_MS,
+  ROW_HEIGHT_COMPACT,
+  ROW_HEIGHT_FULL,
+  SHIFT_COUNTS,
+  STATS_LAYOUT_SLOT_COUNT,
+  SUMMARY_DND_METRIC_MIME,
+  SUMMARY_DND_SLOT_MIME,
+  VIRTUALIZATION_OVERSCAN,
+  VIRTUALIZATION_THRESHOLD,
+  WORKING_HOURS_OPTIONS,
+  WORK_MODES,
+  WORK_TIMES,
+  NOTIFICATION_CLOSE_ANIMATION_MS,
+} from "./constants/app";
+import {
+  createDefaultNotificationSettings,
+  createDefaultOffer,
+  createDefaultPreferences,
+  createDefaultStats,
+  createDefaultStatsLayoutSlots,
+  formatChartDateLabel,
+  formatDaysToExpire,
+  getExpiryTone,
+  getNotificationAutoHideMs,
+  getPrimaryLocation,
+  getStatusBarColor,
+  getTodayDate,
+  getTodayLocalDate,
+  isAbsoluteHttpUrl,
+  normalizeDateForDuplicate,
+  normalizeDateForInput,
+  normalizeForDuplicate,
+  normalizeImportEntryToOffer,
+  normalizeOfferForEdit,
+  normalizeUrlForDuplicate,
+  parseWorkingHoursSelection,
+  serializeWorkingHoursSelection,
+} from "./utils/appHelpers";
 
 export function App() {
-  const initialTopTab: TopTab =
-    typeof window !== "undefined"
-      ? (resolveTopTabFromPathname(window.location.pathname) ?? "offers")
-      : "offers";
+  const releaseDate = (import.meta.env.VITE_RELEASE_DATE as string | undefined)?.trim() || "2026-04-27";
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
   const statsNavSettingsRef = useRef<HTMLDivElement | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
-  const [scrapeQuery, setScrapeQuery] = useState("frontend react");
+  const [scrapeQuery, setScrapeQuery] = useState("");
   const [scrapedJobs, setScrapedJobs] = useState<ScrapedJob[]>([]);
   const [pendingOffer, setPendingOffer] = useState<Offer | null>(null);
   const [pendingScrapedIndex, setPendingScrapedIndex] = useState<number | null>(null);
@@ -529,6 +115,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationIdRef = useRef(1);
+  const notificationHideTimerRef = useRef<Map<number, number>>(new Map());
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
     if (typeof window === "undefined") return createDefaultNotificationSettings();
     try {
@@ -573,7 +160,12 @@ export function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
-  const [activeTopTab, setActiveTopTab] = useState<TopTab>(initialTopTab);
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>(() => {
+    if (typeof window !== "undefined") {
+      return resolveTopTabFromPathname(window.location.pathname) ?? "offers";
+    }
+    return "offers";
+  });
   const [compactView, setCompactView] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -654,7 +246,22 @@ export function App() {
   const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsModal;
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
-  const aboutReleaseDate = useMemo(() => getTodayLocalDate(), []);
+  const aboutReleaseDate = releaseDate;
+  const assistantFieldLabels = useMemo(
+    () => ({
+      company: t.assistantFieldCompany,
+      role: t.assistantFieldRole,
+      location: t.assistantFieldLocation,
+      status: t.assistantFieldStatus,
+      source: t.assistantFieldSource,
+      sourceUrl: t.assistantFieldSourceUrl,
+      notes: t.assistantFieldNotes,
+    }),
+    [t]
+  );
+  function getAssistantFieldLabel(field: string): string {
+    return assistantFieldLabels[field as keyof typeof assistantFieldLabels] || field;
+  }
   const unreadNotificationsCount = useMemo(
     () => notifications.filter((item) => item.menuVisible && !item.read).length,
     [notifications]
@@ -773,8 +380,8 @@ export function App() {
   const chartWidgetOptions = useMemo(
     () =>
       [
-        { key: "chartTrend", label: "Naplyw ofert (30 dni)", value: "-" },
-        { key: "chartInvitesRead", label: "Zaproszenia i odczytane", value: "-" },
+        { key: "chartTrend", label: t.chartTrendTitle, value: "-" },
+        { key: "chartInvitesRead", label: t.chartInvitesReadTitle, value: "-" },
         { key: "chartStatus", label: t.statusBreakdown, value: "-" },
         { key: "chartSource", label: t.sourceBreakdown, value: "-" },
       ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
@@ -805,7 +412,7 @@ export function App() {
       ),
     [statsWidgetOptions]
   );
-  function renderStatsLibraryWidgetPreview(widget: StatsWidgetOption) {
+  const renderStatsLibraryWidgetPreview = useCallback((widget: StatsWidgetOption) => {
     if (widget.kind === "summary") {
       const metric = summaryMetricMap.get(widget.key as SummaryMetricKey);
       return (
@@ -919,7 +526,7 @@ export function App() {
       );
     }
     return null;
-  }
+  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, statusChartData, sourceChartData]);
 
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
@@ -1004,6 +611,15 @@ export function App() {
     window.localStorage.setItem("statsLayoutSlots", JSON.stringify(statsLayoutSlots));
   }, [statsLayoutSlots]);
 
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of notificationHideTimerRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      notificationHideTimerRef.current.clear();
+    };
+  }, []);
+
   function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
     const tone: NotificationTone =
@@ -1036,9 +652,11 @@ export function App() {
     setNotifications((prev) => [notification, ...prev].slice(0, 80));
     const hideAfterMs = getNotificationAutoHideMs(tone);
     if (hideAfterMs !== null) {
-      window.setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
+        notificationHideTimerRef.current.delete(id);
         dismissSurfaceNotification(id);
       }, hideAfterMs);
+      notificationHideTimerRef.current.set(id, timeoutId);
     }
   }
 
@@ -1047,6 +665,11 @@ export function App() {
   }
 
   function dismissSurfaceNotification(id: number) {
+    const hideTimerId = notificationHideTimerRef.current.get(id);
+    if (hideTimerId !== undefined) {
+      window.clearTimeout(hideTimerId);
+      notificationHideTimerRef.current.delete(id);
+    }
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, surfaceClosing: true } : item)));
     window.setTimeout(() => {
       setNotifications((prev) =>
@@ -1186,7 +809,9 @@ export function App() {
     if (column === "daysToExpire") return offer.daysToExpire ?? Number.MAX_SAFE_INTEGER;
     if (column === "appliedAt" || column === "datePosted" || column === "expiresAt") {
       const raw = offer[column];
-      return raw ? Date.parse(raw) || 0 : 0;
+      if (!raw) return Number.MAX_SAFE_INTEGER;
+      const parsed = Date.parse(raw);
+      return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
     }
     const raw = offer[column];
     return String(raw || "").toLowerCase();
@@ -3750,7 +3375,7 @@ export function App() {
                       {!compactView ? (
                         <td>
                           <span className={`offer-status-pill offer-status-pill--${getExpiryTone(offer.daysToExpire)}`}>
-                            {formatDaysToExpire(offer.daysToExpire)}
+                            {formatDaysToExpire(offer.daysToExpire, { expired: t.daysExpired, singular: t.daysSingular, plural: t.daysPlural })}
                           </span>
                         </td>
                       ) : null}
@@ -3895,7 +3520,7 @@ export function App() {
                     </>
                   ) : widget?.key === "chartTrend" ? (
                     <>
-                      <h3>Naplyw ofert (30 dni)</h3>
+                      <h3>{t.chartTrendTitle}</h3>
                       {trendOffersData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
@@ -3918,7 +3543,7 @@ export function App() {
                     </>
                   ) : widget?.key === "chartInvitesRead" ? (
                     <>
-                      <h3>Zaproszenia i odczytane</h3>
+                      <h3>{t.chartInvitesReadTitle}</h3>
                       {invitationsReadTrendData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
