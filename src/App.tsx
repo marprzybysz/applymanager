@@ -15,6 +15,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  STATUS_OPTIONS,
+  inferAppliedFromStatus,
+  normalizeOfferStatus,
+  normalizeStatusForChart,
+  type CanonicalStatus,
+} from "./domain/status";
 import { I18N, type Language } from "./i18n/translations";
 import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
 
@@ -147,15 +154,6 @@ type SortColumn =
   | "daysToExpire"
   | "source";
 type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral" | "pink";
-type CanonicalStatus =
-  | "Zapisano"
-  | "Wyslano"
-  | "Odczytano"
-  | "W trakcie"
-  | "Rozmowa"
-  | "Oferta"
-  | "Odrzucono"
-  | "Odmowa";
 type NotificationTone = "success" | "error" | "warning" | "neutral";
 type NotificationSettings = {
   enableToasts: boolean;
@@ -225,16 +223,6 @@ const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
 const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
 const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
 const ARCHIVED_FILTER_VALUE = "__archived__";
-const STATUS_OPTIONS: CanonicalStatus[] = [
-  "Wyslano",
-  "Zapisano",
-  "Odczytano",
-  "W trakcie",
-  "Rozmowa",
-  "Oferta",
-  "Odrzucono",
-  "Odmowa",
-];
 const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
 
 function isAbsoluteHttpUrl(value: string) {
@@ -398,23 +386,10 @@ function normalizeOfferForEdit(offer: Offer): Offer {
   };
 }
 
-function inferAppliedFromStatus(status: string | null | undefined): boolean {
-  const normalized = normalizeStatusKey(status);
-  return normalized !== "zapisano" && normalized !== "saved";
-}
-
 function getPrimaryLocation(location: string | null | undefined): string {
   const text = String(location || "").trim();
   if (!text) return "-";
   return text.split(",")[0]?.trim() || text;
-}
-
-function normalizeStatusKey(status: string | null | undefined): string {
-  return String(status || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function getNotificationAutoHideMs(tone: NotificationTone): number | null {
@@ -442,22 +417,6 @@ function createDefaultNotificationSettings(): NotificationSettings {
   };
 }
 
-function normalizeOfferStatus(status: string | null | undefined, appliedDefault = true): CanonicalStatus {
-  const normalized = normalizeStatusKey(status);
-  if (!normalized) return appliedDefault ? "Wyslano" : "Zapisano";
-
-  if (["applied", "wyslano", "sent", "zaaplikowano"].includes(normalized)) return "Wyslano";
-  if (["saved", "zapisano", "draft"].includes(normalized)) return "Zapisano";
-  if (["odczytano", "odczytana", "read"].includes(normalized)) return "Odczytano";
-  if (["interview", "in progress", "w trakcie", "proces"].includes(normalized)) return "W trakcie";
-  if (["rozmowa", "rozmowa umowiona", "umowienie na rozmowe"].includes(normalized)) return "Rozmowa";
-  if (["offer", "oferta"].includes(normalized)) return "Oferta";
-  if (normalized.includes("odrzu") || normalized.includes("rejected")) return "Odrzucono";
-  if (normalized.includes("odmow")) return "Odmowa";
-
-  return appliedDefault ? "Wyslano" : "Zapisano";
-}
-
 function getExpiryTone(daysToExpire: number | null | undefined): StatusTone | "expired" {
   if (daysToExpire === null || daysToExpire === undefined) return "neutral";
   if (daysToExpire < 0) return "expired";
@@ -481,14 +440,6 @@ function formatChartDateLabel(dateIso: string): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${day}.${month}`;
-}
-
-function normalizeStatusForChart(statusName: string): string {
-  const normalized = normalizeStatusKey(statusName);
-  if (normalized.includes("odrzu") || normalized.includes("odmow") || normalized.includes("rejected")) {
-    return "Odrzucono/Odmowa";
-  }
-  return statusName;
 }
 
 function getStatusBarColor(statusName: string, index: number): string {
