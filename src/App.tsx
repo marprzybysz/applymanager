@@ -3774,7 +3774,11 @@ export function App() {
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                              <Tooltip />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
                               <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
                           </ResponsiveContainer>
@@ -3793,7 +3797,11 @@ export function App() {
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                              <Tooltip />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
                               <Legend wrapperStyle={{ fontSize: 11 }} />
                               <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
                               <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
@@ -3814,7 +3822,11 @@ export function App() {
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                              <Tooltip />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
                               <Bar dataKey="count" radius={[7, 7, 0, 0]}>
                                 {statusChartData.map((entry, index) => (
                                   <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
@@ -3839,7 +3851,11 @@ export function App() {
                                   <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Pie>
-                              <Tooltip />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
