@@ -43,15 +43,22 @@ def test_get_offer_stats_aggregations(monkeypatch) -> None:
             "source": "manual",
             "appliedAt": "invalid",
         },
+        {
+            "applied": True,
+            "daysToExpire": 30,
+            "status": "Wyslano",
+            "source": "olx",
+            "appliedAt": "2026-04-10",
+        },
     ]
     monkeypatch.setattr(offers, "list_offers", lambda: sample)
 
     result = offers.get_offer_stats()
 
-    assert result["totalOffers"] == 3
-    assert result["appliedOffers"] == 2
-    assert result["activeOffers"] == 2
+    assert result["totalOffers"] == 4
+    assert result["appliedOffers"] == 3
+    assert result["activeOffers"] == 3
     assert result["expiredOffers"] == 1
-    assert result["averageDaysLeft"] == 2.7
-    assert result["statusCounts"] == {"Wyslano": 2, "Odrzucono": 1}
-    assert result["sourceCounts"] == {"manual": 2, "pracuj": 1}
+    assert result["averageDaysLeft"] == 5.0
+    assert result["statusCounts"] == {"Wyslano": 3, "Odrzucono": 1}
+    assert result["sourceCounts"] == {"manual": 2, "pracuj": 1, "olx": 1}
