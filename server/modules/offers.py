@@ -879,7 +879,18 @@ def get_offer_stats() -> dict[str, Any]:
     delta_days = (today - applied_dates.dt.normalize()).dt.days if not applied_dates.empty else pd.Series(dtype="float64")
     recent_applications = int(((delta_days >= 0) & (delta_days <= 7)).sum()) if not delta_days.empty else 0
 
-    avg_days_left = round(float(days_series.mean()), 1) if not days_series.dropna().empty else None
+    avg_days_candidates = pd.DataFrame(
+        {
+            "days": days_series,
+            "source": source_series.str.lower() if not source_series.empty else pd.Series(dtype="string"),
+        }
+    )
+    # Average is calculated only for active offers and excludes OLX sources.
+    avg_days_filtered = avg_days_candidates[
+        (avg_days_candidates["days"] >= 0)
+        & (~avg_days_candidates["source"].fillna("").str.contains("olx", na=False))
+    ]["days"]
+    avg_days_left = round(float(avg_days_filtered.mean()), 1) if not avg_days_filtered.dropna().empty else None
 
     return {
         "totalOffers": total,

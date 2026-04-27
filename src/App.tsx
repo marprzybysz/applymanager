@@ -1,6 +1,22 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { I18N, type Language } from "./i18n/translations";
+import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
 
 type Offer = {
   id?: number;
@@ -89,6 +105,25 @@ type OfferStats = {
   statusCounts: Record<string, number>;
   sourceCounts: Record<string, number>;
 };
+type SummaryMetricKey =
+  | "totalOffers"
+  | "appliedOffers"
+  | "activeOffers"
+  | "expiredOffers"
+  | "avgDaysLeft"
+  | "recentApplications"
+  | "archivedOffers"
+  | "readOffers"
+  | "invitationOffers"
+  | "rejectedOffers"
+  | "sourceTypes";
+type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
+type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
+type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart"; size: "1x1" | "1x2" };
+type StatsLayoutDragState =
+  | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
+  | { source: "library"; widgetKey: StatsWidgetKey }
+  | null;
 
 type ThemeMode = "auto" | "light" | "dark";
 type SettingsTab = "general" | "notifications" | "preferences" | "about";
@@ -143,6 +178,38 @@ type AppNotification = {
   kind: "operational";
 };
 
+const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
+  "totalOffers",
+  "appliedOffers",
+  "activeOffers",
+  "expiredOffers",
+  "avgDaysLeft",
+  "recentApplications",
+];
+const STATS_LAYOUT_SLOT_COUNT = 12;
+const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
+const SUMMARY_DND_METRIC_MIME = "application/x-applymanager-summary-metric";
+
+function createDefaultStatsLayoutSlots(): Array<StatsWidgetKey | null> {
+  const slots: Array<StatsWidgetKey | null> = Array.from({ length: STATS_LAYOUT_SLOT_COUNT }, () => null);
+  const defaults: StatsWidgetKey[] = [
+    "totalOffers",
+    "appliedOffers",
+    "activeOffers",
+    "expiredOffers",
+    "avgDaysLeft",
+    "recentApplications",
+    "chartTrend",
+    "chartInvitesRead",
+    "chartStatus",
+    "chartSource",
+  ];
+  defaults.forEach((key, index) => {
+    if (index < slots.length) slots[index] = key;
+  });
+  return slots;
+}
+
 
 const CONTRACT_TYPES = [
   "dowolny",
@@ -168,6 +235,7 @@ const STATUS_OPTIONS: CanonicalStatus[] = [
   "Odrzucono",
   "Odmowa",
 ];
+const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
 
 function isAbsoluteHttpUrl(value: string) {
   try {
@@ -419,9 +487,38 @@ function formatDaysToExpire(daysToExpire: number | null | undefined): string {
   return `${daysToExpire} dni`;
 }
 
+function formatChartDateLabel(dateIso: string): string {
+  const parsed = Date.parse(dateIso);
+  if (Number.isNaN(parsed)) return dateIso;
+  const date = new Date(parsed);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${day}.${month}`;
+}
+
+function normalizeStatusForChart(statusName: string): string {
+  const normalized = normalizeStatusKey(statusName);
+  if (normalized.includes("odrzu") || normalized.includes("odmow") || normalized.includes("rejected")) {
+    return "Odrzucono/Odmowa";
+  }
+  return statusName;
+}
+
+function getStatusBarColor(statusName: string, index: number): string {
+  if (statusName === "Odrzucono/Odmowa") {
+    return "#ef4444";
+  }
+  return CHART_COLORS[index % CHART_COLORS.length];
+}
+
 export function App() {
+  const initialTopTab: TopTab =
+    typeof window !== "undefined"
+      ? (resolveTopTabFromPathname(window.location.pathname) ?? "offers")
+      : "offers";
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
+  const statsNavSettingsRef = useRef<HTMLDivElement | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
   const [scrapeQuery, setScrapeQuery] = useState("frontend react");
@@ -476,11 +573,38 @@ export function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
-  const [activeTopTab, setActiveTopTab] = useState<TopTab>("offers");
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>(initialTopTab);
   const [compactView, setCompactView] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [showSearchInput, setShowSearchInput] = useState(false);
+  const [showStatsNavSettings, setShowStatsNavSettings] = useState(false);
+  const [statsLayoutSlots, setStatsLayoutSlots] = useState<Array<StatsWidgetKey | null>>(() => {
+    if (typeof window === "undefined") return createDefaultStatsLayoutSlots();
+    try {
+      const raw = window.localStorage.getItem("statsLayoutSlots");
+      if (!raw) return createDefaultStatsLayoutSlots();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return createDefaultStatsLayoutSlots();
+      const slots = createDefaultStatsLayoutSlots();
+      for (let index = 0; index < Math.min(parsed.length, slots.length); index += 1) {
+        const value = parsed[index];
+        if (typeof value === "string") slots[index] = value as StatsWidgetKey;
+        if (value === null) slots[index] = null;
+      }
+      return slots;
+    } catch {
+      return createDefaultStatsLayoutSlots();
+    }
+  });
+  const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
+  const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
+  const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
+  const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
+  const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
+  const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
+  const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
+  const statsLayoutEditBaselineRef = useRef<Array<StatsWidgetKey | null> | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
@@ -550,12 +674,335 @@ export function App() {
     [notifications]
   );
   const visibleMenuNotifications = useMemo(() => notifications.filter((item) => item.menuVisible), [notifications]);
+  const trendOffersData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      counts.set(date, (counts.get(date) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, count]) => ({
+        date,
+        label: formatChartDateLabel(date),
+        count,
+      }));
+  }, [offers]);
+  const statusChartData = useMemo(
+    () => {
+      const merged = new Map<string, number>();
+      for (const [rawName, rawCount] of Object.entries(stats.statusCounts)) {
+        const name = normalizeStatusForChart(rawName);
+        const count = Number(rawCount || 0);
+        if (count <= 0) continue;
+        merged.set(name, (merged.get(name) || 0) + count);
+      }
+      return Array.from(merged.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+    },
+    [stats.statusCounts]
+  );
+  const sourceChartData = useMemo(
+    () =>
+      Object.entries(stats.sourceCounts)
+        .map(([name, count]) => ({ name, count: Number(count || 0) }))
+        .filter((entry) => entry.count > 0)
+        .sort((a, b) => b.count - a.count),
+    [stats.sourceCounts]
+  );
+  const invitationsReadTrendData = useMemo(() => {
+    const counts = new Map<string, { invitations: number; read: number }>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      const normalizedStatus = normalizeOfferStatus(offer.status, offer.applied !== false);
+      const entry = counts.get(date) || { invitations: 0, read: 0 };
+      if (normalizedStatus === "Odczytano") {
+        entry.read += 1;
+      }
+      if (normalizedStatus === "Rozmowa" || normalizedStatus === "Oferta") {
+        entry.invitations += 1;
+      }
+      counts.set(date, entry);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, value]) => ({
+        date,
+        label: formatChartDateLabel(date),
+        invitations: value.invitations,
+        read: value.read,
+      }));
+  }, [offers]);
+  const summaryMetricOptions = useMemo(() => {
+    const statusCounters = {
+      readOffers: 0,
+      invitationOffers: 0,
+      rejectedOffers: 0,
+    };
+    for (const [rawName, rawCount] of Object.entries(stats.statusCounts)) {
+      const name = normalizeStatusForChart(rawName);
+      const count = Number(rawCount || 0);
+      if (count <= 0) continue;
+      if (name === "Odczytano") statusCounters.readOffers += count;
+      if (name === "Rozmowa" || name === "Oferta") statusCounters.invitationOffers += count;
+      if (name === "Odrzucono/Odmowa") statusCounters.rejectedOffers += count;
+    }
+    const archivedOffers = offers.reduce((acc, offer) => acc + (offer.archive === true ? 1 : 0), 0);
+    const sourceTypes = Object.values(stats.sourceCounts).filter((count) => Number(count || 0) > 0).length;
+    return [
+      { key: "totalOffers", label: t.totalOffers, value: String(stats.totalOffers) },
+      { key: "appliedOffers", label: t.appliedOffers, value: String(stats.appliedOffers) },
+      { key: "activeOffers", label: t.activeOffers, value: String(stats.activeOffers) },
+      { key: "expiredOffers", label: t.expiredOffers, value: String(stats.expiredOffers) },
+      { key: "avgDaysLeft", label: t.avgDaysLeft, value: stats.averageDaysLeft === null ? "-" : String(stats.averageDaysLeft) },
+      { key: "recentApplications", label: t.recentApplications, value: String(stats.recentApplications7d) },
+      { key: "archivedOffers", label: t.archivedOffers, value: String(archivedOffers) },
+      { key: "readOffers", label: t.readOffers, value: String(statusCounters.readOffers) },
+      { key: "invitationOffers", label: t.invitationOffers, value: String(statusCounters.invitationOffers) },
+      { key: "rejectedOffers", label: t.rejectedOffers, value: String(statusCounters.rejectedOffers) },
+      { key: "sourceTypes", label: t.sourceTypes, value: String(sourceTypes) },
+    ] as Array<{ key: SummaryMetricKey; label: string; value: string }>;
+  }, [offers, stats, t]);
+  const chartWidgetOptions = useMemo(
+    () =>
+      [
+        { key: "chartTrend", label: "Naplyw ofert (30 dni)", value: "-" },
+        { key: "chartInvitesRead", label: "Zaproszenia i odczytane", value: "-" },
+        { key: "chartStatus", label: t.statusBreakdown, value: "-" },
+        { key: "chartSource", label: t.sourceBreakdown, value: "-" },
+      ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
+    [t]
+  );
+  const statsWidgetOptions = useMemo(
+    () =>
+      [
+        ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const, size: "1x1" as const })),
+        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x2" as const })),
+      ] as Array<StatsWidgetOption>,
+    [summaryMetricOptions, chartWidgetOptions]
+  );
+  const summaryMetricMap = useMemo(
+    () =>
+      new Map<SummaryMetricKey, { label: string; value: string }>(
+        summaryMetricOptions.map((entry) => [entry.key, { label: entry.label, value: entry.value }])
+      ),
+    [summaryMetricOptions]
+  );
+  const statsWidgetMap = useMemo(
+    () =>
+      new Map<StatsWidgetKey, StatsWidgetOption>(
+        statsWidgetOptions.map((entry) => [
+          entry.key,
+          { key: entry.key, label: entry.label, value: entry.value, kind: entry.kind, size: entry.size },
+        ])
+      ),
+    [statsWidgetOptions]
+  );
+  function renderStatsLibraryWidgetPreview(widget: StatsWidgetOption) {
+    if (widget.kind === "summary") {
+      const metric = summaryMetricMap.get(widget.key as SummaryMetricKey);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--summary" aria-hidden="true">
+          <strong>{metric?.value ?? widget.value ?? "-"}</strong>
+          <span>{metric?.label ?? widget.label}</span>
+        </div>
+      );
+    }
+    if (widget.key === "chartTrend") {
+      const miniData = trendOffersData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartInvitesRead") {
+      const miniData = invitationsReadTrendData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="invitations" stroke="#f59e0b" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="read" stroke="#ec4899" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartStatus") {
+      const miniData = statusChartData.slice(0, 4);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <BarChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                      {miniData.map((entry, index) => (
+                        <Cell key={`${entry.name}-mini-${index}`} fill={getStatusBarColor(entry.name, index)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartSource") {
+      const miniData = sourceChartData.slice(0, 5);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <PieChart>
+                    <Pie
+                      data={miniData}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={10}
+                      outerRadius={18}
+                      paddingAngle={2}
+                      label={false}
+                      isAnimationActive={false}
+                    >
+                      {miniData.map((entry, index) => (
+                        <Cell key={`${entry.name}-mini-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  const statsLayoutDisplaySlots = useMemo(() => {
+    return statsLayoutSlots.map((widgetKey, slotIndex) => {
+      const normalizedWidgetKey =
+        widgetKey && statsWidgetMap.has(widgetKey)
+          ? widgetKey
+          : null;
+      return {
+        widgetKey: normalizedWidgetKey,
+        slotIndex,
+        isEmpty: normalizedWidgetKey === null,
+      };
+    });
+  }, [statsLayoutSlots, statsWidgetMap]);
+  const statsLayoutFilledCount = useMemo(
+    () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
+    [statsLayoutSlots, statsWidgetMap]
+  );
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
     const current = JSON.stringify(normalizeOfferForEdit(selectedOfferDraft));
     return baseline !== current;
   }, [editingSelectedOffer, selectedOffer, selectedOfferDraft]);
+
+  useEffect(() => {
+    if (activeTopTab !== "stats") {
+      setShowStatsNavSettings(false);
+    }
+  }, [activeTopTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const currentPath = window.location.pathname;
+    const resolved = resolveTopTabFromPathname(currentPath);
+    if (resolved !== null) return;
+    window.history.replaceState(window.history.state, "", buildPathnameForTopTab(activeTopTab));
+  }, [activeTopTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      const resolved = resolveTopTabFromPathname(window.location.pathname) ?? "offers";
+      setActiveTopTab(resolved);
+      if (resolved !== "offers") {
+        setEditorMode(false);
+      }
+      if (resolved !== "stats") {
+        setStatsLayoutEditMode(false);
+        setShowStatsNavSettings(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (statsLayoutEditMode) return;
+    setShowStatsNavSettings(false);
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
+    statsLayoutDragRef.current = null;
+  }, [statsLayoutEditMode]);
+
+  useEffect(() => {
+    if (!showStatsNavSettings) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (statsNavSettingsRef.current?.contains(target)) return;
+      setShowStatsNavSettings(false);
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, [showStatsNavSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("statsLayoutSlots", JSON.stringify(statsLayoutSlots));
+  }, [statsLayoutSlots]);
 
   function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
@@ -615,6 +1062,91 @@ export function App() {
         prev.map((item) => (item.id === id ? { ...item, menuVisible: false, menuClosing: false, read: true } : item))
       );
     }, NOTIFICATION_CLOSE_ANIMATION_MS);
+  }
+
+  function setStatsWidgetDragPreview(
+    event: React.DragEvent<HTMLElement>,
+    widget: { label: string; kind: "summary" | "chart" }
+  ) {
+    if (typeof document === "undefined") return;
+    const preview = document.createElement("div");
+    preview.className = `stats-widget-drag-preview stats-widget-drag-preview--${widget.kind}`;
+    preview.textContent = widget.label;
+    document.body.appendChild(preview);
+    event.dataTransfer.setDragImage(preview, 28, 18);
+    window.setTimeout(() => preview.remove(), 0);
+  }
+
+  function applyStatsLayoutDrop(sourceIndex: number, targetIndex: number) {
+    setStatsLayoutSlots((prev) => {
+      const fromIndex = Math.max(0, Math.min(sourceIndex, prev.length - 1));
+      const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      if (fromIndex === toIndex) return prev;
+      if (prev[fromIndex] === null) return prev;
+      const next = [...prev];
+      const source = next[fromIndex];
+      next[fromIndex] = next[toIndex];
+      next[toIndex] = source;
+      return next;
+    });
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
+    statsLayoutDragRef.current = null;
+  }
+
+  function removeStatsLayoutWidget(sourceIndex: number) {
+    setStatsLayoutSlots((prev) => {
+      const fromIndex = Math.max(0, Math.min(sourceIndex, prev.length - 1));
+      if (prev[fromIndex] === null) return prev;
+      const next = [...prev];
+      next[fromIndex] = null;
+      return next;
+    });
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
+    statsLayoutDragRef.current = null;
+  }
+
+  function applyStatsLayoutFromLibrary(widgetKey: StatsWidgetKey, targetIndex: number) {
+    setStatsLayoutSlots((prev) => {
+      const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      const next = [...prev];
+      if (next[toIndex] === widgetKey) return prev;
+      next[toIndex] = widgetKey;
+      return next;
+    });
+    setStatsLayoutDragState(null);
+    setStatsLayoutDropTargetIndex(null);
+    setStatsLayoutDeleteDropActive(false);
+    setStatsLayoutSelectedSlotIndex(null);
+    setStatsLayoutSelectedLibraryWidgetKey(null);
+    statsLayoutDragRef.current = null;
+  }
+
+  function handleStatsLayoutDeleteDragOver(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (!statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(true);
+  }
+
+  function handleStatsLayoutDeleteDrop(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    event.preventDefault();
+    removeStatsLayoutWidget(statsLayoutDragState.index);
+  }
+
+  function handleStatsLayoutDeleteDragLeave(event: React.DragEvent<HTMLElement>) {
+    if (statsLayoutDragState?.source !== "slot") return;
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setStatsLayoutDeleteDropActive(false);
   }
 
   const statusFilterOptions = useMemo(
@@ -833,11 +1365,101 @@ export function App() {
   }
 
   function toggleEditorMode() {
+    function hasStatsLayoutDraftChanges() {
+      const baseline = statsLayoutEditBaselineRef.current;
+      if (!baseline) return false;
+      if (baseline.length !== statsLayoutSlots.length) return true;
+      for (let index = 0; index < baseline.length; index += 1) {
+        if (baseline[index] !== statsLayoutSlots[index]) return true;
+      }
+      return false;
+    }
+
+    function stopStatsLayoutEditModeWithPrompt(promptOnDirty: boolean) {
+      if (!statsLayoutEditMode) {
+        statsLayoutEditBaselineRef.current = null;
+        setShowStatsNavSettings(false);
+        return true;
+      }
+      if (promptOnDirty && hasStatsLayoutDraftChanges()) {
+        const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+        if (!shouldDiscard) return false;
+        if (statsLayoutEditBaselineRef.current) {
+          setStatsLayoutSlots([...statsLayoutEditBaselineRef.current]);
+        }
+      }
+      setStatsLayoutEditMode(false);
+      setShowStatsNavSettings(false);
+      statsLayoutEditBaselineRef.current = null;
+      return true;
+    }
+
+    if (activeTopTab === "stats") {
+      if (statsLayoutEditMode) {
+        const stopped = stopStatsLayoutEditModeWithPrompt(false);
+        if (!stopped) return;
+        setStatusMessage(t.editorModeDisabled);
+      } else {
+        statsLayoutEditBaselineRef.current = [...statsLayoutSlots];
+        setStatsLayoutEditMode(true);
+        setShowStatsNavSettings(true);
+        setStatusMessage(t.editorModeEnabled);
+      }
+      return;
+    }
     setEditorMode((prev) => {
       const next = !prev;
       setStatusMessage(next ? t.editorModeEnabled : t.editorModeDisabled);
       return next;
     });
+  }
+
+  function handleTopTabChange(nextTab: TopTab, historyMode: "push" | "replace" | "none" = "push") {
+    if (nextTab === activeTopTab) return;
+
+    if (editingSelectedOffer && isSelectedOfferDirty) {
+      const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+      if (!shouldDiscard) return;
+      closeOfferDetails();
+    }
+
+    if (activeTopTab === "offers" && editorMode) {
+      setEditorMode(false);
+    }
+
+    if (activeTopTab === "stats" && statsLayoutEditMode) {
+      const baseline = statsLayoutEditBaselineRef.current;
+      let hasStatsDraftChanges = false;
+      if (baseline && baseline.length === statsLayoutSlots.length) {
+        hasStatsDraftChanges = baseline.some((value, index) => value !== statsLayoutSlots[index]);
+      } else if (baseline) {
+        hasStatsDraftChanges = true;
+      }
+
+      if (hasStatsDraftChanges) {
+        const shouldDiscard = window.confirm(t.discardOfferChangesConfirm);
+        if (!shouldDiscard) return;
+        if (baseline) {
+          setStatsLayoutSlots([...baseline]);
+        }
+      }
+
+      setStatsLayoutEditMode(false);
+      setShowStatsNavSettings(false);
+      statsLayoutEditBaselineRef.current = null;
+    }
+
+    setActiveTopTab(nextTab);
+    if (typeof window !== "undefined" && historyMode !== "none") {
+      const nextPath = buildPathnameForTopTab(nextTab);
+      if (window.location.pathname !== nextPath) {
+        if (historyMode === "replace") {
+          window.history.replaceState(window.history.state, "", nextPath);
+        } else {
+          window.history.pushState(window.history.state, "", nextPath);
+        }
+      }
+    }
   }
 
   function toggleRowSelection(offer: Offer) {
@@ -2510,14 +3132,14 @@ export function App() {
           <button
             type="button"
             className={`ghost-btn nav-btn ${activeTopTab === "offers" ? "nav-btn--active" : ""}`}
-            onClick={() => setActiveTopTab("offers")}
+            onClick={() => handleTopTabChange("offers")}
           >
             {t.offers}
           </button>
           <button
             type="button"
             className={`ghost-btn nav-btn ${activeTopTab === "stats" ? "nav-btn--active" : ""}`}
-            onClick={() => setActiveTopTab("stats")}
+            onClick={() => handleTopTabChange("stats")}
           >
             {t.stats}
           </button>
@@ -2528,11 +3150,11 @@ export function App() {
             <>
               <button
                 type="button"
-                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${editorMode ? "is-active edit-offer-btn--mode" : ""}`}
+                className={`edit-offer-btn edit-offer-btn--compact action-mini-btn ${((activeTopTab === "stats" ? statsLayoutEditMode : editorMode) ? "is-active edit-offer-btn--mode" : "")}`}
                 onClick={toggleEditorMode}
                 aria-label={t.edit}
               >
-                {editorMode ? (
+                {(activeTopTab === "stats" ? statsLayoutEditMode : editorMode) ? (
                   <span className="edit-mode-label">{t.editorModeLabel}</span>
                 ) : (
                   <>
@@ -2709,7 +3331,100 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
-
+      {activeTopTab === "stats" && statsLayoutEditMode ? (
+        <div className={`stats-drawer-shell ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
+          <button
+            type="button"
+            className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""} ${statsLayoutDragState?.source === "slot" ? "is-delete-drag-available" : ""} ${statsLayoutDeleteDropActive ? "is-delete-drop-active" : ""}`}
+            onClick={() => setShowStatsNavSettings((prev) => !prev)}
+            onDragOver={handleStatsLayoutDeleteDragOver}
+            onDragEnter={handleStatsLayoutDeleteDragOver}
+            onDragLeave={handleStatsLayoutDeleteDragLeave}
+            onDrop={handleStatsLayoutDeleteDrop}
+            aria-label="Menu widgetow"
+            title="Menu widgetow"
+          >
+            {statsLayoutDragState?.source === "slot" ? "🗑" : showStatsNavSettings ? "▸" : "◂"}
+          </button>
+          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
+            <div className="stats-drawer__section">
+              <strong>Biblioteka Widgetow</strong>
+              <p className="stats-kpi-drag-hint">Przeciagnij widget albo kliknij widget, potem kliknij slot. Uklad zapisuje sie automatycznie.</p>
+              <div className="stats-kpi-library">
+                {statsWidgetOptions.map((widget) => {
+                  const usageCount = statsLayoutSlots.reduce((acc, entry) => acc + (entry === widget.key ? 1 : 0), 0);
+                  const widgetKindLabel = widget.kind === "chart" ? "Wykres" : "KPI";
+                  return (
+                    <button
+                      key={`kpi-lib-${widget.key}`}
+                      type="button"
+                      className={`ghost-btn stats-kpi-library-item ${statsLayoutSelectedLibraryWidgetKey === widget.key ? "is-selected-source" : ""} ${usageCount > 0 ? "is-duplicate" : ""}`}
+                      aria-label={`${widget.label}. ${widgetKindLabel} ${widget.size}.`}
+                      draggable={statsLayoutEditMode}
+                      disabled={!statsLayoutEditMode}
+                      onClick={() => {
+                        if (!statsLayoutEditMode) return;
+                        setStatsLayoutSelectedSlotIndex(null);
+                        setStatsLayoutSelectedLibraryWidgetKey((prev) => (prev === widget.key ? null : widget.key));
+                      }}
+                      onDragStart={(event) => {
+                        if (!statsLayoutEditMode) return;
+                        event.dataTransfer.effectAllowed = "copyMove";
+                        event.dataTransfer.setData(SUMMARY_DND_METRIC_MIME, widget.key);
+                        event.dataTransfer.setData("text/plain", widget.label);
+                        setStatsWidgetDragPreview(event, { label: widget.label, kind: widget.kind });
+                        const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
+                        statsLayoutDragRef.current = nextState;
+                        setStatsLayoutDragState(nextState);
+                        setStatsLayoutDropTargetIndex(null);
+                        setStatsLayoutDeleteDropActive(false);
+                        setStatsLayoutSelectedSlotIndex(null);
+                        setStatsLayoutSelectedLibraryWidgetKey(widget.key);
+                      }}
+                      onDragEnd={() => {
+                        setStatsLayoutDragState(null);
+                        setStatsLayoutDropTargetIndex(null);
+                        setStatsLayoutDeleteDropActive(false);
+                        setStatsLayoutSelectedLibraryWidgetKey(null);
+                        statsLayoutDragRef.current = null;
+                      }}
+                    >
+                      <span className="stats-kpi-library-item__head">
+                        <span className="stats-kpi-library-item__title">{widget.label}</span>
+                        <span className="stats-kpi-library-item__size">{widget.size}</span>
+                      </span>
+                      {renderStatsLibraryWidgetPreview(widget)}
+                      <span className="stats-kpi-library-item__meta">{widgetKindLabel}</span>
+                      <span className="stats-kpi-library-item__hover-hint" aria-hidden="true">
+                        <span>{widgetKindLabel}</span>
+                        <span className="stats-kpi-library-item__hint-sep">•</span>
+                        <span>{widget.size}</span>
+                        <span className="stats-kpi-library-item__hint-sep">•</span>
+                        <span>Przeciagnij lub kliknij</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    setStatsLayoutSlots(createDefaultStatsLayoutSlots());
+                    setStatsLayoutDragState(null);
+                    setStatsLayoutDropTargetIndex(null);
+                    setStatsLayoutDeleteDropActive(false);
+                  setStatsLayoutSelectedSlotIndex(null);
+                  setStatsLayoutSelectedLibraryWidgetKey(null);
+                  statsLayoutDragRef.current = null;
+                }}
+              >
+                Reset Layout
+              </button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
       {visibleCenterNotifications.length > 0 ? (
         <div
           className="toast-stack toast-stack--center"
@@ -3065,36 +3780,227 @@ export function App() {
         </section>
         )
       ) : (
-        <section className="card" id="stats">
-          <h2>{t.stats}</h2>
-          <div className="stats-grid">
-            <article className="stats-box"><strong>{stats.totalOffers}</strong><span>{t.totalOffers}</span></article>
-            <article className="stats-box"><strong>{stats.appliedOffers}</strong><span>{t.appliedOffers}</span></article>
-            <article className="stats-box"><strong>{stats.activeOffers}</strong><span>{t.activeOffers}</span></article>
-            <article className="stats-box"><strong>{stats.expiredOffers}</strong><span>{t.expiredOffers}</span></article>
-            <article className="stats-box"><strong>{stats.averageDaysLeft ?? "-"}</strong><span>{t.avgDaysLeft}</span></article>
-            <article className="stats-box"><strong>{stats.recentApplications7d}</strong><span>{t.recentApplications}</span></article>
+        <section className={`card ${offers.length === 0 ? "stats-empty-card" : ""}`} id="stats">
+          {offers.length === 0 ? (
+            <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
+          ) : (
+          <div className={`stats-grid stats-summary-grid ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
+            {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
+              const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
+              const isFilled = !isEmpty && Boolean(widgetKey && widget);
+              const isDragging = statsLayoutDragState?.source === "slot" && statsLayoutDragState.index === slotIndex;
+              const isDropTarget = statsLayoutDropTargetIndex === slotIndex;
+              const draggedWidget = statsLayoutDragState?.widgetKey ? statsWidgetMap.get(statsLayoutDragState.widgetKey) : null;
+              const shouldPreviewChartDrop =
+                statsLayoutEditMode &&
+                isDropTarget &&
+                draggedWidget?.kind === "chart" &&
+                (!isFilled || widget?.kind !== "chart");
+              const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
+              const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
+              return (
+                <article
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
+                  draggable={isFilled && statsLayoutEditMode}
+                  onDragStart={(event) => {
+                    if (!statsLayoutEditMode || !isFilled || !widgetKey) return;
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData(SUMMARY_DND_SLOT_MIME, String(slotIndex));
+                    event.dataTransfer.setData("text/plain", widgetKey);
+                    if (widget) setStatsWidgetDragPreview(event, { label: widget.label, kind: widget.kind });
+                    const nextState: StatsLayoutDragState = { source: "slot", index: slotIndex, widgetKey };
+                    statsLayoutDragRef.current = nextState;
+                    setStatsLayoutDragState(nextState);
+                    setStatsLayoutDropTargetIndex(slotIndex);
+                    setStatsLayoutDeleteDropActive(false);
+                    setStatsLayoutSelectedSlotIndex(slotIndex);
+                    setStatsLayoutSelectedLibraryWidgetKey(null);
+                  }}
+                  onDragOver={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = statsLayoutDragState?.source === "library" ? "copy" : "move";
+                    if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
+                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                  }}
+                  onDragEnter={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
+                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                  }}
+                  onDrop={(event) => {
+                    if (!statsLayoutEditMode) return;
+                    event.preventDefault();
+                    const rawMetric = event.dataTransfer.getData(SUMMARY_DND_METRIC_MIME);
+                    if (rawMetric) {
+                      const metricKey = rawMetric as StatsWidgetKey;
+                      const isKnownMetric = statsWidgetOptions.some((entry) => entry.key === metricKey);
+                      if (isKnownMetric) {
+                        applyStatsLayoutFromLibrary(metricKey, slotIndex);
+                        return;
+                      }
+                    }
+                    const fallbackLibraryKey =
+                      statsLayoutDragRef.current?.source === "library"
+                        ? statsLayoutDragRef.current.widgetKey
+                        : null;
+                    if (fallbackLibraryKey && statsWidgetOptions.some((entry) => entry.key === fallbackLibraryKey)) {
+                      applyStatsLayoutFromLibrary(fallbackLibraryKey, slotIndex);
+                      return;
+                    }
+                    const rawSource = event.dataTransfer.getData(SUMMARY_DND_SLOT_MIME);
+                    const parsed = Number(rawSource);
+                    const sourceIndex =
+                      Number.isInteger(parsed) && parsed >= 0
+                        ? parsed
+                        : statsLayoutDragRef.current?.source === "slot"
+                          ? statsLayoutDragRef.current.index
+                          : null;
+                    if (sourceIndex === null) return;
+                    applyStatsLayoutDrop(sourceIndex, slotIndex);
+                  }}
+                  onDragEnd={() => {
+                    setStatsLayoutDragState(null);
+                    setStatsLayoutDropTargetIndex(null);
+                    setStatsLayoutDeleteDropActive(false);
+                    setStatsLayoutSelectedSlotIndex(null);
+                    setStatsLayoutSelectedLibraryWidgetKey(null);
+                    statsLayoutDragRef.current = null;
+                  }}
+                  onClickCapture={() => {
+                    if (!statsLayoutEditMode) return;
+                    if (statsLayoutSelectedLibraryWidgetKey) {
+                      applyStatsLayoutFromLibrary(statsLayoutSelectedLibraryWidgetKey, slotIndex);
+                      return;
+                    }
+                    if (statsLayoutSelectedSlotIndex === null) {
+                      if (!isFilled) return;
+                      setStatsLayoutSelectedSlotIndex(slotIndex);
+                      setStatsLayoutSelectedLibraryWidgetKey(null);
+                      return;
+                    }
+                    if (statsLayoutSelectedSlotIndex === slotIndex) {
+                      setStatsLayoutSelectedSlotIndex(null);
+                      return;
+                    }
+                    applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
+                  }}
+                >
+                  {widget?.kind === "summary" ? (
+                    <>
+                      <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
+                      <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
+                    </>
+                  ) : widget?.key === "chartTrend" ? (
+                    <>
+                      <h3>Naplyw ofert (30 dni)</h3>
+                      {trendOffersData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartInvitesRead" ? (
+                    <>
+                      <h3>Zaproszenia i odczytane</h3>
+                      {invitationsReadTrendData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                              <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartStatus" ? (
+                    <>
+                      <h3>{t.statusBreakdown}</h3>
+                      {statusChartData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={statusChartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                              <Bar dataKey="count" radius={[7, 7, 0, 0]}>
+                                {statusChartData.map((entry, index) => (
+                                  <Cell key={`${entry.name}-${index}`} fill={getStatusBarColor(entry.name, index)} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartSource" ? (
+                    <>
+                      <h3>{t.sourceBreakdown}</h3>
+                      {sourceChartData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <PieChart>
+                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false}>
+                                {sourceChartData.map((entry, index) => (
+                                  <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="stats-box-empty-label" />
+                  )}
+                </article>
+              );
+            })}
+            {statsLayoutDragState === null && statsLayoutFilledCount === 0 ? <p className="hint">-</p> : null}
           </div>
-          <div className="stats-grid">
-            <article className="card">
-              <h3>{t.statusBreakdown}</h3>
-              <div className="list">
-                {Object.entries(stats.statusCounts).map(([name, count]) => (
-                  <p key={name}>{name}: {count}</p>
-                ))}
-                {Object.keys(stats.statusCounts).length === 0 ? <p className="hint">-</p> : null}
-              </div>
-            </article>
-            <article className="card">
-              <h3>{t.sourceBreakdown}</h3>
-              <div className="list">
-                {Object.entries(stats.sourceCounts).map(([name, count]) => (
-                  <p key={name}>{name}: {count}</p>
-                ))}
-                {Object.keys(stats.sourceCounts).length === 0 ? <p className="hint">-</p> : null}
-              </div>
-            </article>
-          </div>
+          )}
         </section>
       )}
 
