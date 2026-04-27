@@ -273,15 +273,15 @@ def _evaluate_text_formula_cell(
         visiting.remove(normalized_ref)
 
 
-def _pick_role_hyperlink(row: dict[str, Any], role_key: str | None = None) -> str | None:
-    if role_key:
-        link_key = f"__link__{role_key}"
+def _pick_field_hyperlink(row: dict[str, Any], *, preferred_key: str | None = None, field_aliases: list[str]) -> str | None:
+    if preferred_key:
+        link_key = f"__link__{preferred_key}"
         link_value = to_non_empty_string(row.get(link_key))
         if link_value and is_absolute_http_url(link_value):
             return link_value
 
-    for role_header in EXCEL_FIELDS["role"]:
-        link_key = f"__link__{role_header}"
+    for header in field_aliases:
+        link_key = f"__link__{header}"
         link_value = to_non_empty_string(row.get(link_key))
         if link_value and is_absolute_http_url(link_value):
             return link_value
@@ -415,8 +415,8 @@ def map_excel_row_to_offer(
     company, company_key = pick_first_value_with_key(row, EXCEL_FIELDS["company"])
     role, role_key = pick_first_value_with_key(row, EXCEL_FIELDS["role"])
 
-    role_hyperlink = _pick_role_hyperlink(row, role_key=role_key)
-    company_hyperlink = _pick_role_hyperlink(row, role_key=company_key)
+    role_hyperlink = _pick_field_hyperlink(row, preferred_key=role_key, field_aliases=EXCEL_FIELDS["role"])
+    company_hyperlink = _pick_field_hyperlink(row, preferred_key=company_key, field_aliases=EXCEL_FIELDS["company"])
     direct_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrl"])
     linked_source_url = pick_first_value(row, EXCEL_FIELDS["sourceUrlLink"])
     source_url = (
@@ -558,7 +558,7 @@ def read_excel_rows_with_hyperlinks(content: bytes) -> list[dict[str, Any]]:
     return rows
 
 
-def list_offers(*, auto_archive_expired: bool = True) -> list[dict[str, Any]]:
+def list_offers_with_truncation(*, auto_archive_expired: bool = True, limit: int = 500) -> tuple[list[dict[str, Any]], bool]:
     if auto_archive_expired:
         auto_archive_expired_offers()
 
@@ -592,11 +592,20 @@ def list_offers(*, auto_archive_expired: bool = True) -> list[dict[str, Any]]:
                     created_at AS "createdAt"
                 FROM applications
                 ORDER BY created_at DESC
-                LIMIT 500
+                LIMIT %s
                 """
+                ,
+                (max(1, limit + 1),),
             )
             rows = cur.fetchall()
-            return [dict(row) for row in rows]
+            truncated = len(rows) > limit
+            normalized = [dict(row) for row in rows[:limit]]
+            return normalized, truncated
+
+
+def list_offers(*, auto_archive_expired: bool = True) -> list[dict[str, Any]]:
+    rows, _ = list_offers_with_truncation(auto_archive_expired=auto_archive_expired, limit=500)
+    return rows
 
 
 def insert_offer(offer: dict[str, Any]) -> dict[str, Any]:

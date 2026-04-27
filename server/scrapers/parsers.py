@@ -528,19 +528,16 @@ def parse_job_from_meta(html: str, source: str, fallback_url: str | None = None)
     canonical_el = soup.select_one("link[rel='canonical']")
     canonical = clean_text(canonical_el.get("href") if canonical_el else None)
     url = canonical or fallback_url
-    location = (
-        (clean_text(rocket_job.get("location")) or og_description)
-        if source == "rocketjobs"
-        else (
-            clean_text(olx_job.get("location"))
-            if source == "olx"
-            else (
-                clean_text(nofluff_job.get("location")) or clean_text(parsed_nofluff.get("location"))
-                if source == "nofluffjobs"
-                else (clean_text(justjoin_job.get("location")) or og_description if source == "justjoinit" else None)
-            )
-        )
-    )
+    if source == "rocketjobs":
+        location = clean_text(rocket_job.get("location")) or og_description
+    elif source == "olx":
+        location = clean_text(olx_job.get("location"))
+    elif source == "nofluffjobs":
+        location = clean_text(nofluff_job.get("location")) or clean_text(parsed_nofluff.get("location"))
+    elif source == "justjoinit":
+        location = clean_text(justjoin_job.get("location")) or og_description
+    else:
+        location = None
 
     if not title and not description and not og_description:
         return None

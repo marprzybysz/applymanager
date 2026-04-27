@@ -16,6 +16,7 @@ from server.modules.offers import (
     import_offers_from_excel,
     insert_offer,
     list_offers,
+    list_offers_with_truncation,
     map_offer_for_insert_from_request,
     preview_offers_from_excel,
     update_offer,
@@ -28,6 +29,15 @@ from server.modules.scrape import list_sources, normalize_scrape_url, scrape_que
 router = APIRouter(prefix="/api")
 SCRAPE_RATE_LIMITER = FixedWindowRateLimiter(max_requests=30, window_seconds=60)
 LOGGER = logging.getLogger("uvicorn.error")
+
+
+def _resolve_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        first = forwarded_for.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
 
 
 def is_manual_offer(offer_input: dict) -> bool:
@@ -50,7 +60,7 @@ def validate_manual_offer_requirements(offer_input: dict) -> None:
 
 
 def _enforce_scrape_rate_limit(request: Request) -> JSONResponse | None:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _resolve_client_ip(request)
     decision = SCRAPE_RATE_LIMITER.check(client_ip)
     if decision.allowed:
         return None
@@ -110,7 +120,8 @@ async def update_preferences(request: Request):
 def get_offers():
     try:
         auto_archived_count = auto_archive_expired_offers()
-        return {"ok": True, "offers": list_offers(auto_archive_expired=False), "autoArchived": auto_archived_count}
+        offers, truncated = list_offers_with_truncation(auto_archive_expired=False, limit=500)
+        return {"ok": True, "offers": offers, "truncated": truncated, "autoArchived": auto_archived_count}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
@@ -189,19 +200,16 @@ async def import_excel_preview(file: UploadFile = File(...)):
         file_sha256 = hashlib.sha256(content).hexdigest()
         issues = result.get("issues") or []
         issue_rows = [issue.get("rowNumber") for issue in issues[:5]]
-        print(
-            "excel_preview",
-            {
-                "filename": file.filename,
-                "size": len(content),
-                "sha256": file_sha256,
-                "imported": result.get("imported"),
-                "skipped": result.get("skipped"),
-                "ignored": result.get("ignored"),
-                "issues": len(issues),
-                "issue_rows": issue_rows,
-            },
-            flush=True,
+        LOGGER.info(
+            "excel_preview filename=%s size=%s sha256=%s imported=%s skipped=%s ignored=%s issues=%s issue_rows=%s",
+            file.filename,
+            len(content),
+            file_sha256,
+            result.get("imported"),
+            result.get("skipped"),
+            result.get("ignored"),
+            len(issues),
+            issue_rows,
         )
         result["_meta"] = {
             "filename": file.filename,
@@ -267,4 +275,4 @@ async def scrape_link(request: Request):
     try:
         return scrape_single_url(url)
     except Exception as error:
-        return JSONResponse(status_code=400, content={"ok": False, "error": str(error)})
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})

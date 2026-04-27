@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,27 +14,29 @@ from server.web.routes import router as web_router
 
 PORT = int(os.getenv("PORT", "3000"))
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dist"))
+ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",") if origin.strip()]
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
     "Expires": "0",
 }
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    ensure_schema()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(web_router)
 app.include_router(local_router)
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    ensure_schema()
 
 
 if os.path.isdir(DIST_DIR):
@@ -56,5 +59,6 @@ def spa_root() -> FileResponse:
 
 @app.get("/{full_path:path}")
 def spa_fallback(full_path: str) -> FileResponse:
-    _ = full_path
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
     return _serve_index()

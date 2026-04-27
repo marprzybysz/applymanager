@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 
-import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
@@ -12,9 +13,30 @@ DB_CONFIG = {
     "dbname": os.getenv("DB_NAME", "applymanager"),
 }
 
+_POOL_MIN_CONN = max(1, int(os.getenv("DB_POOL_MIN_CONN", "1")))
+_POOL_MAX_CONN = max(_POOL_MIN_CONN, int(os.getenv("DB_POOL_MAX_CONN", "10")))
+_POOL: ThreadedConnectionPool | None = None
 
+
+def _get_pool() -> ThreadedConnectionPool:
+    global _POOL
+    if _POOL is None:
+        _POOL = ThreadedConnectionPool(_POOL_MIN_CONN, _POOL_MAX_CONN, **DB_CONFIG)
+    return _POOL
+
+
+@contextmanager
 def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
+    pool = _get_pool()
+    conn = pool.getconn()
+    try:
+        yield conn
+    finally:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        pool.putconn(conn)
 
 
 def ensure_schema() -> None:
@@ -36,6 +58,11 @@ def ensure_schema() -> None:
                   source TEXT,
                   source_url TEXT,
                   archive BOOLEAN NOT NULL DEFAULT FALSE,
+                  employment_types TEXT[],
+                  work_time TEXT,
+                  work_mode TEXT,
+                  shift_count TEXT,
+                  working_hours TEXT,
                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
