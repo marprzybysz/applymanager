@@ -7,7 +7,8 @@ Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (
 ## [Unreleased]
 
 ### Changed
-- Brak zmian poza `0.8.0-alpha`.
+- Podniesiono wersję aplikacji do `0.8.1-alpha`.
+- Ulepszono czytelność statystyk (chartów) pod szybki podgląd kluczowych informacji.
 
 ## [0.8.0-alpha] - 2026-04-13
 
