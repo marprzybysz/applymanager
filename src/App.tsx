@@ -118,6 +118,7 @@ type SummaryMetricKey =
   | "sourceTypes";
 type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
 type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
+type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" };
 type StatsLayoutDragState =
   | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
   | { source: "library"; widgetKey: StatsWidgetKey }
@@ -772,7 +773,7 @@ export function App() {
       [
         ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const })),
         ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const })),
-      ] as Array<{ key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" }>,
+      ] as Array<StatsWidgetOption>,
     [summaryMetricOptions, chartWidgetOptions]
   );
   const summaryMetricMap = useMemo(
@@ -784,7 +785,7 @@ export function App() {
   );
   const statsWidgetMap = useMemo(
     () =>
-      new Map<StatsWidgetKey, { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart" }>(
+      new Map<StatsWidgetKey, StatsWidgetOption>(
         statsWidgetOptions.map((entry) => [
           entry.key,
           { key: entry.key, label: entry.label, value: entry.value, kind: entry.kind },
@@ -792,6 +793,121 @@ export function App() {
       ),
     [statsWidgetOptions]
   );
+  function renderStatsLibraryWidgetPreview(widget: StatsWidgetOption) {
+    if (widget.kind === "summary") {
+      const metric = summaryMetricMap.get(widget.key as SummaryMetricKey);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--summary" aria-hidden="true">
+          <strong>{metric?.value ?? widget.value ?? "-"}</strong>
+          <span>{metric?.label ?? widget.label}</span>
+        </div>
+      );
+    }
+    if (widget.key === "chartTrend") {
+      const miniData = trendOffersData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartInvitesRead") {
+      const miniData = invitationsReadTrendData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="invitations" stroke="#f59e0b" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="read" stroke="#ec4899" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartStatus") {
+      const miniData = statusChartData.slice(0, 4);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <BarChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                      {miniData.map((entry, index) => (
+                        <Cell key={`${entry.name}-mini-${index}`} fill={getStatusBarColor(entry.name, index)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartSource") {
+      const miniData = sourceChartData.slice(0, 5);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <PieChart>
+                    <Pie
+                      data={miniData}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={10}
+                      outerRadius={18}
+                      paddingAngle={2}
+                      label={false}
+                      isAnimationActive={false}
+                    >
+                      {miniData.map((entry, index) => (
+                        <Cell key={`${entry.name}-mini-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
       const normalizedWidgetKey =
@@ -3175,6 +3291,7 @@ export function App() {
                       }}
                     >
                       <span className="stats-kpi-library-item__title">{widget.label}</span>
+                      {renderStatsLibraryWidgetPreview(widget)}
                       <span className="stats-kpi-library-item__meta">{widget.kind === "chart" ? "Wykres" : "KPI"}</span>
                     </button>
                   );
@@ -3717,10 +3834,11 @@ export function App() {
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
-                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false} />
-                              {sourceChartData.map((entry, index) => (
-                                <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
+                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false}>
+                                {sourceChartData.map((entry, index) => (
+                                  <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
                               <Tooltip />
                             </PieChart>
                           </ResponsiveContainer>

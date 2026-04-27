@@ -223,11 +223,12 @@ body {
 .stats-kpi-library-item {
   text-align: left;
   justify-content: flex-start;
-  min-height: 56px;
+  min-height: 90px;
   padding: 0.38rem 0.5rem;
   border-style: dashed;
   display: grid;
-  gap: 0.12rem;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.28rem;
 }
 
 .stats-kpi-library-item__title {
@@ -241,6 +242,63 @@ body {
   color: var(--text-soft);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.stats-kpi-library-item__preview {
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent 22%);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent 28%);
+  min-height: 42px;
+  padding: 0.26rem 0.3rem;
+  display: grid;
+  align-content: center;
+}
+
+.stats-kpi-library-item__preview--summary {
+  align-content: center;
+  gap: 0.08rem;
+}
+
+.stats-kpi-library-item__preview--summary strong {
+  font-size: 0.98rem;
+  line-height: 1;
+  color: var(--text-main);
+}
+
+.stats-kpi-library-item__preview--summary span {
+  font-size: 0.66rem;
+  color: var(--text-soft);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-kpi-library-item__preview--chart {
+  align-content: stretch;
+}
+
+.stats-kpi-library-chart-mini {
+  min-height: 42px;
+  display: grid;
+  align-items: center;
+}
+
+.stats-kpi-library-chart-mini__empty {
+  font-size: 0.62rem;
+  color: var(--text-soft);
+  line-height: 1;
+  text-align: center;
+}
+
+.stats-kpi-library-chart-mini__canvas {
+  width: 100%;
+  height: 42px;
+}
+
+.stats-kpi-library-chart-mini__canvas .recharts-wrapper,
+.stats-kpi-library-chart-mini__canvas .recharts-wrapper * {
+  pointer-events: none;
 }
 
 .stats-kpi-library-item:disabled {
