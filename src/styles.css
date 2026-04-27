@@ -1745,7 +1745,8 @@ button:disabled {
 
 .offers-table-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: min(68vh, 760px);
   border: 1px solid var(--border);
   border-radius: 10px;
   max-width: 100%;
@@ -1754,6 +1755,10 @@ button:disabled {
   z-index: 21;
   scrollbar-width: thin;
   scrollbar-color: var(--input-border) transparent;
+}
+
+.offers-table-spacer-row td {
+  background: transparent;
 }
 
 .offers-table {

@@ -20,18 +20,22 @@ def normalize_scrape_url(input_text: Any) -> str | None:
     return candidate
 
 
+def _link_scrape_response(normalized_query_url: str) -> dict[str, Any]:
+    job = scrape_job_from_link(normalized_query_url)
+    return {
+        "ok": True,
+        "mode": "link",
+        "query": normalized_query_url,
+        "total": 1,
+        "sources": [{"source": job.get("source"), "ok": True, "jobs": [job], "fetchedFrom": normalized_query_url, "count": 1}],
+        "jobs": [job],
+    }
+
+
 def scrape_query_or_link(query: str, sources: list[str] | None, limit_per_source: int) -> dict[str, Any]:
     normalized_query_url = normalize_scrape_url(query)
     if normalized_query_url:
-        job = scrape_job_from_link(normalized_query_url)
-        return {
-            "ok": True,
-            "mode": "link",
-            "query": normalized_query_url,
-            "total": 1,
-            "sources": [{"source": job.get("source"), "ok": True, "jobs": [job], "fetchedFrom": normalized_query_url, "count": 1}],
-            "jobs": [job],
-        }
+        return _link_scrape_response(normalized_query_url)
 
     result = scrape_jobs(query=query, sources=sources, limit_per_source=limit_per_source)
     return {"ok": True, "mode": "search", **result}

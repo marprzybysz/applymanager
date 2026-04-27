@@ -439,6 +439,10 @@ function getNotificationAutoHideMs(tone: NotificationTone): number | null {
 
 const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
 const ROW_EXIT_ANIMATION_MS = 320;
+const VIRTUALIZATION_THRESHOLD = 120;
+const VIRTUALIZATION_OVERSCAN = 10;
+const ROW_HEIGHT_COMPACT = 46;
+const ROW_HEIGHT_FULL = 52;
 
 function createDefaultNotificationSettings(): NotificationSettings {
   return {
@@ -628,7 +632,10 @@ export function App() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dockOfferToolsToHeader, setDockOfferToolsToHeader] = useState(false);
   const offersToolbarRef = useRef<HTMLDivElement | null>(null);
+  const offersTableScrollRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [offersScrollTop, setOffersScrollTop] = useState(0);
+  const [offersViewportHeight, setOffersViewportHeight] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem("themeMode");
@@ -1293,6 +1300,44 @@ export function App() {
   }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
 
   const isQuickStatusLocked = quickStatusOfferId !== null;
+  const offersById = useMemo(() => {
+    const next = new Map<number, Offer>();
+    for (const offer of offers) {
+      if (typeof offer.id === "number") {
+        next.set(offer.id, offer);
+      }
+    }
+    return next;
+  }, [offers]);
+  const selectedRowIdSet = useMemo(() => new Set(selectedRowIds), [selectedRowIds]);
+  const pinnedOfferIdSet = useMemo(() => new Set(pinnedOfferIds), [pinnedOfferIds]);
+  const offersColumnCount = compactView ? 4 : 15;
+  const shouldVirtualizeOffers = !editorMode && visibleOffers.length > VIRTUALIZATION_THRESHOLD;
+  const virtualRowHeight = compactView ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_FULL;
+  const virtualizedRange = useMemo(() => {
+    if (!shouldVirtualizeOffers) {
+      return {
+        startIndex: 0,
+        endIndex: visibleOffers.length,
+        topSpacerPx: 0,
+        bottomSpacerPx: 0,
+      };
+    }
+
+    const viewportPx = Math.max(offersViewportHeight, virtualRowHeight);
+    const startIndex = Math.max(0, Math.floor(offersScrollTop / virtualRowHeight) - VIRTUALIZATION_OVERSCAN);
+    const visibleCount = Math.ceil(viewportPx / virtualRowHeight) + VIRTUALIZATION_OVERSCAN * 2;
+    const endIndex = Math.min(visibleOffers.length, startIndex + visibleCount);
+    return {
+      startIndex,
+      endIndex,
+      topSpacerPx: startIndex * virtualRowHeight,
+      bottomSpacerPx: Math.max(0, (visibleOffers.length - endIndex) * virtualRowHeight),
+    };
+  }, [shouldVirtualizeOffers, visibleOffers.length, offersViewportHeight, offersScrollTop, virtualRowHeight]);
+  const offersToRender = shouldVirtualizeOffers
+    ? visibleOffers.slice(virtualizedRange.startIndex, virtualizedRange.endIndex)
+    : visibleOffers;
 
   function openAddOfferModal() {
     setShowAddOffer(true);
@@ -1316,7 +1361,7 @@ export function App() {
   }
 
   function findOfferById(id: number): Offer | null {
-    return offers.find((offer) => offer.id === id) || null;
+    return offersById.get(id) || null;
   }
 
   function toggleEditorMode() {
@@ -1835,6 +1880,29 @@ export function App() {
     openAddOfferModal();
   }
 
+  function createPendingOfferFromScrapedJob(job: ScrapedJob): Offer {
+    return {
+      company: job.company || t.company,
+      role: job.title || t.role,
+      applied: true,
+      archive: false,
+      status: "Wyslano",
+      location: job.location,
+      notes: "",
+      appliedAt: getTodayDate(),
+      datePosted: job.datePosted || "",
+      expiresAt: job.expiresAt || "",
+      daysToExpire: job.daysToExpire ?? null,
+      source: job.source,
+      sourceUrl: job.url,
+      employmentTypes: job.employmentTypes || [],
+      workTime: job.workTime || "",
+      workMode: job.workMode || "",
+      shiftCount: job.shiftCount || "",
+      workingHours: job.workingHours || "",
+    };
+  }
+
   async function fetchOffers() {
     const response = await fetch("/api/offers");
     const data = (await response.json()) as { ok: boolean; offers?: Offer[]; autoArchived?: number; error?: string };
@@ -2156,6 +2224,32 @@ export function App() {
     }
   }, [selectedRowIds.length, quickStatusMode]);
 
+  useEffect(() => {
+    const tableScroll = offersTableScrollRef.current;
+    if (!tableScroll) return;
+
+    const syncViewport = () => {
+      setOffersScrollTop(tableScroll.scrollTop);
+      setOffersViewportHeight(tableScroll.clientHeight);
+    };
+
+    syncViewport();
+    tableScroll.addEventListener("scroll", syncViewport, { passive: true });
+    window.addEventListener("resize", syncViewport);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(syncViewport);
+      resizeObserver.observe(tableScroll);
+    }
+
+    return () => {
+      tableScroll.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      resizeObserver?.disconnect();
+    };
+  }, [activeTopTab, visibleOffers.length, compactView]);
+
   function handleEditorRowMouseEnter(rowId: number | null, canInteractWithRow: boolean) {
     if (!canInteractWithRow) return;
     if (hoverPanelCloseTimerRef.current) {
@@ -2178,214 +2272,6 @@ export function App() {
       setClosingHoverPanelRowId((prev) => (prev === rowId ? null : prev));
       hoverPanelCloseTimerRef.current = null;
     }, 170);
-  }
-
-  function renderEditorSelectionBar() {
-    if (!editorMode) return null;
-    const hasSelection = selectedRowIds.length > 0;
-    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
-    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIds.includes(id));
-    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
-    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
-    return (
-      <div
-        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
-      >
-        <div className="editor-selection-bar">
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              pinSelectedOffers();
-            }}
-            title={allSelectedPinned ? t.unpin : t.pin}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">📌</span>
-            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              if (firstSelected) openQuickStatus(firstSelected, "bulk");
-            }}
-            title={t.quickStatus}
-            disabled={isQuickStatusLocked || !firstSelected}
-          >
-            <span className="row-action-btn__icon">?</span>
-            <span className="row-action-btn__label">{t.quickStatus}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              archiveSelectedOffers();
-            }}
-            title={allSelectedArchived ? t.restoreArchive : t.archive}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
-            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
-          </button>
-          <button
-            type="button"
-            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
-            onClick={() => {
-              openBulkDeleteConfirm();
-            }}
-            title={t.delete}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            <span className="row-action-btn__icon">🗑️</span>
-            <span className="row-action-btn__label">{t.delete}</span>
-          </button>
-          <button
-            type="button"
-            className="ghost-btn selection-clear-btn"
-            onClick={() => {
-              setSelectedRowIds([]);
-              closeQuickStatusEditor();
-            }}
-            disabled={isQuickStatusLocked || !hasSelection}
-          >
-            {t.clearSelectionRows}
-          </button>
-        </div>
-        {showBulkQuickStatusEditor ? (
-          <div className="editor-selection-quick-status">
-            <div className="quick-status-box">
-              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
-                <button
-                  type="button"
-                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
-                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
-                  aria-expanded={quickStatusMenuOpen}
-                >
-                  <span>{quickStatusValue}</span>
-                  <span className="quick-status-picker__chevron">▾</span>
-                </button>
-              </div>
-              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
-                {t.save}
-              </button>
-              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
-                {t.cancel}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderOfferTools(isDocked: boolean) {
-    const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
-    const filtersLabel = `⏷ ${t.filters}`;
-    const searchLabel = `🔍 ${t.search}`;
-    return (
-      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
-        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => setCompactView((prev) => !prev)}
-            aria-label={t.viewMode}
-            title={t.viewMode}
-            disabled={isQuickStatusLocked}
-          >
-            {viewLabel}
-          </button>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => setShowFilters((prev) => !prev)}
-            aria-label={t.filters}
-            title={t.filters}
-            disabled={isQuickStatusLocked}
-          >
-            {filtersLabel}
-          </button>
-          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
-            <button
-              type="button"
-              className="ghost-btn toolbar-search-trigger"
-              onClick={() => setShowSearchInput(true)}
-              aria-label={t.search}
-              title={t.search}
-              disabled={isQuickStatusLocked}
-            >
-              {searchLabel}
-            </button>
-            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
-              <button
-                type="button"
-                className="toolbar-search-icon-btn"
-                onClick={() => setShowSearchInput(false)}
-                aria-label={t.search}
-              >
-                🔍
-              </button>
-              <input
-                value={filterText}
-                onChange={(event) => setFilterText(event.target.value)}
-                placeholder={t.search}
-                className="toolbar-search-input"
-                ref={searchInputRef}
-              />
-            </div>
-          </div>
-        </div>
-        {renderEditorSelectionBar()}
-      </div>
-    );
-  }
-
-  function renderOfferFilters(className = "offers-filters") {
-    return (
-      <div className={className}>
-        <label className="form-field">
-          <span>{t.filterByStatus}</span>
-          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
-            <option value="all">{t.all}</option>
-            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
-            {statusFilterOptions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>{t.filterBySource}</span>
-          <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
-            <option value="all">{t.all}</option>
-            {sourceFilterOptions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>{t.filterByPeriod}</span>
-          <select
-            value={filterPeriod}
-            onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
-          >
-            <option value="all">{t.periodAll}</option>
-            <option value="month">{t.periodMonth}</option>
-            <option value="quarter">{t.periodQuarter}</option>
-            <option value="year">{t.periodYear}</option>
-          </select>
-        </label>
-        <div className="offers-filters-actions">
-          <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
-            {t.clearFilters}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   async function handleAddOffer(event: FormEvent<HTMLFormElement>) {
@@ -2842,26 +2728,7 @@ export function App() {
       setStatusMessage(t.scrapedJobs.replace("{total}", String(data.total ?? 0)));
 
       if (data.mode === "link" && jobs[0]) {
-        setPendingOffer({
-          company: jobs[0].company || t.company,
-          role: jobs[0].title || t.role,
-          applied: true,
-          archive: false,
-          status: "Wyslano",
-          location: jobs[0].location,
-          notes: "",
-          appliedAt: new Date().toISOString().slice(0, 10),
-          datePosted: jobs[0].datePosted || "",
-          expiresAt: jobs[0].expiresAt || "",
-          daysToExpire: jobs[0].daysToExpire ?? null,
-          source: jobs[0].source,
-          sourceUrl: jobs[0].url,
-          employmentTypes: jobs[0].employmentTypes || [],
-          workTime: jobs[0].workTime || "",
-          workMode: jobs[0].workMode || "",
-          shiftCount: jobs[0].shiftCount || "",
-          workingHours: jobs[0].workingHours || "",
-        });
+        setPendingOffer(createPendingOfferFromScrapedJob(jobs[0]));
         setPendingScrapedIndex(0);
       }
     } catch (error) {
@@ -2872,26 +2739,7 @@ export function App() {
   }
 
   function openSaveDialog(job: ScrapedJob, index: number) {
-    setPendingOffer({
-      company: job.company || t.company,
-      role: job.title || t.role,
-      applied: true,
-      archive: false,
-      status: "Wyslano",
-      location: job.location,
-      notes: "",
-      appliedAt: new Date().toISOString().slice(0, 10),
-      datePosted: job.datePosted || "",
-      expiresAt: job.expiresAt || "",
-      daysToExpire: job.daysToExpire ?? null,
-      source: job.source,
-      sourceUrl: job.url,
-      employmentTypes: job.employmentTypes || [],
-      workTime: job.workTime || "",
-      workMode: job.workMode || "",
-      shiftCount: job.shiftCount || "",
-      workingHours: job.workingHours || "",
-    });
+    setPendingOffer(createPendingOfferFromScrapedJob(job));
     setPendingScrapedIndex(index);
   }
 
@@ -3063,6 +2911,214 @@ export function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function renderEditorSelectionBar() {
+    if (!editorMode) return null;
+    const hasSelection = selectedRowIds.length > 0;
+    const firstSelected = hasSelection ? findOfferById(selectedRowIds[0]) : null;
+    const allSelectedPinned = hasSelection && selectedRowIds.every((id) => pinnedOfferIdSet.has(id));
+    const allSelectedArchived = hasSelection && selectedRowIds.every((id) => findOfferById(id)?.archive === true);
+    const showBulkQuickStatusEditor = hasSelection && quickStatusMode === "bulk" && quickStatusOfferId !== null && !!firstSelected;
+    return (
+      <div
+        className={`editor-selection-inline ${hasSelection ? "is-open" : "is-closed"} ${showBulkQuickStatusEditor ? "has-quick-status" : ""} ${showBulkQuickStatusEditor && quickStatusMenuOpen ? "is-status-menu-open" : ""}`}
+      >
+        <div className="editor-selection-bar">
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--pin row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              pinSelectedOffers();
+            }}
+            title={allSelectedPinned ? t.unpin : t.pin}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">📌</span>
+            <span className="row-action-btn__label">{allSelectedPinned ? t.unpin : t.pin}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--status row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              if (firstSelected) openQuickStatus(firstSelected, "bulk");
+            }}
+            title={t.quickStatus}
+            disabled={isQuickStatusLocked || !firstSelected}
+          >
+            <span className="row-action-btn__icon">?</span>
+            <span className="row-action-btn__label">{t.quickStatus}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--archive row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              archiveSelectedOffers();
+            }}
+            title={allSelectedArchived ? t.restoreArchive : t.archive}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">{allSelectedArchived ? "📂" : "🗃️"}</span>
+            <span className="row-action-btn__label">{allSelectedArchived ? t.restoreArchive : t.archive}</span>
+          </button>
+          <button
+            type="button"
+            className="row-action-btn row-action-btn--delete row-action-btn--expand selection-action-btn"
+            onClick={() => {
+              openBulkDeleteConfirm();
+            }}
+            title={t.delete}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            <span className="row-action-btn__icon">🗑️</span>
+            <span className="row-action-btn__label">{t.delete}</span>
+          </button>
+          <button
+            type="button"
+            className="ghost-btn selection-clear-btn"
+            onClick={() => {
+              setSelectedRowIds([]);
+              closeQuickStatusEditor();
+            }}
+            disabled={isQuickStatusLocked || !hasSelection}
+          >
+            {t.clearSelectionRows}
+          </button>
+        </div>
+        {showBulkQuickStatusEditor ? (
+          <div className="editor-selection-quick-status">
+            <div className="quick-status-box">
+              <div className={`quick-status-picker ${quickStatusMenuOpen ? "is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`quick-status-picker__trigger offer-status-pill offer-status-pill--${getOfferStatusTone(quickStatusValue)}`}
+                  onClick={(event) => toggleQuickStatusMenu(event.currentTarget)}
+                  aria-expanded={quickStatusMenuOpen}
+                >
+                  <span>{quickStatusValue}</span>
+                  <span className="quick-status-picker__chevron">▾</span>
+                </button>
+              </div>
+              <button type="button" onClick={() => submitQuickStatus(firstSelected)} disabled={loading}>
+                {t.save}
+              </button>
+              <button type="button" className="ghost-btn" onClick={closeQuickStatusEditor}>
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderOfferTools(isDocked: boolean) {
+    const viewLabel = `👁 ${t.viewMode}: ${compactView ? t.viewCompact : t.viewFull}`;
+    const filtersLabel = `⏷ ${t.filters}`;
+    const searchLabel = `🔍 ${t.search}`;
+    return (
+      <div className={`offers-toolbar-stack ${isDocked ? "offers-toolbar-stack--docked" : ""}`}>
+        <div className={`offers-toolbar-right ${isDocked ? "offers-toolbar-right--docked" : ""}`}>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setCompactView((prev) => !prev)}
+            aria-label={t.viewMode}
+            title={t.viewMode}
+            disabled={isQuickStatusLocked}
+          >
+            {viewLabel}
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => setShowFilters((prev) => !prev)}
+            aria-label={t.filters}
+            title={t.filters}
+            disabled={isQuickStatusLocked}
+          >
+            {filtersLabel}
+          </button>
+          <div className={`toolbar-search-wrap ${showSearchInput ? "is-open" : ""}`}>
+            <button
+              type="button"
+              className="ghost-btn toolbar-search-trigger"
+              onClick={() => setShowSearchInput(true)}
+              aria-label={t.search}
+              title={t.search}
+              disabled={isQuickStatusLocked}
+            >
+              {searchLabel}
+            </button>
+            <div className={`toolbar-search-box ${isDocked ? "toolbar-search-box--docked" : ""} ${showSearchInput ? "is-open" : ""}`}>
+              <button
+                type="button"
+                className="toolbar-search-icon-btn"
+                onClick={() => setShowSearchInput(false)}
+                aria-label={t.search}
+              >
+                🔍
+              </button>
+              <input
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder={t.search}
+                className="toolbar-search-input"
+                ref={searchInputRef}
+              />
+            </div>
+          </div>
+        </div>
+        {renderEditorSelectionBar()}
+      </div>
+    );
+  }
+
+  function renderOfferFilters(className = "offers-filters") {
+    return (
+      <div className={className}>
+        <label className="form-field">
+          <span>{t.filterByStatus}</span>
+          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+            <option value="all">{t.all}</option>
+            <option value={ARCHIVED_FILTER_VALUE}>{t.archivedStatus}</option>
+            {statusFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterBySource}</span>
+          <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)}>
+            <option value="all">{t.all}</option>
+            {sourceFilterOptions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>{t.filterByPeriod}</span>
+          <select
+            value={filterPeriod}
+            onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
+          >
+            <option value="all">{t.periodAll}</option>
+            <option value="month">{t.periodMonth}</option>
+            <option value="quarter">{t.periodQuarter}</option>
+            <option value="year">{t.periodYear}</option>
+          </select>
+        </label>
+        <div className="offers-filters-actions">
+          <button type="button" className="ghost-btn" onClick={clearOfferFilters}>
+            {t.clearFilters}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -3476,7 +3532,10 @@ export function App() {
             <p className="hint">{offers.length === 0 ? t.noOffers : t.noFilterResults}</p>
           ) : (
             <div className="offers-table-wrap offers-table-wrap--overlay">
-              <div className="offers-table-scroll">
+              <div
+                className={`offers-table-scroll ${shouldVirtualizeOffers ? "offers-table-scroll--virtualized" : ""}`}
+                ref={offersTableScrollRef}
+              >
               <table className={`offers-table ${compactView ? "offers-table--compact" : ""}`}>
                 <thead>
                   <tr>
@@ -3544,8 +3603,19 @@ export function App() {
                   </tr>
                 </thead>
                 <tbody className={`offers-table-body ${sortAnimating ? "offers-table-body--sorting" : ""}`}>
-                  {visibleOffers.map((offer, index) => {
+                  {shouldVirtualizeOffers && virtualizedRange.topSpacerPx > 0 ? (
+                    <tr aria-hidden="true" className="offers-table-spacer-row">
+                      <td
+                        colSpan={offersColumnCount}
+                        style={{ height: `${virtualizedRange.topSpacerPx}px`, padding: 0, borderBottom: "none" }}
+                      />
+                    </tr>
+                  ) : null}
+                  {offersToRender.map((offer, index) => {
+                    const absoluteIndex = shouldVirtualizeOffers ? virtualizedRange.startIndex + index : index;
                     const rowId = offer.id || null;
+                    const isSelectedRow = rowId !== null && selectedRowIdSet.has(rowId);
+                    const isPinnedRow = rowId !== null && pinnedOfferIdSet.has(rowId);
                     const rowExitKind = rowId !== null ? rowExitAnimations[rowId] : undefined;
                     const isRowExiting = Boolean(rowExitKind);
                     const isQuickStatusRow = rowId !== null && quickStatusOfferId === rowId;
@@ -3563,8 +3633,8 @@ export function App() {
                     const isPanelRow = keepRowHoverPanelMounted || isQuickStatusRow;
                     return (
                     <tr
-                      key={`${offer.id || "offer"}-${index}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${selectedRowIds.includes(offer.id || -1) ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
+                      key={`${offer.id || "offer"}-${absoluteIndex}`}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${isSelectedRow ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
                       onMouseEnter={() => {
                         if (isRowExiting) return;
                         handleEditorRowMouseEnter(rowId, canInteractWithRow);
@@ -3599,13 +3669,13 @@ export function App() {
                             rel="noreferrer"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {isPinnedRow ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
                             {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </a>
                         ) : (
                           <>
-                            {pinnedOfferIds.includes((offer.id as number) || -1) ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
+                            {isPinnedRow ? <span className="pinned-indicator" aria-label={t.pin}>📌</span> : null}
                             {offer.archive === true ? <span className="archived-indicator" aria-label={t.archivedStatus}>🗃️</span> : null}
                             <span className="role-cell-text">{offer.role || "-"}</span>
                           </>
@@ -3626,11 +3696,11 @@ export function App() {
                                 type="button"
                                 className="row-action-btn row-action-btn--pin row-action-btn--expand"
                                 onClick={() => togglePinOffer(offer)}
-                                title={pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                title={isPinnedRow ? t.unpin : t.pin}
                               >
                                 <span className="row-action-btn__icon">📌</span>
                                 <span className="row-action-btn__label">
-                                  {pinnedOfferIds.includes((offer.id as number) || -1) ? t.unpin : t.pin}
+                                  {isPinnedRow ? t.unpin : t.pin}
                                 </span>
                               </button>
                               <button
@@ -3694,6 +3764,14 @@ export function App() {
                     </tr>
                     );
                   })}
+                  {shouldVirtualizeOffers && virtualizedRange.bottomSpacerPx > 0 ? (
+                    <tr aria-hidden="true" className="offers-table-spacer-row">
+                      <td
+                        colSpan={offersColumnCount}
+                        style={{ height: `${virtualizedRange.bottomSpacerPx}px`, padding: 0, borderBottom: "none" }}
+                      />
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
               </div>
