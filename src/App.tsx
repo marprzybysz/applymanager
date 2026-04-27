@@ -15,439 +15,90 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { I18N, type Language } from "./i18n/translations";
+import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
+
 import {
   STATUS_OPTIONS,
   inferAppliedFromStatus,
   normalizeOfferStatus,
   normalizeStatusForChart,
-  type CanonicalStatus,
 } from "./domain/status";
-import { I18N, type Language } from "./i18n/translations";
-import { buildPathnameForTopTab, resolveTopTabFromPathname } from "./topTabRouting";
-
-type Offer = {
-  id?: number;
-  company: string;
-  role: string;
-  applied: boolean;
-  archive?: boolean;
-  status: string;
-  location?: string | null;
-  notes?: string | null;
-  appliedAt?: string | null;
-  datePosted?: string | null;
-  expiresAt?: string | null;
-  daysToExpire?: number | null;
-  source?: string | null;
-  sourceUrl?: string | null;
-  employmentTypes?: string[] | null;
-  workTime?: string | null;
-  workMode?: string | null;
-  shiftCount?: string | null;
-  workingHours?: string | null;
-};
-
-type ScrapedJob = {
-  source: string;
-  title: string | null;
-  company: string | null;
-  location: string | null;
-  url: string | null;
-  datePosted: string | null;
-  expiresAt?: string | null;
-  daysToExpire?: number | null;
-  employmentTypes?: string[] | null;
-  workTime?: string | null;
-  workMode?: string | null;
-  shiftCount?: string | null;
-  workingHours?: string | null;
-};
-
-type ExcelImportIssue = {
-  rowNumber?: number;
-  missingFields?: string[];
-  formulaIssues?: string[];
-  parsed?: {
-    company?: string | null;
-    role?: string | null;
-    status?: string | null;
-    location?: string | null;
-    appliedAt?: string | null;
-    source?: string | null;
-    sourceUrl?: string | null;
-    notes?: string | null;
-  };
-  raw?: Record<string, unknown>;
-};
-
-type ExportAssistantRow = {
-  rowNumber: number;
-  raw: Record<string, unknown>;
-  missingFields: string[];
-  draft: Offer;
-  saved: boolean;
-};
-
-type ImportPreviewMeta = {
-  filename?: string;
-  size?: number;
-  sha256?: string;
-};
-
-type UserPreferences = {
-  preferredContractTypes: string[];
-  preferredWorkTimes: string[];
-  preferredWorkModes: string[];
-  preferredShiftCounts: string[];
-  preferredWorkingHours: string;
-};
-
-type OfferStats = {
-  totalOffers: number;
-  appliedOffers: number;
-  activeOffers: number;
-  expiredOffers: number;
-  averageDaysLeft: number | null;
-  recentApplications7d: number;
-  statusCounts: Record<string, number>;
-  sourceCounts: Record<string, number>;
-};
-type SummaryMetricKey =
-  | "totalOffers"
-  | "appliedOffers"
-  | "activeOffers"
-  | "expiredOffers"
-  | "avgDaysLeft"
-  | "recentApplications"
-  | "archivedOffers"
-  | "readOffers"
-  | "invitationOffers"
-  | "rejectedOffers"
-  | "sourceTypes";
-type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
-type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
-type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart"; size: "1x1" | "1x2" };
-type StatsLayoutDragState =
-  | { source: "slot"; index: number; widgetKey: StatsWidgetKey }
-  | { source: "library"; widgetKey: StatsWidgetKey }
-  | null;
-
-type ThemeMode = "auto" | "light" | "dark";
-type SettingsTab = "general" | "notifications" | "preferences" | "about";
-type AddOfferMode = "link" | "manual";
-type ImportTarget = "offers" | "preferences";
-type ImportFormat = "xlsx" | "json";
-type ExportTarget = "offers" | "preferences" | "all";
-type ExportFormat = "xlsx" | "json";
-type TopTab = "offers" | "stats";
-type PeriodFilter = "all" | "month" | "quarter" | "year";
-type SortDirection = "none" | "asc" | "desc";
-type SortType = "text" | "date" | "number";
-type SortColumn =
-  | "role"
-  | "company"
-  | "status"
-  | "location"
-  | "appliedAt"
-  | "datePosted"
-  | "expiresAt"
-  | "daysToExpire"
-  | "source";
-type StatusTone = "blue" | "yellow" | "green" | "red" | "neutral" | "pink";
-type NotificationTone = "success" | "error" | "warning" | "neutral";
-type NotificationSettings = {
-  enableToasts: boolean;
-  enableBellHistory: boolean;
-  allowSuccess: boolean;
-  allowWarning: boolean;
-  allowError: boolean;
-  allowNeutral: boolean;
-};
-type RowExitAnimationKind = "archive" | "delete";
-type AppNotification = {
-  id: number;
-  text: string;
-  tone: NotificationTone;
-  read: boolean;
-  surfaceVisible: boolean;
-  menuVisible: boolean;
-  surfaceClosing?: boolean;
-  menuClosing?: boolean;
-  kind: "operational";
-};
-
-const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
-  "totalOffers",
-  "appliedOffers",
-  "activeOffers",
-  "expiredOffers",
-  "avgDaysLeft",
-  "recentApplications",
-];
-const STATS_LAYOUT_SLOT_COUNT = 12;
-const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
-const SUMMARY_DND_METRIC_MIME = "application/x-applymanager-summary-metric";
-
-function createDefaultStatsLayoutSlots(): Array<StatsWidgetKey | null> {
-  const slots: Array<StatsWidgetKey | null> = Array.from({ length: STATS_LAYOUT_SLOT_COUNT }, () => null);
-  const defaults: StatsWidgetKey[] = [
-    "totalOffers",
-    "appliedOffers",
-    "activeOffers",
-    "expiredOffers",
-    "avgDaysLeft",
-    "recentApplications",
-    "chartTrend",
-    "chartInvitesRead",
-    "chartStatus",
-    "chartSource",
-  ];
-  defaults.forEach((key, index) => {
-    if (index < slots.length) slots[index] = key;
-  });
-  return slots;
-}
-
-
-const CONTRACT_TYPES = [
-  "dowolny",
-  "umowa o pracę",
-  "umowa b2b",
-  "umowa zlecenie",
-  "umowa o dzieło",
-  "umowa agencyjna",
-  "samozatrudnienie",
-];
-const WORK_TIMES = ["dowolny", "pełny etat", "pół etatu"];
-const WORK_MODES = ["dowolny", "stacjonarna", "hybrydowa", "zdalna"];
-const SHIFT_COUNTS = ["dowolny", "jedna zmiana", "dwie zmiany", "trzy zmiany"];
-const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
-const ARCHIVED_FILTER_VALUE = "__archived__";
-const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
-
-function isAbsoluteHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getTodayLocalDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function normalizeForDuplicate(value: string | null | undefined): string {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function normalizeUrlForDuplicate(value: string | null | undefined): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  return raw.replace(/\/+$/, "").toLowerCase();
-}
-
-function normalizeDateForDuplicate(value: string | null | undefined): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  return raw.slice(0, 10);
-}
-
-function createDefaultOffer(): Offer {
-  return {
-    company: "",
-    role: "",
-    applied: true,
-    archive: false,
-    status: "Wyslano",
-    location: "",
-    notes: "",
-    appliedAt: getTodayDate(),
-    datePosted: "",
-    expiresAt: "",
-    daysToExpire: null,
-    source: "manual",
-    sourceUrl: "",
-    employmentTypes: [],
-    workTime: "",
-    workMode: "",
-    shiftCount: "",
-    workingHours: "",
-  };
-}
-
-function normalizeImportEntryToOffer(entry: Partial<Offer>): Offer {
-  const normalizedStatus = normalizeOfferStatus(entry.status, entry.applied !== false);
-  return {
-    ...createDefaultOffer(),
-    ...entry,
-    company: String(entry.company || "").trim(),
-    role: String(entry.role || "").trim(),
-    status: normalizedStatus,
-    applied: inferAppliedFromStatus(normalizedStatus),
-    archive: entry.archive === true,
-    location: String(entry.location || "").trim(),
-    notes: String(entry.notes || ""),
-    appliedAt: entry.appliedAt || getTodayDate(),
-    source: String(entry.source || "import_excel").trim() || "import_excel",
-    sourceUrl: String(entry.sourceUrl || "").trim(),
-  };
-}
-
-function createDefaultPreferences(): UserPreferences {
-  return {
-    preferredContractTypes: [],
-    preferredWorkTimes: [],
-    preferredWorkModes: [],
-    preferredShiftCounts: [],
-    preferredWorkingHours: "",
-  };
-}
-
-function createDefaultStats(): OfferStats {
-  return {
-    totalOffers: 0,
-    appliedOffers: 0,
-    activeOffers: 0,
-    expiredOffers: 0,
-    averageDaysLeft: null,
-    recentApplications7d: 0,
-    statusCounts: {},
-    sourceCounts: {},
-  };
-}
-
-function parseWorkingHoursSelection(value: string): string[] {
-  return value
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
-function serializeWorkingHoursSelection(values: string[]): string {
-  return values.join(", ");
-}
-
-function normalizeDateForInput(value: string | null | undefined): string {
-  const text = String(value || "").trim();
-  if (!text) return "";
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return text;
-  }
-
-  const dotted = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (dotted) {
-    const day = dotted[1].padStart(2, "0");
-    const month = dotted[2].padStart(2, "0");
-    const year = dotted[3];
-    return `${year}-${month}-${day}`;
-  }
-
-  const parsed = Date.parse(text);
-  if (!Number.isNaN(parsed)) {
-    return new Date(parsed).toISOString().slice(0, 10);
-  }
-
-  return "";
-}
-
-function normalizeOfferForEdit(offer: Offer): Offer {
-  return {
-    ...offer,
-    archive: offer.archive === true,
-    company: String(offer.company || ""),
-    role: String(offer.role || ""),
-    status: normalizeOfferStatus(offer.status, offer.applied !== false),
-    location: offer.location || "",
-    notes: offer.notes || "",
-    appliedAt: normalizeDateForInput(offer.appliedAt),
-    datePosted: normalizeDateForInput(offer.datePosted),
-    expiresAt: normalizeDateForInput(offer.expiresAt),
-    source: offer.source || "",
-    sourceUrl: offer.sourceUrl || "",
-    employmentTypes: [...(offer.employmentTypes || [])],
-    workTime: offer.workTime || "",
-    workMode: offer.workMode || "",
-    shiftCount: offer.shiftCount || "",
-    workingHours: offer.workingHours || "",
-  };
-}
-
-function getPrimaryLocation(location: string | null | undefined): string {
-  const text = String(location || "").trim();
-  if (!text) return "-";
-  return text.split(",")[0]?.trim() || text;
-}
-
-function getNotificationAutoHideMs(tone: NotificationTone): number | null {
-  if (tone === "success") return 5000;
-  if (tone === "warning") return 30000;
-  if (tone === "error") return null;
-  return 10000;
-}
-
-const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
-const ROW_EXIT_ANIMATION_MS = 320;
-const VIRTUALIZATION_THRESHOLD = 120;
-const VIRTUALIZATION_OVERSCAN = 10;
-const ROW_HEIGHT_COMPACT = 46;
-const ROW_HEIGHT_FULL = 52;
-
-function createDefaultNotificationSettings(): NotificationSettings {
-  return {
-    enableToasts: true,
-    enableBellHistory: true,
-    allowSuccess: true,
-    allowWarning: true,
-    allowError: true,
-    allowNeutral: true,
-  };
-}
-
-function getExpiryTone(daysToExpire: number | null | undefined): StatusTone | "expired" {
-  if (daysToExpire === null || daysToExpire === undefined) return "neutral";
-  if (daysToExpire < 0) return "expired";
-  if (daysToExpire >= 21) return "green";
-  if (daysToExpire >= 10) return "yellow";
-  return "red";
-}
-
-function formatDaysToExpire(daysToExpire: number | null | undefined, labels: { expired: string; singular: string; plural: string }): string {
-  if (daysToExpire === null || daysToExpire === undefined) return "-";
-  if (daysToExpire < 0) return labels.expired;
-  if (daysToExpire === 0) return `0 ${labels.plural}`;
-  if (daysToExpire === 1) return `1 ${labels.singular}`;
-  return `${daysToExpire} ${labels.plural}`;
-}
-
-function formatChartDateLabel(dateIso: string): string {
-  const parsed = Date.parse(dateIso);
-  if (Number.isNaN(parsed)) return dateIso;
-  const date = new Date(parsed);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${day}.${month}`;
-}
-
-function getStatusBarColor(statusName: string, index: number): string {
-  if (statusName === "Odrzucono/Odmowa") {
-    return "#ef4444";
-  }
-  return CHART_COLORS[index % CHART_COLORS.length];
-}
+import type {
+  AddOfferMode,
+  AppNotification,
+  CanonicalStatus,
+  ExcelImportIssue,
+  ExportAssistantRow,
+  ExportFormat,
+  ExportTarget,
+  ImportFormat,
+  ImportPreviewMeta,
+  ImportTarget,
+  NotificationSettings,
+  NotificationTone,
+  Offer,
+  OfferStats,
+  PeriodFilter,
+  RowExitAnimationKind,
+  ScrapedJob,
+  SettingsTab,
+  SortColumn,
+  SortDirection,
+  SortType,
+  StatusTone,
+  StatsChartWidgetKey,
+  StatsLayoutDragState,
+  StatsWidgetKey,
+  StatsWidgetOption,
+  SummaryMetricKey,
+  ThemeMode,
+  TopTab,
+  UserPreferences,
+} from "./types/app";
+import {
+  ARCHIVED_FILTER_VALUE,
+  CHART_COLORS,
+  CONTRACT_TYPES,
+  DEFAULT_SUMMARY_METRICS,
+  ROW_EXIT_ANIMATION_MS,
+  ROW_HEIGHT_COMPACT,
+  ROW_HEIGHT_FULL,
+  SHIFT_COUNTS,
+  STATS_LAYOUT_SLOT_COUNT,
+  SUMMARY_DND_METRIC_MIME,
+  SUMMARY_DND_SLOT_MIME,
+  VIRTUALIZATION_OVERSCAN,
+  VIRTUALIZATION_THRESHOLD,
+  WORKING_HOURS_OPTIONS,
+  WORK_MODES,
+  WORK_TIMES,
+  NOTIFICATION_CLOSE_ANIMATION_MS,
+} from "./constants/app";
+import {
+  createDefaultNotificationSettings,
+  createDefaultOffer,
+  createDefaultPreferences,
+  createDefaultStats,
+  createDefaultStatsLayoutSlots,
+  formatChartDateLabel,
+  formatDaysToExpire,
+  getExpiryTone,
+  getNotificationAutoHideMs,
+  getPrimaryLocation,
+  getStatusBarColor,
+  getTodayDate,
+  getTodayLocalDate,
+  isAbsoluteHttpUrl,
+  normalizeDateForDuplicate,
+  normalizeDateForInput,
+  normalizeForDuplicate,
+  normalizeImportEntryToOffer,
+  normalizeOfferForEdit,
+  normalizeUrlForDuplicate,
+  parseWorkingHoursSelection,
+  serializeWorkingHoursSelection,
+} from "./utils/appHelpers";
 
 export function App() {
   const releaseDate = (import.meta.env.VITE_RELEASE_DATE as string | undefined)?.trim() || "2026-04-27";
