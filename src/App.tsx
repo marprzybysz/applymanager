@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Bar,
@@ -409,19 +409,6 @@ function getPrimaryLocation(location: string | null | undefined): string {
   return text.split(",")[0]?.trim() || text;
 }
 
-function getAssistantFieldLabel(field: string): string {
-  const labels: Record<string, string> = {
-    company: "Firma",
-    role: "Stanowisko",
-    location: "Lokalizacja",
-    status: "Status",
-    source: "Zrodlo",
-    sourceUrl: "Link",
-    notes: "Notatki",
-  };
-  return labels[field] || field;
-}
-
 function normalizeStatusKey(status: string | null | undefined): string {
   return String(status || "")
     .trim()
@@ -479,12 +466,12 @@ function getExpiryTone(daysToExpire: number | null | undefined): StatusTone | "e
   return "red";
 }
 
-function formatDaysToExpire(daysToExpire: number | null | undefined): string {
+function formatDaysToExpire(daysToExpire: number | null | undefined, labels: { expired: string; singular: string; plural: string }): string {
   if (daysToExpire === null || daysToExpire === undefined) return "-";
-  if (daysToExpire < 0) return "Wygaslo";
-  if (daysToExpire === 0) return "0 dni";
-  if (daysToExpire === 1) return "1 dzien";
-  return `${daysToExpire} dni`;
+  if (daysToExpire < 0) return labels.expired;
+  if (daysToExpire === 0) return `0 ${labels.plural}`;
+  if (daysToExpire === 1) return `1 ${labels.singular}`;
+  return `${daysToExpire} ${labels.plural}`;
 }
 
 function formatChartDateLabel(dateIso: string): string {
@@ -512,16 +499,13 @@ function getStatusBarColor(statusName: string, index: number): string {
 }
 
 export function App() {
-  const initialTopTab: TopTab =
-    typeof window !== "undefined"
-      ? (resolveTopTabFromPathname(window.location.pathname) ?? "offers")
-      : "offers";
+  const releaseDate = (import.meta.env.VITE_RELEASE_DATE as string | undefined)?.trim() || "2026-04-27";
   const headerRef = useRef<HTMLElement | null>(null);
   const offersSectionRef = useRef<HTMLElement | null>(null);
   const statsNavSettingsRef = useRef<HTMLDivElement | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offerForm, setOfferForm] = useState<Offer>(createDefaultOffer);
-  const [scrapeQuery, setScrapeQuery] = useState("frontend react");
+  const [scrapeQuery, setScrapeQuery] = useState("");
   const [scrapedJobs, setScrapedJobs] = useState<ScrapedJob[]>([]);
   const [pendingOffer, setPendingOffer] = useState<Offer | null>(null);
   const [pendingScrapedIndex, setPendingScrapedIndex] = useState<number | null>(null);
@@ -529,6 +513,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const notificationIdRef = useRef(1);
+  const notificationHideTimerRef = useRef<Map<number, number>>(new Map());
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
     if (typeof window === "undefined") return createDefaultNotificationSettings();
     try {
@@ -573,7 +558,12 @@ export function App() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [stats, setStats] = useState<OfferStats>(createDefaultStats);
-  const [activeTopTab, setActiveTopTab] = useState<TopTab>(initialTopTab);
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>(() => {
+    if (typeof window !== "undefined") {
+      return resolveTopTabFromPathname(window.location.pathname) ?? "offers";
+    }
+    return "offers";
+  });
   const [compactView, setCompactView] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -654,7 +644,22 @@ export function App() {
   const isHeaderMenuOpen = showUserMenu || showNotificationsMenu || showSettingsModal;
   const resolvedTheme = themeMode === "auto" ? (systemPrefersDark ? "dark" : "light") : themeMode;
   const t = I18N[language];
-  const aboutReleaseDate = useMemo(() => getTodayLocalDate(), []);
+  const aboutReleaseDate = releaseDate;
+  const assistantFieldLabels = useMemo(
+    () => ({
+      company: t.assistantFieldCompany,
+      role: t.assistantFieldRole,
+      location: t.assistantFieldLocation,
+      status: t.assistantFieldStatus,
+      source: t.assistantFieldSource,
+      sourceUrl: t.assistantFieldSourceUrl,
+      notes: t.assistantFieldNotes,
+    }),
+    [t]
+  );
+  function getAssistantFieldLabel(field: string): string {
+    return assistantFieldLabels[field as keyof typeof assistantFieldLabels] || field;
+  }
   const unreadNotificationsCount = useMemo(
     () => notifications.filter((item) => item.menuVisible && !item.read).length,
     [notifications]
@@ -773,8 +778,8 @@ export function App() {
   const chartWidgetOptions = useMemo(
     () =>
       [
-        { key: "chartTrend", label: "Naplyw ofert (30 dni)", value: "-" },
-        { key: "chartInvitesRead", label: "Zaproszenia i odczytane", value: "-" },
+        { key: "chartTrend", label: t.chartTrendTitle, value: "-" },
+        { key: "chartInvitesRead", label: t.chartInvitesReadTitle, value: "-" },
         { key: "chartStatus", label: t.statusBreakdown, value: "-" },
         { key: "chartSource", label: t.sourceBreakdown, value: "-" },
       ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
@@ -805,7 +810,7 @@ export function App() {
       ),
     [statsWidgetOptions]
   );
-  function renderStatsLibraryWidgetPreview(widget: StatsWidgetOption) {
+  const renderStatsLibraryWidgetPreview = useCallback((widget: StatsWidgetOption) => {
     if (widget.kind === "summary") {
       const metric = summaryMetricMap.get(widget.key as SummaryMetricKey);
       return (
@@ -919,7 +924,7 @@ export function App() {
       );
     }
     return null;
-  }
+  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, statusChartData, sourceChartData]);
 
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
@@ -1004,6 +1009,15 @@ export function App() {
     window.localStorage.setItem("statsLayoutSlots", JSON.stringify(statsLayoutSlots));
   }, [statsLayoutSlots]);
 
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of notificationHideTimerRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      notificationHideTimerRef.current.clear();
+    };
+  }, []);
+
   function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
     if (!nextMessage?.trim()) return;
     const tone: NotificationTone =
@@ -1036,9 +1050,11 @@ export function App() {
     setNotifications((prev) => [notification, ...prev].slice(0, 80));
     const hideAfterMs = getNotificationAutoHideMs(tone);
     if (hideAfterMs !== null) {
-      window.setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
+        notificationHideTimerRef.current.delete(id);
         dismissSurfaceNotification(id);
       }, hideAfterMs);
+      notificationHideTimerRef.current.set(id, timeoutId);
     }
   }
 
@@ -1047,6 +1063,11 @@ export function App() {
   }
 
   function dismissSurfaceNotification(id: number) {
+    const hideTimerId = notificationHideTimerRef.current.get(id);
+    if (hideTimerId !== undefined) {
+      window.clearTimeout(hideTimerId);
+      notificationHideTimerRef.current.delete(id);
+    }
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, surfaceClosing: true } : item)));
     window.setTimeout(() => {
       setNotifications((prev) =>
@@ -1186,7 +1207,9 @@ export function App() {
     if (column === "daysToExpire") return offer.daysToExpire ?? Number.MAX_SAFE_INTEGER;
     if (column === "appliedAt" || column === "datePosted" || column === "expiresAt") {
       const raw = offer[column];
-      return raw ? Date.parse(raw) || 0 : 0;
+      if (!raw) return Number.MAX_SAFE_INTEGER;
+      const parsed = Date.parse(raw);
+      return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
     }
     const raw = offer[column];
     return String(raw || "").toLowerCase();
@@ -3750,7 +3773,7 @@ export function App() {
                       {!compactView ? (
                         <td>
                           <span className={`offer-status-pill offer-status-pill--${getExpiryTone(offer.daysToExpire)}`}>
-                            {formatDaysToExpire(offer.daysToExpire)}
+                            {formatDaysToExpire(offer.daysToExpire, { expired: t.daysExpired, singular: t.daysSingular, plural: t.daysPlural })}
                           </span>
                         </td>
                       ) : null}
@@ -3895,7 +3918,7 @@ export function App() {
                     </>
                   ) : widget?.key === "chartTrend" ? (
                     <>
-                      <h3>Naplyw ofert (30 dni)</h3>
+                      <h3>{t.chartTrendTitle}</h3>
                       {trendOffersData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
@@ -3918,7 +3941,7 @@ export function App() {
                     </>
                   ) : widget?.key === "chartInvitesRead" ? (
                     <>
-                      <h3>Zaproszenia i odczytane</h3>
+                      <h3>{t.chartInvitesReadTitle}</h3>
                       {invitationsReadTrendData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
