@@ -20,6 +20,8 @@ export const DEFAULT_STATS_LAYOUT_WIDGETS: StatsWidgetKey[] = [
   "expiredOffers",
   "avgDaysLeft",
   "recentApplications",
+  "statusTypes",
+  "offersWithLink",
   "chartTrend",
   "chartInvitesRead",
   "chartStatus",

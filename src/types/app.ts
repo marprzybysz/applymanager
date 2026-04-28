@@ -92,16 +92,26 @@ export type SummaryMetricKey =
   | "totalOffers"
   | "appliedOffers"
   | "activeOffers"
+  | "activeShare"
   | "expiredOffers"
   | "avgDaysLeft"
   | "recentApplications"
+  | "applicationsToday"
   | "archivedOffers"
   | "readOffers"
   | "invitationOffers"
   | "rejectedOffers"
-  | "sourceTypes";
+  | "sourceTypes"
+  | "statusTypes"
+  | "offersWithLink";
 
-export type StatsChartWidgetKey = "chartTrend" | "chartInvitesRead" | "chartStatus" | "chartSource";
+export type StatsChartWidgetKey =
+  | "chartTrend"
+  | "chartInvitesRead"
+  | "chartStatus"
+  | "chartSource"
+  | "chartCumulativeOffers"
+  | "chartStatusTrend";
 export type StatsWidgetKey = SummaryMetricKey | StatsChartWidgetKey;
 export type StatsWidgetOption = { key: StatsWidgetKey; label: string; value: string; kind: "summary" | "chart"; size: "1x1" | "1x2" };
 export type StatsLayoutDragState =
