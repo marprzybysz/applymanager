@@ -111,6 +111,14 @@ body {
   inset: 0;
   z-index: 24;
   pointer-events: none;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+.stats-drawer-shell.is-edit-mode {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .stats-drawer-toggle {
@@ -131,8 +139,14 @@ body {
   letter-spacing: -0.02em;
   line-height: 1;
   box-shadow: -8px 10px 24px rgba(2, 6, 23, 0.26);
-  pointer-events: auto;
+  pointer-events: none;
+  opacity: 0;
   transition: right 220ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.stats-drawer-shell.is-edit-mode .stats-drawer-toggle {
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .stats-drawer-toggle:hover,

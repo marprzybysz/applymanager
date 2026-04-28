@@ -347,6 +347,54 @@ export function App() {
         read: value.read,
       }));
   }, [offers]);
+  const cumulativeOffersTrendData = useMemo(() => {
+    const daily = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      daily.set(date, (daily.get(date) || 0) + 1);
+    }
+    let runningTotal = 0;
+    return Array.from(daily.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, count]) => {
+        runningTotal += count;
+        return {
+          date,
+          label: formatChartDateLabel(date),
+          cumulative: runningTotal,
+        };
+      });
+  }, [offers]);
+  const statusTrendTopData = useMemo(() => {
+    const daily = new Map<string, Record<string, number>>();
+    const statusTotals = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      const status = normalizeStatusForChart(normalizeOfferStatus(offer.status, offer.applied !== false));
+      const dayEntry = daily.get(date) || {};
+      dayEntry[status] = (dayEntry[status] || 0) + 1;
+      daily.set(date, dayEntry);
+      statusTotals.set(status, (statusTotals.get(status) || 0) + 1);
+    }
+    const topStatuses = Array.from(statusTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([status]) => status);
+    const rows = Array.from(daily.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, counts]) => {
+        const row: Record<string, string | number> = { date, label: formatChartDateLabel(date) };
+        for (const status of topStatuses) row[status] = counts[status] || 0;
+        return row;
+      });
+    return { topStatuses, rows };
+  }, [offers]);
   const summaryMetricOptions = useMemo(() => {
     const statusCounters = {
       readOffers: 0,
@@ -365,13 +413,18 @@ export function App() {
     const sourceTypes = Object.values(stats.sourceCounts).filter((count) => Number(count || 0) > 0).length;
     const statusTypes = Object.values(stats.statusCounts).filter((count) => Number(count || 0) > 0).length;
     const offersWithLink = offers.reduce((acc, offer) => acc + (String(offer.sourceUrl || "").trim() ? 1 : 0), 0);
+    const today = getTodayLocalDate();
+    const applicationsToday = offers.reduce((acc, offer) => acc + ((offer.appliedAt || "").slice(0, 10) === today ? 1 : 0), 0);
+    const activeShare = stats.totalOffers > 0 ? `${Math.round((stats.activeOffers / stats.totalOffers) * 100)}%` : "0%";
     return [
       { key: "totalOffers", label: t.totalOffers, value: String(stats.totalOffers) },
       { key: "appliedOffers", label: t.appliedOffers, value: String(stats.appliedOffers) },
       { key: "activeOffers", label: t.activeOffers, value: String(stats.activeOffers) },
+      { key: "activeShare", label: t.activeShare, value: activeShare },
       { key: "expiredOffers", label: t.expiredOffers, value: String(stats.expiredOffers) },
       { key: "avgDaysLeft", label: t.avgDaysLeft, value: stats.averageDaysLeft === null ? "-" : String(stats.averageDaysLeft) },
       { key: "recentApplications", label: t.recentApplications, value: String(stats.recentApplications7d) },
+      { key: "applicationsToday", label: t.applicationsToday, value: String(applicationsToday) },
       { key: "archivedOffers", label: t.archivedOffers, value: String(archivedOffers) },
       { key: "readOffers", label: t.readOffers, value: String(statusCounters.readOffers) },
       { key: "invitationOffers", label: t.invitationOffers, value: String(statusCounters.invitationOffers) },
@@ -385,7 +438,9 @@ export function App() {
     () =>
       [
         { key: "chartTrend", label: t.chartTrendTitle, value: "-" },
+        { key: "chartCumulativeOffers", label: t.chartCumulativeOffersTitle, value: "-" },
         { key: "chartInvitesRead", label: t.chartInvitesReadTitle, value: "-" },
+        { key: "chartStatusTrend", label: t.chartStatusTrendTitle, value: "-" },
         { key: "chartStatus", label: t.statusBreakdown, value: "-" },
         { key: "chartSource", label: t.sourceBreakdown, value: "-" },
       ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
@@ -469,6 +524,50 @@ export function App() {
         </div>
       );
     }
+    if (widget.key === "chartCumulativeOffers") {
+      const miniData = cumulativeOffersTrendData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartStatusTrend") {
+      const miniData = statusTrendTopData.rows.slice(-8);
+      const [first, second] = statusTrendTopData.topStatuses;
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 || !first ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey={first} stroke="#3b82f6" strokeWidth={2} dot={{ r: 1.6 }} isAnimationActive={false} />
+                    {second ? <Line type="monotone" dataKey={second} stroke="#f59e0b" strokeWidth={2} dot={{ r: 1.6 }} isAnimationActive={false} /> : null}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
     if (widget.key === "chartStatus") {
       const miniData = statusChartData.slice(0, 4);
       return (
@@ -530,7 +629,7 @@ export function App() {
       );
     }
     return null;
-  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, statusChartData, sourceChartData]);
+  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, cumulativeOffersTrendData, statusTrendTopData, statusChartData, sourceChartData]);
 
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
@@ -2960,8 +3059,8 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
-      {activeTopTab === "stats" && statsLayoutEditMode ? (
-        <div className={`stats-drawer-shell ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
+      {activeTopTab === "stats" ? (
+        <div className={`stats-drawer-shell ${statsLayoutEditMode ? "is-edit-mode" : ""} ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
           <button
             type="button"
             className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""} ${statsLayoutDragState?.source === "slot" ? "is-delete-drag-available" : ""} ${statsLayoutDeleteDropActive ? "is-delete-drop-active" : ""}`}
@@ -2975,7 +3074,7 @@ export function App() {
           >
             {statsLayoutDragState?.source === "slot" ? "🗑" : showStatsNavSettings ? "▸" : "◂"}
           </button>
-          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
+          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!statsLayoutEditMode || !showStatsNavSettings}>
             <div className="stats-drawer__section">
               <strong>Biblioteka Widgetow</strong>
               <p className="stats-kpi-drag-hint">Przeciagnij widget albo kliknij widget, potem kliknij slot. Uklad zapisuje sie automatycznie.</p>
@@ -3048,7 +3147,7 @@ export function App() {
                   statsLayoutDragRef.current = null;
                 }}
               >
-                Reset Layout
+                {t.resetStatsLayout}
               </button>
             </div>
           </aside>
@@ -3565,6 +3664,63 @@ export function App() {
                               <Legend wrapperStyle={{ fontSize: 11 }} />
                               <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
                               <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartCumulativeOffers" ? (
+                    <>
+                      <h3>{t.chartCumulativeOffersTitle}</h3>
+                      {cumulativeOffersTrendData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                              <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartStatusTrend" ? (
+                    <>
+                      <h3>{t.chartStatusTrendTitle}</h3>
+                      {statusTrendTopData.rows.length === 0 || statusTrendTopData.topStatuses.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-wrap">
+                          <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                itemStyle={{ color: "#111827" }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              {statusTrendTopData.topStatuses.map((status, index) => (
+                                <Line
+                                  key={`status-trend-${status}`}
+                                  type="monotone"
+                                  dataKey={status}
+                                  name={status}
+                                  stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                  strokeWidth={2.2}
+                                  dot={{ r: 2.3 }}
+                                />
+                              ))}
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
