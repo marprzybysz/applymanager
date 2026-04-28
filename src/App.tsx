@@ -363,6 +363,8 @@ export function App() {
     }
     const archivedOffers = offers.reduce((acc, offer) => acc + (offer.archive === true ? 1 : 0), 0);
     const sourceTypes = Object.values(stats.sourceCounts).filter((count) => Number(count || 0) > 0).length;
+    const statusTypes = Object.values(stats.statusCounts).filter((count) => Number(count || 0) > 0).length;
+    const offersWithLink = offers.reduce((acc, offer) => acc + (String(offer.sourceUrl || "").trim() ? 1 : 0), 0);
     return [
       { key: "totalOffers", label: t.totalOffers, value: String(stats.totalOffers) },
       { key: "appliedOffers", label: t.appliedOffers, value: String(stats.appliedOffers) },
@@ -375,6 +377,8 @@ export function App() {
       { key: "invitationOffers", label: t.invitationOffers, value: String(statusCounters.invitationOffers) },
       { key: "rejectedOffers", label: t.rejectedOffers, value: String(statusCounters.rejectedOffers) },
       { key: "sourceTypes", label: t.sourceTypes, value: String(sourceTypes) },
+      { key: "statusTypes", label: t.statusTypes, value: String(statusTypes) },
+      { key: "offersWithLink", label: t.offersWithLink, value: String(offersWithLink) },
     ] as Array<{ key: SummaryMetricKey; label: string; value: string }>;
   }, [offers, stats, t]);
   const chartWidgetOptions = useMemo(

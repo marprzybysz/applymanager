@@ -420,11 +420,14 @@ body {
 }
 
 .stats-box--draggable {
-  cursor: grab;
   user-select: none;
 }
 
-.stats-box--draggable:active {
+.stats-box--layout-editing.stats-box--draggable {
+  cursor: grab;
+}
+
+.stats-box--layout-editing.stats-box--draggable:active {
   cursor: grabbing;
 }
 
