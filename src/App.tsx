@@ -3604,9 +3604,15 @@ export function App() {
                   const above = slotIndex - 4 * rowsAbove;
                   if (above < 0) continue;
                   const aboveKey = statsLayoutSlots[above];
-                  if (!aboveKey || statsWidgetMap.get(aboveKey)?.kind !== "chart") continue;
-                  if (above === draggingChartSourceIndex) continue;
-                  return true;
+                  if (aboveKey && statsWidgetMap.get(aboveKey)?.kind === "chart" && above !== draggingChartSourceIndex) {
+                    return true;
+                  }
+                  if (above === statsLayoutDropTargetIndex && draggedWidget?.kind === "chart") {
+                    const isAboveDropBlocked =
+                      isChartBlockedInBottomRows(above) ||
+                      (draggingChartSourceIndex !== null && !canDropChartAt(above, draggingChartSourceIndex));
+                    if (!isAboveDropBlocked) return true;
+                  }
                 }
                 return false;
               })();
