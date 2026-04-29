@@ -3619,13 +3619,19 @@ export function App() {
               if (isHiddenEmpty || isChartCoveredRow) return null;
               const slotGridCol = (slotIndex % 4) + 1;
               const slotGridRow = Math.floor(slotIndex / 4) + 1;
+              const isSwapTarget =
+                isDropTarget &&
+                isFilled &&
+                !isDragging &&
+                !isDropBlocked &&
+                statsLayoutDragState?.source === "slot";
               const chartAutoPlacement =
                 widget?.kind === "chart" || isDropBlocked
                   ? { colSpan: 1 as const, rowSpan: 3 as const }
                   : { colSpan: 1 as const, rowSpan: 1 as const };
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isDropBlocked ? "is-drop-blocked" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isDropBlocked ? "is-drop-blocked" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""} ${isSwapTarget ? "is-swap-target" : ""}`}
                   style={{
                     gridColumn: slotGridCol,
                     gridRow: `${slotGridRow} / span ${chartAutoPlacement.rowSpan}`,

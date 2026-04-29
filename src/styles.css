@@ -530,6 +530,12 @@ body {
   border-style: solid;
 }
 
+.stats-summary-grid.is-dragging .stats-box.is-swap-target {
+  background: color-mix(in srgb, #10b981 18%, var(--surface-2) 82%);
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) inset;
+}
+
 .stats-box--empty-slot {
   min-height: 96px;
   border-style: dashed;
