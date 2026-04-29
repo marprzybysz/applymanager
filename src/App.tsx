@@ -3650,22 +3650,33 @@ export function App() {
                       {invitationsReadTrendData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
-                        <div className="stats-chart-wrap">
-                          <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                              <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
-                              />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
-                              <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
-                            </LineChart>
-                          </ResponsiveContainer>
+                        <div className="stats-chart-layout">
+                          <div className="stats-chart-wrap">
+                            <ResponsiveContainer width="100%" height={220}>
+                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                <Tooltip
+                                  contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                  labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                  itemStyle={{ color: "#111827" }}
+                                />
+                                <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                                <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="stats-chart-legend-inline" aria-hidden="true">
+                            <span>
+                              <i style={{ background: "#ec4899" }} />
+                              Odczytane
+                            </span>
+                            <span>
+                              <i style={{ background: "#f59e0b" }} />
+                              Zaproszenia
+                            </span>
+                          </div>
                         </div>
                       )}
                     </>
@@ -3698,31 +3709,40 @@ export function App() {
                       {statusTrendTopData.rows.length === 0 || statusTrendTopData.topStatuses.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
-                        <div className="stats-chart-wrap">
-                          <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                              <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
-                              />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              {statusTrendTopData.topStatuses.map((status, index) => (
-                                <Line
-                                  key={`status-trend-${status}`}
-                                  type="monotone"
-                                  dataKey={status}
-                                  name={status}
-                                  stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                                  strokeWidth={2.2}
-                                  dot={{ r: 2.3 }}
+                        <div className="stats-chart-layout">
+                          <div className="stats-chart-wrap">
+                            <ResponsiveContainer width="100%" height={220}>
+                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                <Tooltip
+                                  contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
+                                  labelStyle={{ color: "#111827", fontWeight: 600 }}
+                                  itemStyle={{ color: "#111827" }}
                                 />
-                              ))}
-                            </LineChart>
-                          </ResponsiveContainer>
+                                {statusTrendTopData.topStatuses.map((status, index) => (
+                                  <Line
+                                    key={`status-trend-${status}`}
+                                    type="monotone"
+                                    dataKey={status}
+                                    name={status}
+                                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                    strokeWidth={2.2}
+                                    dot={{ r: 2.3 }}
+                                  />
+                                ))}
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="stats-chart-legend-inline" aria-hidden="true">
+                            {statusTrendTopData.topStatuses.map((status, index) => (
+                              <span key={`status-trend-legend-${status}`}>
+                                <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                {status}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </>

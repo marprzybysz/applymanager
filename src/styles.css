@@ -2356,6 +2356,34 @@ button:disabled {
   height: 260px;
 }
 
+.stats-chart-layout {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.stats-chart-legend-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.stats-chart-legend-inline span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  white-space: nowrap;
+}
+
+.stats-chart-legend-inline i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
 .stats-empty-state {
   margin: 0;
   text-align: center;
