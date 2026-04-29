@@ -656,6 +656,17 @@ export function App() {
   function isChartBlockedInBottomRows(slotIndex: number) {
     return Math.floor(slotIndex / 4) >= 5;
   }
+
+  function canDropChartAt(targetIndex: number, sourceIndex: number): boolean {
+    if (isChartBlockedInBottomRows(targetIndex)) return false;
+    for (const rowsBelow of [1, 2]) {
+      const below = targetIndex + 4 * rowsBelow;
+      if (below >= statsLayoutSlots.length) break;
+      const key = statsLayoutSlots[below];
+      if (key && key !== statsLayoutSlots[sourceIndex]) return false;
+    }
+    return true;
+  }
   function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1; rowSpan: 3 } {
     void slotIndex;
     return { colSpan: 1, rowSpan: 3 };
@@ -3562,6 +3573,7 @@ export function App() {
               <p className="stats-empty-state-hint">Wlacz Tryb Edycji i dodaj widgety z biblioteki.</p>
             </div>
           ) : (
+          <div className="stats-summary-grid-clip">
           <div className={`stats-grid stats-summary-grid ${statsLayoutEditMode ? "stats-summary-grid--edit" : ""} ${statsLayoutDragState !== null ? "is-dragging" : ""} ${statsLayoutDragState?.source === "library" ? "is-library-dragging" : ""}`}>
             {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
               const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
@@ -3569,31 +3581,42 @@ export function App() {
               const isDragging = statsLayoutDragState?.source === "slot" && statsLayoutDragState.index === slotIndex;
               const isDropTarget = statsLayoutDropTargetIndex === slotIndex;
               const draggedWidget = statsLayoutDragState?.widgetKey ? statsWidgetMap.get(statsLayoutDragState.widgetKey) : null;
-              const shouldPreviewChartDrop =
-                statsLayoutEditMode &&
-                isDropTarget &&
-                draggedWidget?.kind === "chart" &&
-                (!isFilled || widget?.kind !== "chart");
               const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
               const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
               const isBottomBlockedSlot = isChartBlockedInBottomRows(slotIndex);
-              const isDropBlocked = isDropTarget && isBottomBlockedSlot && draggedWidget?.kind === "chart";
+              const draggingChartSourceIndex =
+                statsLayoutDragState?.source === "slot" && draggedWidget?.kind === "chart"
+                  ? statsLayoutDragState.index
+                  : null;
+              const isDropBlocked =
+                isDropTarget &&
+                draggedWidget?.kind === "chart" &&
+                (isBottomBlockedSlot ||
+                  (draggingChartSourceIndex !== null && !canDropChartAt(slotIndex, draggingChartSourceIndex)));
+              const shouldPreviewChartDrop =
+                statsLayoutEditMode &&
+                isDropTarget &&
+                !isDropBlocked &&
+                draggedWidget?.kind === "chart" &&
+                (!isFilled || widget?.kind !== "chart");
               const isChartCoveredRow = (() => {
                 for (const rowsAbove of [1, 2]) {
                   const above = slotIndex - 4 * rowsAbove;
                   if (above < 0) continue;
                   const aboveKey = statsLayoutSlots[above];
-                  if (aboveKey && statsWidgetMap.get(aboveKey)?.kind === "chart") return true;
+                  if (!aboveKey || statsWidgetMap.get(aboveKey)?.kind !== "chart") continue;
+                  if (above === draggingChartSourceIndex) continue;
+                  return true;
                 }
                 return false;
               })();
               if (isHiddenEmpty || isChartCoveredRow) return null;
-              const chartAutoPlacement =
-                widget?.kind === "chart"
-                  ? getStatsChartAutoPlacement(slotIndex)
-                  : { colSpan: 1 as const, rowSpan: 1 as const };
               const slotGridCol = (slotIndex % 4) + 1;
               const slotGridRow = Math.floor(slotIndex / 4) + 1;
+              const chartAutoPlacement =
+                widget?.kind === "chart" || isDropBlocked
+                  ? { colSpan: 1 as const, rowSpan: 3 as const }
+                  : { colSpan: 1 as const, rowSpan: 1 as const };
               return (
                 <article
                   className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isDropBlocked ? "is-drop-blocked" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
@@ -3626,7 +3649,9 @@ export function App() {
                       (statsLayoutDragState?.widgetKey && statsWidgetMap.get(statsLayoutDragState.widgetKey)?.kind === "chart") ||
                       (statsLayoutDragRef.current?.widgetKey && statsWidgetMap.get(statsLayoutDragRef.current.widgetKey)?.kind === "chart");
                     event.preventDefault();
-                    if (draggingChart && isBottomBlockedSlot) {
+                    const sourceIdx = statsLayoutDragState?.source === "slot" ? statsLayoutDragState.index : null;
+                    const chartDropBlocked = draggingChart && (isBottomBlockedSlot || (sourceIdx !== null && !canDropChartAt(slotIndex, sourceIdx)));
+                    if (draggingChart && chartDropBlocked) {
                       event.dataTransfer.dropEffect = "none";
                       setDropTarget(slotIndex);
                       return;
@@ -3699,7 +3724,7 @@ export function App() {
                     applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
                   }}
                 >
-                  {widget?.kind === "summary" ? (
+                  {isDropBlocked ? null : (widget?.kind === "summary" ? (
                     <>
                       <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
                       <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
@@ -3882,11 +3907,12 @@ export function App() {
                     </>
                   ) : (
                     <span className="stats-box-empty-label" />
-                  )}
+                  ))}
                 </article>
               );
             })}
             {statsLayoutDragState === null && statsLayoutFilledCount === 0 ? <p className="hint">-</p> : null}
+          </div>
           </div>
           )}
         </section>
