@@ -2301,6 +2301,10 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.stats-summary-grid--edit {
+  grid-auto-rows: 96px;
+}
+
 .stats-box {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -2337,6 +2341,11 @@ button:disabled {
 
 .stats-box--chart-widget.stats-box--chart-span-3 {
   grid-column: span 3;
+}
+
+.stats-summary-grid--edit .stats-box--chart-widget {
+  grid-row: span 3;
+  height: calc((96px * 3) + (0.75rem * 2));
 }
 
 .stats-box--chart-widget.stats-box--chart-tall-2 {

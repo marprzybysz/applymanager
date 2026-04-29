@@ -3526,7 +3526,7 @@ export function App() {
           {offers.length === 0 ? (
             <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
           ) : (
-          <div className={`stats-grid stats-summary-grid ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
+          <div className={`stats-grid stats-summary-grid ${statsLayoutEditMode ? "stats-summary-grid--edit" : ""} ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
             {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
               const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
               const isFilled = !isEmpty && Boolean(widgetKey && widget);
