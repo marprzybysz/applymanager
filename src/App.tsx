@@ -648,19 +648,19 @@ export function App() {
     () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
     [statsLayoutSlots, statsWidgetMap]
   );
+  function isChartBlockedInBottomRows(slotIndex: number) {
+    void slotIndex;
+    return false;
+  }
   function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1 | 2 | 3; rowExtra: 0 } {
-    if (statsLayoutEditMode) return { colSpan: 1, rowExtra: 0 };
-    const columns = 4;
-    const col = slotIndex % columns;
-    const rowStart = slotIndex - col;
-    const rowEnd = rowStart + columns;
-    const next1 = slotIndex + 1;
-    const next2 = slotIndex + 2;
-    const hasEmpty1 = next1 < rowEnd && next1 < statsLayoutSlots.length && statsLayoutSlots[next1] === null;
-    const hasEmpty2 = next2 < rowEnd && next2 < statsLayoutSlots.length && statsLayoutSlots[next2] === null;
-    const colSpan: 1 | 2 | 3 = hasEmpty1 && hasEmpty2 ? 3 : hasEmpty1 ? 2 : 1;
-
-    return { colSpan, rowExtra: 0 };
+    void slotIndex;
+    return { colSpan: 1, rowExtra: 0 };
+  }
+  function compactStatsLayoutSlots(slots: Array<StatsWidgetKey | null>) {
+    const filled = slots.filter((key): key is StatsWidgetKey => Boolean(key && statsWidgetMap.has(key)));
+    const compacted: Array<StatsWidgetKey | null> = [...filled];
+    while (compacted.length < slots.length) compacted.push(null);
+    return compacted;
   }
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
@@ -823,6 +823,9 @@ export function App() {
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
       if (fromIndex === toIndex) return prev;
       if (prev[fromIndex] === null) return prev;
+      const sourceKey = prev[fromIndex];
+      const sourceWidget = sourceKey ? statsWidgetMap.get(sourceKey) : null;
+      if (sourceWidget?.kind === "chart" && isChartBlockedInBottomRows(toIndex)) return prev;
       const next = [...prev];
       const source = next[fromIndex];
       next[fromIndex] = next[toIndex];
@@ -856,6 +859,8 @@ export function App() {
   function applyStatsLayoutFromLibrary(widgetKey: StatsWidgetKey, targetIndex: number) {
     setStatsLayoutSlots((prev) => {
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      const sourceWidget = statsWidgetMap.get(widgetKey);
+      if (sourceWidget?.kind === "chart" && isChartBlockedInBottomRows(toIndex)) return prev;
       const next = [...prev];
       if (next[toIndex] === widgetKey) return prev;
       next[toIndex] = widgetKey;
@@ -1129,6 +1134,8 @@ export function App() {
         if (statsLayoutEditBaselineRef.current) {
           setStatsLayoutSlots([...statsLayoutEditBaselineRef.current]);
         }
+      } else {
+        setStatsLayoutSlots((prev) => compactStatsLayoutSlots(prev));
       }
       setStatsLayoutEditMode(false);
       setShowStatsNavSettings(false);
@@ -1142,7 +1149,11 @@ export function App() {
         if (!stopped) return;
         setStatusMessage(t.editorModeDisabled);
       } else {
-        statsLayoutEditBaselineRef.current = [...statsLayoutSlots];
+        setStatsLayoutSlots((prev) => {
+          const compacted = compactStatsLayoutSlots(prev);
+          statsLayoutEditBaselineRef.current = [...compacted];
+          return compacted;
+        });
         setStatsLayoutEditMode(true);
         setShowStatsNavSettings(true);
         setStatusMessage(t.editorModeEnabled);
@@ -2916,15 +2927,17 @@ export function App() {
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                className="add-offer-btn add-offer-btn--compact action-mini-btn"
-                onClick={toggleAddOfferModal}
-                aria-label={t.addOffer}
-              >
-                <span className="action-mini-content action-mini-content--icon action-mini-plus">+</span>
-                <span className="action-mini-content action-mini-content--label">{t.addOffer}</span>
-              </button>
+              {activeTopTab === "offers" ? (
+                <button
+                  type="button"
+                  className="add-offer-btn add-offer-btn--compact action-mini-btn action-mini-btn--enter"
+                  onClick={toggleAddOfferModal}
+                  aria-label={t.addOffer}
+                >
+                  <span className="action-mini-content action-mini-content--icon action-mini-plus">+</span>
+                  <span className="action-mini-content action-mini-content--label">{t.addOffer}</span>
+                </button>
+              ) : null}
             </>
           ) : null}
           <div className="menu-wrap">
@@ -3525,6 +3538,11 @@ export function App() {
         <section className={`card ${offers.length === 0 ? "stats-empty-card" : ""}`} id="stats">
           {offers.length === 0 ? (
             <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
+          ) : statsLayoutFilledCount === 0 && !statsLayoutEditMode ? (
+            <div className="stats-empty-state-card">
+              <p className="stats-empty-state">Serio usunales wszystkie widgety? 😏</p>
+              <p className="stats-empty-state-hint">Wlacz Tryb Edycji i dodaj widgety z biblioteki.</p>
+            </div>
           ) : (
           <div className={`stats-grid stats-summary-grid ${statsLayoutEditMode ? "stats-summary-grid--edit" : ""} ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
             {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
@@ -3540,9 +3558,10 @@ export function App() {
                 (!isFilled || widget?.kind !== "chart");
               const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
               const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
+              const isBottomBlockedSlot = isChartBlockedInBottomRows(slotIndex);
               if (isHiddenEmpty) return null;
               const chartAutoPlacement =
-                !statsLayoutEditMode && widget?.kind === "chart"
+                widget?.kind === "chart"
                   ? getStatsChartAutoPlacement(slotIndex)
                   : { colSpan: 1 as const, rowExtra: 0 as const };
               return (
@@ -3566,6 +3585,13 @@ export function App() {
                   }}
                   onDragOver={(event) => {
                     if (!statsLayoutEditMode) return;
+                    const draggingChart =
+                      (statsLayoutDragState?.widgetKey && statsWidgetMap.get(statsLayoutDragState.widgetKey)?.kind === "chart") ||
+                      (statsLayoutDragRef.current?.widgetKey && statsWidgetMap.get(statsLayoutDragRef.current.widgetKey)?.kind === "chart");
+                    if (draggingChart && isBottomBlockedSlot) {
+                      event.dataTransfer.dropEffect = "none";
+                      return;
+                    }
                     event.preventDefault();
                     event.dataTransfer.dropEffect = statsLayoutDragState?.source === "library" ? "copy" : "move";
                     if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);

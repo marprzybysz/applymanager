@@ -729,6 +729,10 @@ body {
   transition: width 130ms ease-in-out, min-width 130ms ease-in-out;
 }
 
+.action-mini-btn--enter {
+  animation: action-mini-enter 220ms ease-out;
+}
+
 .action-mini-btn:hover {
   width: 78px;
   min-width: 78px;
@@ -770,6 +774,17 @@ body {
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
+}
+
+@keyframes action-mini-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .action-mini-icon {
@@ -2316,8 +2331,18 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.stats-summary-grid--edit {
-  grid-auto-rows: 96px;
+.stats-summary-grid--edit {}
+
+.stats-summary-grid--edit .stats-box--empty-slot {
+  opacity: 0.42;
+  background: color-mix(in srgb, var(--surface-2) 94%, #000 6%);
+  border-color: color-mix(in srgb, #60a5fa 28%, var(--border) 72%);
+}
+
+.stats-summary-grid--edit .stats-box--draggable {
+  opacity: 1;
+  border-color: color-mix(in srgb, #93c5fd 42%, var(--border) 58%);
+  box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.2) inset;
 }
 
 .stats-box {
@@ -2356,11 +2381,6 @@ button:disabled {
 
 .stats-box--chart-widget.stats-box--chart-span-3 {
   grid-column: span 3;
-}
-
-.stats-summary-grid--edit .stats-box--chart-widget {
-  grid-row: span 3;
-  height: calc((96px * 3) + (0.75rem * 2));
 }
 
 .stats-box--chart-widget.stats-box--chart-tall-2 {
@@ -2429,6 +2449,20 @@ button:disabled {
   height: 8px;
   border-radius: 999px;
   display: inline-block;
+}
+
+.stats-empty-state-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.stats-empty-state-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.94rem;
+  line-height: 1.35;
 }
 
 .stats-empty-state {
