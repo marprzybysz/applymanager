@@ -96,6 +96,7 @@ import {
   normalizeImportEntryToOffer,
   normalizeOfferForEdit,
   normalizeUrlForDuplicate,
+  normalizeStatsLayoutSlotsForCharts,
   parseWorkingHoursSelection,
   serializeWorkingHoursSelection,
 } from "./utils/appHelpers";
@@ -184,7 +185,7 @@ export function App() {
         if (typeof value === "string") slots[index] = value as StatsWidgetKey;
         if (value === null) slots[index] = null;
       }
-      return slots;
+      return normalizeStatsLayoutSlotsForCharts(slots);
     } catch {
       return createDefaultStatsLayoutSlots();
     }
@@ -450,7 +451,7 @@ export function App() {
     () =>
       [
         ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const, size: "1x1" as const })),
-        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x2" as const })),
+        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x3" as const })),
       ] as Array<StatsWidgetOption>,
     [summaryMetricOptions, chartWidgetOptions]
   );
@@ -649,18 +650,14 @@ export function App() {
     [statsLayoutSlots, statsWidgetMap]
   );
   function isChartBlockedInBottomRows(slotIndex: number) {
-    void slotIndex;
-    return false;
+    return Math.floor(slotIndex / 4) >= 5;
   }
-  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1 | 2 | 3; rowExtra: 0 } {
+  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1; rowSpan: 3 } {
     void slotIndex;
-    return { colSpan: 1, rowExtra: 0 };
+    return { colSpan: 1, rowSpan: 3 };
   }
   function compactStatsLayoutSlots(slots: Array<StatsWidgetKey | null>) {
-    const filled = slots.filter((key): key is StatsWidgetKey => Boolean(key && statsWidgetMap.has(key)));
-    const compacted: Array<StatsWidgetKey | null> = [...filled];
-    while (compacted.length < slots.length) compacted.push(null);
-    return compacted;
+    return slots.map((key) => (key && statsWidgetMap.has(key) ? key : null));
   }
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
@@ -3559,14 +3556,26 @@ export function App() {
               const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
               const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
               const isBottomBlockedSlot = isChartBlockedInBottomRows(slotIndex);
-              if (isHiddenEmpty) return null;
+              const isChartCoveredRow = (() => {
+                for (const rowsAbove of [1, 2]) {
+                  const above = slotIndex - 4 * rowsAbove;
+                  if (above < 0) continue;
+                  const aboveKey = statsLayoutSlots[above];
+                  if (aboveKey && statsWidgetMap.get(aboveKey)?.kind === "chart") return true;
+                }
+                return false;
+              })();
+              if (isHiddenEmpty || isChartCoveredRow) return null;
               const chartAutoPlacement =
                 widget?.kind === "chart"
                   ? getStatsChartAutoPlacement(slotIndex)
-                  : { colSpan: 1 as const, rowExtra: 0 as const };
+                  : { colSpan: 1 as const, rowSpan: 1 as const };
+              const slotGridCol = (slotIndex % 4) + 1;
+              const slotGridRow = Math.floor(slotIndex / 4) + 1;
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${chartAutoPlacement.colSpan > 1 ? `stats-box--chart-span-${chartAutoPlacement.colSpan}` : ""} ${chartAutoPlacement.rowExtra > 0 ? `stats-box--chart-tall-${chartAutoPlacement.rowExtra + 1}` : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  style={{ gridColumn: slotGridCol, gridRow: `${slotGridRow} / span ${chartAutoPlacement.rowSpan}` }}
                   key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
                   draggable={isFilled && statsLayoutEditMode}
                   onDragStart={(event) => {

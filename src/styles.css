@@ -2329,6 +2329,7 @@ button:disabled {
 
 .stats-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 96px;
 }
 
 .stats-summary-grid--edit {}
@@ -2371,8 +2372,9 @@ button:disabled {
 }
 
 .stats-box--chart-widget {
-  height: 320px;
+  height: auto;
   align-content: start;
+  overflow: hidden;
 }
 
 .stats-box--chart-widget.stats-box--chart-span-2 {
