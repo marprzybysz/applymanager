@@ -2434,7 +2434,7 @@ button:disabled {
 
 .stats-summary-grid-clip {
   overflow: hidden;
-  max-height: calc(7 * 96px + 6 * 0.75rem + 1px);
+  max-height: calc(7 * 96px + 6 * 0.75rem + 10px);
 }
 
 .stats-summary-grid {
