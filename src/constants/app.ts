@@ -9,7 +9,7 @@ export const DEFAULT_SUMMARY_METRICS: SummaryMetricKey[] = [
   "recentApplications",
 ];
 
-export const STATS_LAYOUT_SLOT_COUNT = 12;
+export const STATS_LAYOUT_SLOT_COUNT = 28;
 export const SUMMARY_DND_SLOT_MIME = "application/x-applymanager-summary-slot";
 export const SUMMARY_DND_METRIC_MIME = "application/x-applymanager-summary-metric";
 
