@@ -486,13 +486,28 @@ body {
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--surface-2) 88%, #000 12%);
-  transition: min-height 170ms ease, height 170ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .stats-box--layout-editing.stats-box--empty-slot {
   border-color: color-mix(in srgb, #60a5fa 38%, var(--border) 62%);
   background: color-mix(in srgb, var(--surface-2) 76%, #000 24%);
   box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2) inset;
+}
+
+.stats-summary-grid--edit .stats-box--empty-slot {
+  animation: stats-slot-reveal 220ms ease-out;
+}
+
+@keyframes stats-slot-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .stats-box--layout-editing.stats-box--drop-preview-chart {
