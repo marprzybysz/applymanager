@@ -2331,6 +2331,22 @@ button:disabled {
   align-content: start;
 }
 
+.stats-box--chart-widget.stats-box--chart-span-2 {
+  grid-column: span 2;
+}
+
+.stats-box--chart-widget.stats-box--chart-span-3 {
+  grid-column: span 3;
+}
+
+.stats-box--chart-widget.stats-box--chart-tall-2 {
+  height: calc(320px + 96px + 0.75rem);
+}
+
+.stats-box--chart-widget.stats-box--chart-tall-3 {
+  height: calc(320px + (96px + 0.75rem) * 2);
+}
+
 .stats-box--chart-widget h3 {
   margin: 0 0 0.45rem;
   font-size: 1.06rem;

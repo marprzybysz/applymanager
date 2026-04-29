@@ -648,6 +648,33 @@ export function App() {
     () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
     [statsLayoutSlots, statsWidgetMap]
   );
+  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1 | 2 | 3; rowExtra: 0 | 1 | 2 } {
+    if (statsLayoutEditMode) return { colSpan: 1, rowExtra: 0 };
+    const columns = 4;
+    const col = slotIndex % columns;
+    const rowStart = slotIndex - col;
+    const rowEnd = rowStart + columns;
+    const next1 = slotIndex + 1;
+    const next2 = slotIndex + 2;
+    const hasEmpty1 = next1 < rowEnd && next1 < statsLayoutSlots.length && statsLayoutSlots[next1] === null;
+    const hasEmpty2 = next2 < rowEnd && next2 < statsLayoutSlots.length && statsLayoutSlots[next2] === null;
+    const colSpan: 1 | 2 | 3 = hasEmpty1 && hasEmpty2 ? 3 : hasEmpty1 ? 2 : 1;
+
+    function canExtendDown(rowsDown: number) {
+      const base = slotIndex + columns * rowsDown;
+      for (let offset = 0; offset < colSpan; offset += 1) {
+        const target = base + offset;
+        if (target >= statsLayoutSlots.length) return false;
+        if (statsLayoutSlots[target] !== null) return false;
+      }
+      return true;
+    }
+
+    let rowExtra: 0 | 1 | 2 = 0;
+    if (canExtendDown(1)) rowExtra = 1;
+    if (rowExtra === 1 && canExtendDown(2)) rowExtra = 2;
+    return { colSpan, rowExtra };
+  }
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -3526,9 +3553,14 @@ export function App() {
                 (!isFilled || widget?.kind !== "chart");
               const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
               const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
+              if (isHiddenEmpty) return null;
+              const chartAutoPlacement =
+                !statsLayoutEditMode && widget?.kind === "chart"
+                  ? getStatsChartAutoPlacement(slotIndex)
+                  : { colSpan: 1 as const, rowExtra: 0 as const };
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${chartAutoPlacement.colSpan > 1 ? `stats-box--chart-span-${chartAutoPlacement.colSpan}` : ""} ${chartAutoPlacement.rowExtra > 0 ? `stats-box--chart-tall-${chartAutoPlacement.rowExtra + 1}` : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
                   key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
                   draggable={isFilled && statsLayoutEditMode}
                   onDragStart={(event) => {
