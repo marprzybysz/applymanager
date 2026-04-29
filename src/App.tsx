@@ -60,6 +60,8 @@ import type {
 import {
   ARCHIVED_FILTER_VALUE,
   CHART_COLORS,
+  getSourceColor,
+  formatSourceLabel,
   CONTRACT_TYPES,
   DEFAULT_SUMMARY_METRICS,
   ROW_EXIT_ANIMATION_MS,
@@ -319,7 +321,7 @@ export function App() {
   const sourceChartData = useMemo(
     () =>
       Object.entries(stats.sourceCounts)
-        .map(([name, count]) => ({ name, count: Number(count || 0) }))
+        .map(([name, count]) => ({ name: formatSourceLabel(name), rawName: name, count: Number(count || 0) }))
         .filter((entry) => entry.count > 0)
         .sort((a, b) => b.count - a.count),
     [stats.sourceCounts]
@@ -620,7 +622,7 @@ export function App() {
                       isAnimationActive={false}
                     >
                       {miniData.map((entry, index) => (
-                        <Cell key={`${entry.name}-mini-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        <Cell key={`${entry.name}-mini-${index}`} fill={getSourceColor(entry.rawName ?? entry.name, index)} />
                       ))}
                     </Pie>
                   </PieChart>
@@ -2862,7 +2864,7 @@ export function App() {
             <option value="all">{t.all}</option>
             {sourceFilterOptions.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {formatSourceLabel(value)}
               </option>
             ))}
           </select>
@@ -3525,7 +3527,7 @@ export function App() {
                           </span>
                         </td>
                       ) : null}
-                      {!compactView ? <td>{offer.source || "manual"}</td> : null}
+                      {!compactView ? <td>{formatSourceLabel(offer.source || "manual")}</td> : null}
                       {!compactView ? <td>{(offer.employmentTypes || []).join(", ") || "-"}</td> : null}
                       {!compactView ? <td>{offer.workTime || "-"}</td> : null}
                       {!compactView ? <td>{offer.workMode || "-"}</td> : null}
@@ -3863,15 +3865,15 @@ export function App() {
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
-                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false}>
+                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={75} paddingAngle={2} label={false}>
                                 {sourceChartData.map((entry, index) => (
-                                  <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                  <Cell key={`${entry.name}-${index}`} fill={getSourceColor(entry.rawName ?? entry.name, index)} />
                                 ))}
                               </Pie>
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                itemStyle={{ color: "#cbd5e1" }}
                               />
                             </PieChart>
                           </ResponsiveContainer>
@@ -5207,7 +5209,7 @@ export function App() {
                             </td>
                             <td>{offer.status || "-"}</td>
                             <td>{offer.appliedAt || "-"}</td>
-                            <td>{offer.source || "-"}</td>
+                            <td>{offer.source ? formatSourceLabel(offer.source) : "-"}</td>
                           </tr>
                         );
                       })}

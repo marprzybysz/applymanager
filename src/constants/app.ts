@@ -44,6 +44,27 @@ export const WORKING_HOURS_OPTIONS = ["dowolny", "6-14", "14-22", "22-6"];
 export const ARCHIVED_FILTER_VALUE = "__archived__";
 export const CHART_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#f97316", "#84cc16"];
 
+export const SOURCE_COLORS: Record<string, string> = {
+  manual: "#6b7280",
+  "pracuj.pl": "#2563eb",
+  olx: "#14b8a6",
+  nofluffjobs: "#ec4899",
+  rocketjobs: "#8b5cf6",
+  import_excel: "#217346",
+};
+
+export function getSourceColor(name: string, fallbackIndex: number): string {
+  return SOURCE_COLORS[name] ?? CHART_COLORS[fallbackIndex % CHART_COLORS.length];
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  import_excel: "Excel",
+};
+
+export function formatSourceLabel(name: string): string {
+  return SOURCE_LABELS[name] ?? name;
+}
+
 export const NOTIFICATION_CLOSE_ANIMATION_MS = 180;
 export const ROW_EXIT_ANIMATION_MS = 320;
 export const VIRTUALIZATION_THRESHOLD = 120;
