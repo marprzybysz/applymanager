@@ -648,7 +648,7 @@ export function App() {
     () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
     [statsLayoutSlots, statsWidgetMap]
   );
-  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1 | 2 | 3; rowExtra: 0 | 1 | 2 } {
+  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1 | 2 | 3; rowExtra: 0 } {
     if (statsLayoutEditMode) return { colSpan: 1, rowExtra: 0 };
     const columns = 4;
     const col = slotIndex % columns;
@@ -660,20 +660,7 @@ export function App() {
     const hasEmpty2 = next2 < rowEnd && next2 < statsLayoutSlots.length && statsLayoutSlots[next2] === null;
     const colSpan: 1 | 2 | 3 = hasEmpty1 && hasEmpty2 ? 3 : hasEmpty1 ? 2 : 1;
 
-    function canExtendDown(rowsDown: number) {
-      const base = slotIndex + columns * rowsDown;
-      for (let offset = 0; offset < colSpan; offset += 1) {
-        const target = base + offset;
-        if (target >= statsLayoutSlots.length) return false;
-        if (statsLayoutSlots[target] !== null) return false;
-      }
-      return true;
-    }
-
-    let rowExtra: 0 | 1 | 2 = 0;
-    if (canExtendDown(1)) rowExtra = 1;
-    if (rowExtra === 1 && canExtendDown(2)) rowExtra = 2;
-    return { colSpan, rowExtra };
+    return { colSpan, rowExtra: 0 };
   }
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
