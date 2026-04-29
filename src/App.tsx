@@ -3755,7 +3755,7 @@ export function App() {
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={statusChartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} vertical={false} />
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
