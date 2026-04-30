@@ -196,7 +196,7 @@ export function App() {
   const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
   const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
   const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
-  const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
+const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
   const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
   const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
   const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
@@ -3754,9 +3754,9 @@ export function App() {
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                itemStyle={{ color: "#cbd5e1" }}
                               />
                               <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
@@ -3778,9 +3778,9 @@ export function App() {
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                  contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                  labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                  itemStyle={{ color: "#111827" }}
+                                  contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                  labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                  itemStyle={{ color: "#cbd5e1" }}
                                 />
                                 <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
                                 <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
@@ -3813,9 +3813,9 @@ export function App() {
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                itemStyle={{ color: "#cbd5e1" }}
                               />
                               <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
@@ -3837,9 +3837,9 @@ export function App() {
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                  contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                  labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                  itemStyle={{ color: "#111827" }}
+                                  contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                  labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                  itemStyle={{ color: "#cbd5e1" }}
                                 />
                                 {statusTrendTopData.topStatuses.map((status, index) => (
                                   <Line
@@ -3879,9 +3879,9 @@ export function App() {
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
+                                itemStyle={{ color: "#cbd5e1" }}
                               />
                               <Bar dataKey="count" radius={[7, 7, 0, 0]}>
                                 {statusChartData.map((entry, index) => (
