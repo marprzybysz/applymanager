@@ -196,6 +196,7 @@ export function App() {
   const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
   const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
   const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
+  const [activePieEntry, setActivePieEntry] = useState<{ name: string; count: number } | null>(null);
 const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
   const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
   const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
@@ -3569,8 +3570,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
             <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
           ) : statsLayoutFilledCount === 0 && !statsLayoutEditMode ? (
             <div className="stats-empty-state-card">
-              <p className="stats-empty-state">Serio usunales wszystkie widgety? 😏</p>
-              <p className="stats-empty-state-hint">Wlacz Tryb Edycji i dodaj widgety z biblioteki.</p>
+              <p className="stats-empty-state">Serio usunąłeś wszystkie widgety? 😏</p>
+              <p className="stats-empty-state-hint">Włącz Tryb Edycji i dodaj widgety z biblioteki.</p>
             </div>
           ) : (
           <div className="stats-summary-grid-clip">
@@ -3749,10 +3750,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={trendOffersData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
+                            <LineChart data={trendOffersData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
                                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
                                 labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
@@ -3773,10 +3774,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                         <div className="stats-chart-layout">
                           <div className="stats-chart-wrap">
                             <ResponsiveContainer width="100%" height={220}>
-                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
+                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                                 <Tooltip
                                   contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
                                   labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
@@ -3808,10 +3809,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
+                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
                                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
                                 labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
@@ -3832,10 +3833,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                         <div className="stats-chart-layout">
                           <div className="stats-chart-wrap">
                             <ResponsiveContainer width="100%" height={220}>
-                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
+                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                                 <Tooltip
                                   contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
                                   labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
@@ -3874,10 +3875,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={statusChartData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
+                            <BarChart data={statusChartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} vertical={false} />
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
                                 cursor={{ fill: "rgba(100, 116, 139, 0.12)" }}
                                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
@@ -3900,21 +3901,42 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       {sourceChartData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
-                        <div className="stats-chart-wrap">
+                        <div className="stats-chart-wrap" style={{ position: "relative" }} onMouseLeave={() => setActivePieEntry(null)}>
                           <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
-                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={75} paddingAngle={2} label={false}>
+                              <Pie
+                                data={sourceChartData}
+                                dataKey="count"
+                                nameKey="name"
+                                innerRadius={46}
+                                outerRadius={75}
+                                paddingAngle={2}
+                                label={false}
+                                onMouseEnter={(data: any) => setActivePieEntry({ name: String(data.name ?? ""), count: Number(data.count ?? 0) })}
+                              >
                                 {sourceChartData.map((entry, index) => (
                                   <Cell key={`${entry.name}-${index}`} fill={getSourceColor(entry.rawName ?? entry.name, index)} />
                                 ))}
                               </Pie>
-                              <Tooltip
-                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
-                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
-                                itemStyle={{ color: "var(--text-muted)" }}
-                              />
                             </PieChart>
                           </ResponsiveContainer>
+                          {activePieEntry && (
+                            <div style={{
+                              position: "absolute",
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              background: "var(--surface)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 8,
+                              padding: "6px 10px",
+                              textAlign: "center",
+                              pointerEvents: "none",
+                            }}>
+                              <div style={{ color: "var(--text-main)", fontWeight: 600, fontSize: 12 }}>{activePieEntry.name}</div>
+                              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{activePieEntry.count}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
