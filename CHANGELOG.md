@@ -4,11 +4,24 @@ Wszystkie istotne zmiany w projekcie są generowane na podstawie historii commit
 
 Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (etap Alpha + szybkie iteracje).
 
-## [Unreleased]
+## [0.8.1-alpha] - 2026-04-30
+
+### Added
+- Nowe widgety wykresowe na dashboardzie statystyk: **Kumulacja ofert** (`chartCumulativeOffers`) i **Trend statusów top 3** (`chartStatusTrend`).
+- Wizualny wskaźnik zamiany widgetów (zielone podświetlenie po najechaniu na zajęty slot podczas przeciągania).
+- Napis w centrum wykresu kołowego **Źródła** — po najechaniu na wycinek wyświetla nazwę i wartość w dziurce donuta.
 
 ### Changed
-- Podniesiono wersję aplikacji do `0.8.1-alpha`.
-- Ulepszono czytelność statystyk (chartów) pod szybki podgląd kluczowych informacji.
+- Tooltip wszystkich wykresów dostosowany do motywu jasnego i ciemnego przez zmienne CSS (`var(--surface)`, `var(--border)`, `var(--text-main)`).
+- Wykresy liniowe i słupkowe wyśrodkowane przez zmniejszenie szerokości osi Y (`width={28}`) zamiast ujemnego marginu, co naprawiło pozycjonowanie tooltipów.
+- Podświetlenie kolumny w wykresie **Statusy** stonowane semi-transparentnym kolorem pasującym do obu motywów.
+- Poprawki literówek i brakujących polskich znaków w całym tłumaczeniu PL.
+
+### Fixed
+- Naprawiono "ghost boxy" pojawiające się nad podglądem upuszczenia wykresu podczas przeciągania z biblioteki.
+- Naprawiono otwarte dolne obramowanie podglądu upuszczenia wykresu w wierszu 5 gridu.
+- Naprawiono błędne pozycjonowanie tooltipów recharts spowodowane ujemnym `margin.left`.
+- Naprawiono migotanie napisu w centrum wykresu kołowego przy przechodzeniu między wycinkami.
 
 ## [0.8.0-alpha] - 2026-04-13
 

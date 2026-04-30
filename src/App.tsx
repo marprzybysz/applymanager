@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ScrollArea } from "./components/ScrollArea";
 import { createPortal } from "react-dom";
 import {
   Bar,
@@ -59,6 +60,8 @@ import type {
 import {
   ARCHIVED_FILTER_VALUE,
   CHART_COLORS,
+  getSourceColor,
+  formatSourceLabel,
   CONTRACT_TYPES,
   DEFAULT_SUMMARY_METRICS,
   ROW_EXIT_ANIMATION_MS,
@@ -96,6 +99,7 @@ import {
   normalizeImportEntryToOffer,
   normalizeOfferForEdit,
   normalizeUrlForDuplicate,
+  normalizeStatsLayoutSlotsForCharts,
   parseWorkingHoursSelection,
   serializeWorkingHoursSelection,
 } from "./utils/appHelpers";
@@ -184,7 +188,7 @@ export function App() {
         if (typeof value === "string") slots[index] = value as StatsWidgetKey;
         if (value === null) slots[index] = null;
       }
-      return slots;
+      return normalizeStatsLayoutSlotsForCharts(slots);
     } catch {
       return createDefaultStatsLayoutSlots();
     }
@@ -192,10 +196,12 @@ export function App() {
   const [statsLayoutEditMode, setStatsLayoutEditMode] = useState(false);
   const [statsLayoutDragState, setStatsLayoutDragState] = useState<StatsLayoutDragState>(null);
   const [statsLayoutDropTargetIndex, setStatsLayoutDropTargetIndex] = useState<number | null>(null);
-  const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
+  const [activePieEntry, setActivePieEntry] = useState<{ name: string; count: number } | null>(null);
+const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(false);
   const [statsLayoutSelectedSlotIndex, setStatsLayoutSelectedSlotIndex] = useState<number | null>(null);
   const [statsLayoutSelectedLibraryWidgetKey, setStatsLayoutSelectedLibraryWidgetKey] = useState<StatsWidgetKey | null>(null);
   const statsLayoutDragRef = useRef<StatsLayoutDragState>(null);
+  const statsLayoutDropTargetIndexRef = useRef<number | null>(null);
   const statsLayoutEditBaselineRef = useRef<Array<StatsWidgetKey | null> | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSource, setFilterSource] = useState("all");
@@ -316,7 +322,7 @@ export function App() {
   const sourceChartData = useMemo(
     () =>
       Object.entries(stats.sourceCounts)
-        .map(([name, count]) => ({ name, count: Number(count || 0) }))
+        .map(([name, count]) => ({ name: formatSourceLabel(name), rawName: name, count: Number(count || 0) }))
         .filter((entry) => entry.count > 0)
         .sort((a, b) => b.count - a.count),
     [stats.sourceCounts]
@@ -347,6 +353,54 @@ export function App() {
         read: value.read,
       }));
   }, [offers]);
+  const cumulativeOffersTrendData = useMemo(() => {
+    const daily = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      daily.set(date, (daily.get(date) || 0) + 1);
+    }
+    let runningTotal = 0;
+    return Array.from(daily.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, count]) => {
+        runningTotal += count;
+        return {
+          date,
+          label: formatChartDateLabel(date),
+          cumulative: runningTotal,
+        };
+      });
+  }, [offers]);
+  const statusTrendTopData = useMemo(() => {
+    const daily = new Map<string, Record<string, number>>();
+    const statusTotals = new Map<string, number>();
+    for (const offer of offers) {
+      const key = resolveOfferPeriodDate(offer);
+      if (!key) continue;
+      const date = key.slice(0, 10);
+      const status = normalizeStatusForChart(normalizeOfferStatus(offer.status, offer.applied !== false));
+      const dayEntry = daily.get(date) || {};
+      dayEntry[status] = (dayEntry[status] || 0) + 1;
+      daily.set(date, dayEntry);
+      statusTotals.set(status, (statusTotals.get(status) || 0) + 1);
+    }
+    const topStatuses = Array.from(statusTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([status]) => status);
+    const rows = Array.from(daily.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, counts]) => {
+        const row: Record<string, string | number> = { date, label: formatChartDateLabel(date) };
+        for (const status of topStatuses) row[status] = counts[status] || 0;
+        return row;
+      });
+    return { topStatuses, rows };
+  }, [offers]);
   const summaryMetricOptions = useMemo(() => {
     const statusCounters = {
       readOffers: 0,
@@ -363,25 +417,36 @@ export function App() {
     }
     const archivedOffers = offers.reduce((acc, offer) => acc + (offer.archive === true ? 1 : 0), 0);
     const sourceTypes = Object.values(stats.sourceCounts).filter((count) => Number(count || 0) > 0).length;
+    const statusTypes = Object.values(stats.statusCounts).filter((count) => Number(count || 0) > 0).length;
+    const offersWithLink = offers.reduce((acc, offer) => acc + (String(offer.sourceUrl || "").trim() ? 1 : 0), 0);
+    const today = getTodayLocalDate();
+    const applicationsToday = offers.reduce((acc, offer) => acc + ((offer.appliedAt || "").slice(0, 10) === today ? 1 : 0), 0);
+    const activeShare = stats.totalOffers > 0 ? `${Math.round((stats.activeOffers / stats.totalOffers) * 100)}%` : "0%";
     return [
       { key: "totalOffers", label: t.totalOffers, value: String(stats.totalOffers) },
       { key: "appliedOffers", label: t.appliedOffers, value: String(stats.appliedOffers) },
       { key: "activeOffers", label: t.activeOffers, value: String(stats.activeOffers) },
+      { key: "activeShare", label: t.activeShare, value: activeShare },
       { key: "expiredOffers", label: t.expiredOffers, value: String(stats.expiredOffers) },
       { key: "avgDaysLeft", label: t.avgDaysLeft, value: stats.averageDaysLeft === null ? "-" : String(stats.averageDaysLeft) },
       { key: "recentApplications", label: t.recentApplications, value: String(stats.recentApplications7d) },
+      { key: "applicationsToday", label: t.applicationsToday, value: String(applicationsToday) },
       { key: "archivedOffers", label: t.archivedOffers, value: String(archivedOffers) },
       { key: "readOffers", label: t.readOffers, value: String(statusCounters.readOffers) },
       { key: "invitationOffers", label: t.invitationOffers, value: String(statusCounters.invitationOffers) },
       { key: "rejectedOffers", label: t.rejectedOffers, value: String(statusCounters.rejectedOffers) },
       { key: "sourceTypes", label: t.sourceTypes, value: String(sourceTypes) },
+      { key: "statusTypes", label: t.statusTypes, value: String(statusTypes) },
+      { key: "offersWithLink", label: t.offersWithLink, value: String(offersWithLink) },
     ] as Array<{ key: SummaryMetricKey; label: string; value: string }>;
   }, [offers, stats, t]);
   const chartWidgetOptions = useMemo(
     () =>
       [
         { key: "chartTrend", label: t.chartTrendTitle, value: "-" },
+        { key: "chartCumulativeOffers", label: t.chartCumulativeOffersTitle, value: "-" },
         { key: "chartInvitesRead", label: t.chartInvitesReadTitle, value: "-" },
+        { key: "chartStatusTrend", label: t.chartStatusTrendTitle, value: "-" },
         { key: "chartStatus", label: t.statusBreakdown, value: "-" },
         { key: "chartSource", label: t.sourceBreakdown, value: "-" },
       ] as Array<{ key: StatsChartWidgetKey; label: string; value: string }>,
@@ -391,7 +456,7 @@ export function App() {
     () =>
       [
         ...summaryMetricOptions.map((entry) => ({ ...entry, kind: "summary" as const, size: "1x1" as const })),
-        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x2" as const })),
+        ...chartWidgetOptions.map((entry) => ({ ...entry, kind: "chart" as const, size: "1x3" as const })),
       ] as Array<StatsWidgetOption>,
     [summaryMetricOptions, chartWidgetOptions]
   );
@@ -465,6 +530,50 @@ export function App() {
         </div>
       );
     }
+    if (widget.key === "chartCumulativeOffers") {
+      const miniData = cumulativeOffersTrendData.slice(-8);
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2} dot={{ r: 1.8 }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (widget.key === "chartStatusTrend") {
+      const miniData = statusTrendTopData.rows.slice(-8);
+      const [first, second] = statusTrendTopData.topStatuses;
+      return (
+        <div className="stats-kpi-library-item__preview stats-kpi-library-item__preview--chart" aria-hidden="true">
+          <div className="stats-kpi-library-chart-mini">
+            {miniData.length === 0 || !first ? (
+              <span className="stats-kpi-library-chart-mini__empty">Brak danych</span>
+            ) : (
+              <div className="stats-kpi-library-chart-mini__canvas">
+                <ResponsiveContainer width="100%" height={42}>
+                  <LineChart data={miniData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" opacity={0.18} />
+                    <Line type="monotone" dataKey={first} stroke="#3b82f6" strokeWidth={2} dot={{ r: 1.6 }} isAnimationActive={false} />
+                    {second ? <Line type="monotone" dataKey={second} stroke="#f59e0b" strokeWidth={2} dot={{ r: 1.6 }} isAnimationActive={false} /> : null}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
     if (widget.key === "chartStatus") {
       const miniData = statusChartData.slice(0, 4);
       return (
@@ -514,7 +623,7 @@ export function App() {
                       isAnimationActive={false}
                     >
                       {miniData.map((entry, index) => (
-                        <Cell key={`${entry.name}-mini-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        <Cell key={`${entry.name}-mini-${index}`} fill={getSourceColor(entry.rawName ?? entry.name, index)} />
                       ))}
                     </Pie>
                   </PieChart>
@@ -526,7 +635,7 @@ export function App() {
       );
     }
     return null;
-  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, statusChartData, sourceChartData]);
+  }, [summaryMetricMap, trendOffersData, invitationsReadTrendData, cumulativeOffersTrendData, statusTrendTopData, statusChartData, sourceChartData]);
 
   const statsLayoutDisplaySlots = useMemo(() => {
     return statsLayoutSlots.map((widgetKey, slotIndex) => {
@@ -545,6 +654,33 @@ export function App() {
     () => statsLayoutSlots.reduce((acc, widget) => acc + (widget && statsWidgetMap.has(widget) ? 1 : 0), 0),
     [statsLayoutSlots, statsWidgetMap]
   );
+  function isChartBlockedInBottomRows(slotIndex: number) {
+    return Math.floor(slotIndex / 4) >= 5;
+  }
+
+  function canDropChartAt(targetIndex: number, sourceIndex: number): boolean {
+    if (isChartBlockedInBottomRows(targetIndex)) return false;
+    for (const rowsBelow of [1, 2]) {
+      const below = targetIndex + 4 * rowsBelow;
+      if (below >= statsLayoutSlots.length) break;
+      const key = statsLayoutSlots[below];
+      if (key && key !== statsLayoutSlots[sourceIndex]) return false;
+    }
+    return true;
+  }
+  function getStatsChartAutoPlacement(slotIndex: number): { colSpan: 1; rowSpan: 3 } {
+    void slotIndex;
+    return { colSpan: 1, rowSpan: 3 };
+  }
+  function compactStatsLayoutSlots(slots: Array<StatsWidgetKey | null>) {
+    return slots.map((key) => (key && statsWidgetMap.has(key) ? key : null));
+  }
+
+  function setDropTarget(index: number | null) {
+    if (statsLayoutDropTargetIndexRef.current === index) return;
+    statsLayoutDropTargetIndexRef.current = index;
+    setStatsLayoutDropTargetIndex(index);
+  }
   const isSelectedOfferDirty = useMemo(() => {
     if (!editingSelectedOffer || !selectedOffer || !selectedOfferDraft) return false;
     const baseline = JSON.stringify(normalizeOfferForEdit(selectedOffer));
@@ -587,7 +723,7 @@ export function App() {
     if (statsLayoutEditMode) return;
     setShowStatsNavSettings(false);
     setStatsLayoutDragState(null);
-    setStatsLayoutDropTargetIndex(null);
+    setDropTarget(null);
     setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
@@ -610,6 +746,15 @@ export function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("statsLayoutSlots", JSON.stringify(statsLayoutSlots));
   }, [statsLayoutSlots]);
+
+  useEffect(() => {
+    if (statsLayoutDragState === null) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [statsLayoutDragState]);
 
   useEffect(() => {
     return () => {
@@ -706,6 +851,9 @@ export function App() {
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
       if (fromIndex === toIndex) return prev;
       if (prev[fromIndex] === null) return prev;
+      const sourceKey = prev[fromIndex];
+      const sourceWidget = sourceKey ? statsWidgetMap.get(sourceKey) : null;
+      if (sourceWidget?.kind === "chart" && isChartBlockedInBottomRows(toIndex)) return prev;
       const next = [...prev];
       const source = next[fromIndex];
       next[fromIndex] = next[toIndex];
@@ -713,7 +861,7 @@ export function App() {
       return next;
     });
     setStatsLayoutDragState(null);
-    setStatsLayoutDropTargetIndex(null);
+    setDropTarget(null);
     setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
@@ -729,7 +877,7 @@ export function App() {
       return next;
     });
     setStatsLayoutDragState(null);
-    setStatsLayoutDropTargetIndex(null);
+    setDropTarget(null);
     setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
@@ -739,13 +887,15 @@ export function App() {
   function applyStatsLayoutFromLibrary(widgetKey: StatsWidgetKey, targetIndex: number) {
     setStatsLayoutSlots((prev) => {
       const toIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+      const sourceWidget = statsWidgetMap.get(widgetKey);
+      if (sourceWidget?.kind === "chart" && isChartBlockedInBottomRows(toIndex)) return prev;
       const next = [...prev];
       if (next[toIndex] === widgetKey) return prev;
       next[toIndex] = widgetKey;
       return next;
     });
     setStatsLayoutDragState(null);
-    setStatsLayoutDropTargetIndex(null);
+    setDropTarget(null);
     setStatsLayoutDeleteDropActive(false);
     setStatsLayoutSelectedSlotIndex(null);
     setStatsLayoutSelectedLibraryWidgetKey(null);
@@ -1012,6 +1162,8 @@ export function App() {
         if (statsLayoutEditBaselineRef.current) {
           setStatsLayoutSlots([...statsLayoutEditBaselineRef.current]);
         }
+      } else {
+        setStatsLayoutSlots((prev) => compactStatsLayoutSlots(prev));
       }
       setStatsLayoutEditMode(false);
       setShowStatsNavSettings(false);
@@ -1025,7 +1177,11 @@ export function App() {
         if (!stopped) return;
         setStatusMessage(t.editorModeDisabled);
       } else {
-        statsLayoutEditBaselineRef.current = [...statsLayoutSlots];
+        setStatsLayoutSlots((prev) => {
+          const compacted = compactStatsLayoutSlots(prev);
+          statsLayoutEditBaselineRef.current = [...compacted];
+          return compacted;
+        });
         setStatsLayoutEditMode(true);
         setShowStatsNavSettings(true);
         setStatusMessage(t.editorModeEnabled);
@@ -2720,7 +2876,7 @@ export function App() {
             <option value="all">{t.all}</option>
             {sourceFilterOptions.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {formatSourceLabel(value)}
               </option>
             ))}
           </select>
@@ -2799,15 +2955,17 @@ export function App() {
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                className="add-offer-btn add-offer-btn--compact action-mini-btn"
-                onClick={toggleAddOfferModal}
-                aria-label={t.addOffer}
-              >
-                <span className="action-mini-content action-mini-content--icon action-mini-plus">+</span>
-                <span className="action-mini-content action-mini-content--label">{t.addOffer}</span>
-              </button>
+              {activeTopTab === "offers" ? (
+                <button
+                  type="button"
+                  className="add-offer-btn add-offer-btn--compact action-mini-btn action-mini-btn--enter"
+                  onClick={toggleAddOfferModal}
+                  aria-label={t.addOffer}
+                >
+                  <span className="action-mini-content action-mini-content--icon action-mini-plus">+</span>
+                  <span className="action-mini-content action-mini-content--label">{t.addOffer}</span>
+                </button>
+              ) : null}
             </>
           ) : null}
           <div className="menu-wrap">
@@ -2956,8 +3114,8 @@ export function App() {
           aria-hidden="true"
         />
       ) : null}
-      {activeTopTab === "stats" && statsLayoutEditMode ? (
-        <div className={`stats-drawer-shell ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
+      {activeTopTab === "stats" ? (
+        <div className={`stats-drawer-shell ${statsLayoutEditMode ? "is-edit-mode" : ""} ${showStatsNavSettings ? "is-open" : ""}`} ref={statsNavSettingsRef}>
           <button
             type="button"
             className={`ghost-btn stats-drawer-toggle ${showStatsNavSettings ? "is-open" : ""} ${statsLayoutDragState?.source === "slot" ? "is-delete-drag-available" : ""} ${statsLayoutDeleteDropActive ? "is-delete-drop-active" : ""}`}
@@ -2971,7 +3129,8 @@ export function App() {
           >
             {statsLayoutDragState?.source === "slot" ? "🗑" : showStatsNavSettings ? "▸" : "◂"}
           </button>
-          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!showStatsNavSettings}>
+          <aside className={`stats-drawer ${showStatsNavSettings ? "is-open" : ""}`} aria-hidden={!statsLayoutEditMode || !showStatsNavSettings}>
+            <ScrollArea>
             <div className="stats-drawer__section">
               <strong>Biblioteka Widgetow</strong>
               <p className="stats-kpi-drag-hint">Przeciagnij widget albo kliknij widget, potem kliknij slot. Uklad zapisuje sie automatycznie.</p>
@@ -3001,14 +3160,14 @@ export function App() {
                         const nextState: StatsLayoutDragState = { source: "library", widgetKey: widget.key };
                         statsLayoutDragRef.current = nextState;
                         setStatsLayoutDragState(nextState);
-                        setStatsLayoutDropTargetIndex(null);
+                        setDropTarget(null);
                         setStatsLayoutDeleteDropActive(false);
                         setStatsLayoutSelectedSlotIndex(null);
                         setStatsLayoutSelectedLibraryWidgetKey(widget.key);
                       }}
                       onDragEnd={() => {
                         setStatsLayoutDragState(null);
-                        setStatsLayoutDropTargetIndex(null);
+                        setDropTarget(null);
                         setStatsLayoutDeleteDropActive(false);
                         setStatsLayoutSelectedLibraryWidgetKey(null);
                         statsLayoutDragRef.current = null;
@@ -3037,16 +3196,17 @@ export function App() {
                   onClick={() => {
                     setStatsLayoutSlots(createDefaultStatsLayoutSlots());
                     setStatsLayoutDragState(null);
-                    setStatsLayoutDropTargetIndex(null);
+                    setDropTarget(null);
                     setStatsLayoutDeleteDropActive(false);
                   setStatsLayoutSelectedSlotIndex(null);
                   setStatsLayoutSelectedLibraryWidgetKey(null);
                   statsLayoutDragRef.current = null;
                 }}
               >
-                Reset Layout
+                {t.resetStatsLayout}
               </button>
             </div>
+            </ScrollArea>
           </aside>
         </div>
       ) : null}
@@ -3379,7 +3539,7 @@ export function App() {
                           </span>
                         </td>
                       ) : null}
-                      {!compactView ? <td>{offer.source || "manual"}</td> : null}
+                      {!compactView ? <td>{formatSourceLabel(offer.source || "manual")}</td> : null}
                       {!compactView ? <td>{(offer.employmentTypes || []).join(", ") || "-"}</td> : null}
                       {!compactView ? <td>{offer.workTime || "-"}</td> : null}
                       {!compactView ? <td>{offer.workMode || "-"}</td> : null}
@@ -3408,24 +3568,78 @@ export function App() {
         <section className={`card ${offers.length === 0 ? "stats-empty-card" : ""}`} id="stats">
           {offers.length === 0 ? (
             <p className="stats-empty-state">Tu narazie nic nie ma 😏</p>
+          ) : statsLayoutFilledCount === 0 && !statsLayoutEditMode ? (
+            <div className="stats-empty-state-card">
+              <p className="stats-empty-state">Serio usunąłeś wszystkie widgety? 😏</p>
+              <p className="stats-empty-state-hint">Włącz Tryb Edycji i dodaj widgety z biblioteki.</p>
+            </div>
           ) : (
-          <div className={`stats-grid stats-summary-grid ${statsLayoutDragState !== null ? "is-dragging" : ""}`}>
+          <div className="stats-summary-grid-clip">
+          <div className={`stats-grid stats-summary-grid ${statsLayoutEditMode ? "stats-summary-grid--edit" : ""} ${statsLayoutDragState !== null ? "is-dragging" : ""} ${statsLayoutDragState?.source === "library" ? "is-library-dragging" : ""}`}>
             {statsLayoutDisplaySlots.map(({ widgetKey, slotIndex, isEmpty }) => {
               const widget = widgetKey ? statsWidgetMap.get(widgetKey) : null;
               const isFilled = !isEmpty && Boolean(widgetKey && widget);
               const isDragging = statsLayoutDragState?.source === "slot" && statsLayoutDragState.index === slotIndex;
               const isDropTarget = statsLayoutDropTargetIndex === slotIndex;
               const draggedWidget = statsLayoutDragState?.widgetKey ? statsWidgetMap.get(statsLayoutDragState.widgetKey) : null;
+              const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
+              const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
+              const isBottomBlockedSlot = isChartBlockedInBottomRows(slotIndex);
+              const draggingChartSourceIndex =
+                statsLayoutDragState?.source === "slot" && draggedWidget?.kind === "chart"
+                  ? statsLayoutDragState.index
+                  : null;
+              const isDropBlocked =
+                isDropTarget &&
+                draggedWidget?.kind === "chart" &&
+                (isBottomBlockedSlot ||
+                  (draggingChartSourceIndex !== null && !canDropChartAt(slotIndex, draggingChartSourceIndex)));
               const shouldPreviewChartDrop =
                 statsLayoutEditMode &&
                 isDropTarget &&
+                !isDropBlocked &&
                 draggedWidget?.kind === "chart" &&
                 (!isFilled || widget?.kind !== "chart");
-              const isSelectedSource = statsLayoutSelectedSlotIndex === slotIndex;
-              const isHiddenEmpty = isEmpty && !statsLayoutEditMode;
+              const isChartCoveredRow = (() => {
+                for (const rowsAbove of [1, 2]) {
+                  const above = slotIndex - 4 * rowsAbove;
+                  if (above < 0) continue;
+                  const aboveKey = statsLayoutSlots[above];
+                  if (aboveKey && statsWidgetMap.get(aboveKey)?.kind === "chart" && above !== draggingChartSourceIndex) {
+                    return true;
+                  }
+                  if (above === statsLayoutDropTargetIndex && draggedWidget?.kind === "chart") {
+                    const isAboveDropBlocked =
+                      isChartBlockedInBottomRows(above) ||
+                      (draggingChartSourceIndex !== null && !canDropChartAt(above, draggingChartSourceIndex));
+                    if (!isAboveDropBlocked) return true;
+                  }
+                }
+                return false;
+              })();
+              if (isHiddenEmpty || isChartCoveredRow) return null;
+              const slotGridCol = (slotIndex % 4) + 1;
+              const slotGridRow = Math.floor(slotIndex / 4) + 1;
+              const isSwapTarget =
+                isDropTarget &&
+                isFilled &&
+                !isDragging &&
+                !isDropBlocked &&
+                statsLayoutDragState?.source === "slot";
+              const chartAutoPlacement =
+                widget?.kind === "chart" || isDropBlocked
+                  ? { colSpan: 1 as const, rowSpan: 3 as const }
+                  : { colSpan: 1 as const, rowSpan: 1 as const };
               return (
                 <article
-                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""}`}
+                  className={`stats-box ${isFilled ? "stats-box--draggable" : "stats-box--empty-slot"} ${widget?.kind === "chart" ? "stats-box--chart-widget" : ""} ${statsLayoutEditMode ? "stats-box--layout-editing" : ""} ${isHiddenEmpty ? "stats-box--hidden-empty-slot" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isDropBlocked ? "is-drop-blocked" : ""} ${shouldPreviewChartDrop ? "stats-box--drop-preview-chart" : ""} ${isSelectedSource ? "is-selected-source" : ""} ${isSwapTarget ? "is-swap-target" : ""}`}
+                  style={{
+                    gridColumn: slotGridCol,
+                    gridRow: `${slotGridRow} / span ${chartAutoPlacement.rowSpan}`,
+                    ...(isEmpty && statsLayoutDragState?.source === "library" && !isDropTarget
+                      ? { animationDelay: `-${((slotIndex * 0.37) % 1.5).toFixed(2)}s` }
+                      : {}),
+                  }}
                   key={`stats-widget-${slotIndex}-${widgetKey || "empty"}`}
                   draggable={isFilled && statsLayoutEditMode}
                   onDragStart={(event) => {
@@ -3437,23 +3651,33 @@ export function App() {
                     const nextState: StatsLayoutDragState = { source: "slot", index: slotIndex, widgetKey };
                     statsLayoutDragRef.current = nextState;
                     setStatsLayoutDragState(nextState);
-                    setStatsLayoutDropTargetIndex(slotIndex);
+                    setDropTarget(slotIndex);
                     setStatsLayoutDeleteDropActive(false);
                     setStatsLayoutSelectedSlotIndex(slotIndex);
                     setStatsLayoutSelectedLibraryWidgetKey(null);
                   }}
                   onDragOver={(event) => {
                     if (!statsLayoutEditMode) return;
+                    const draggingChart =
+                      (statsLayoutDragState?.widgetKey && statsWidgetMap.get(statsLayoutDragState.widgetKey)?.kind === "chart") ||
+                      (statsLayoutDragRef.current?.widgetKey && statsWidgetMap.get(statsLayoutDragRef.current.widgetKey)?.kind === "chart");
                     event.preventDefault();
+                    const sourceIdx = statsLayoutDragState?.source === "slot" ? statsLayoutDragState.index : null;
+                    const chartDropBlocked = draggingChart && (isBottomBlockedSlot || (sourceIdx !== null && !canDropChartAt(slotIndex, sourceIdx)));
+                    if (draggingChart && chartDropBlocked) {
+                      event.dataTransfer.dropEffect = "none";
+                      setDropTarget(slotIndex);
+                      return;
+                    }
                     event.dataTransfer.dropEffect = statsLayoutDragState?.source === "library" ? "copy" : "move";
                     if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
-                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                    setDropTarget(slotIndex);
                   }}
                   onDragEnter={(event) => {
                     if (!statsLayoutEditMode) return;
                     event.preventDefault();
                     if (statsLayoutDeleteDropActive) setStatsLayoutDeleteDropActive(false);
-                    if (statsLayoutDropTargetIndex !== slotIndex) setStatsLayoutDropTargetIndex(slotIndex);
+                    setDropTarget(slotIndex);
                   }}
                   onDrop={(event) => {
                     if (!statsLayoutEditMode) return;
@@ -3488,7 +3712,7 @@ export function App() {
                   }}
                   onDragEnd={() => {
                     setStatsLayoutDragState(null);
-                    setStatsLayoutDropTargetIndex(null);
+                    setDropTarget(null);
                     setStatsLayoutDeleteDropActive(false);
                     setStatsLayoutSelectedSlotIndex(null);
                     setStatsLayoutSelectedLibraryWidgetKey(null);
@@ -3513,7 +3737,7 @@ export function App() {
                     applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
                   }}
                 >
-                  {widget?.kind === "summary" ? (
+                  {isDropBlocked ? null : (widget?.kind === "summary" ? (
                     <>
                       <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
                       <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
@@ -3526,14 +3750,14 @@ export function App() {
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <LineChart data={trendOffersData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                               <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
@@ -3547,22 +3771,99 @@ export function App() {
                       {invitationsReadTrendData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
+                        <div className="stats-chart-layout">
+                          <div className="stats-chart-wrap">
+                            <ResponsiveContainer width="100%" height={220}>
+                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
+                                <Tooltip
+                                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                  labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                  itemStyle={{ color: "var(--text-muted)" }}
+                                />
+                                <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                                <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="stats-chart-legend-inline" aria-hidden="true">
+                            <span>
+                              <i style={{ background: "#ec4899" }} />
+                              Odczytane
+                            </span>
+                            <span>
+                              <i style={{ background: "#f59e0b" }} />
+                              Zaproszenia
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartCumulativeOffers" ? (
+                    <>
+                      <h3>{t.chartCumulativeOffersTitle}</h3>
+                      {cumulativeOffersTrendData.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
-                              <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
+                              <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
                           </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
+                  ) : widget?.key === "chartStatusTrend" ? (
+                    <>
+                      <h3>{t.chartStatusTrendTitle}</h3>
+                      {statusTrendTopData.rows.length === 0 || statusTrendTopData.topStatuses.length === 0 ? (
+                        <p className="hint">-</p>
+                      ) : (
+                        <div className="stats-chart-layout">
+                          <div className="stats-chart-wrap">
+                            <ResponsiveContainer width="100%" height={220}>
+                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
+                                <Tooltip
+                                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                  labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                  itemStyle={{ color: "var(--text-muted)" }}
+                                />
+                                {statusTrendTopData.topStatuses.map((status, index) => (
+                                  <Line
+                                    key={`status-trend-${status}`}
+                                    type="monotone"
+                                    dataKey={status}
+                                    name={status}
+                                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                    strokeWidth={2.2}
+                                    dot={{ r: 2.3 }}
+                                  />
+                                ))}
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="stats-chart-legend-inline" aria-hidden="true">
+                            {statusTrendTopData.topStatuses.map((status, index) => (
+                              <span key={`status-trend-legend-${status}`}>
+                                <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                {status}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </>
@@ -3574,14 +3875,15 @@ export function App() {
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={statusChartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <BarChart data={statusChartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.25} vertical={false} />
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
                               <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
+                                cursor={{ fill: "rgba(100, 116, 139, 0.12)" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                               <Bar dataKey="count" radius={[7, 7, 0, 0]}>
                                 {statusChartData.map((entry, index) => (
@@ -3599,31 +3901,53 @@ export function App() {
                       {sourceChartData.length === 0 ? (
                         <p className="hint">-</p>
                       ) : (
-                        <div className="stats-chart-wrap">
+                        <div className="stats-chart-wrap" style={{ position: "relative" }} onMouseLeave={() => setActivePieEntry(null)}>
                           <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
-                              <Pie data={sourceChartData} dataKey="count" nameKey="name" innerRadius={46} outerRadius={80} paddingAngle={2} label={false}>
+                              <Pie
+                                data={sourceChartData}
+                                dataKey="count"
+                                nameKey="name"
+                                innerRadius={46}
+                                outerRadius={75}
+                                paddingAngle={2}
+                                label={false}
+                                onMouseEnter={(data: any) => setActivePieEntry({ name: String(data.name ?? ""), count: Number(data.count ?? 0) })}
+                              >
                                 {sourceChartData.map((entry, index) => (
-                                  <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                  <Cell key={`${entry.name}-${index}`} fill={getSourceColor(entry.rawName ?? entry.name, index)} />
                                 ))}
                               </Pie>
-                              <Tooltip
-                                contentStyle={{ background: "#ffffff", border: "1px solid #d1d5db", borderRadius: 8 }}
-                                labelStyle={{ color: "#111827", fontWeight: 600 }}
-                                itemStyle={{ color: "#111827" }}
-                              />
                             </PieChart>
                           </ResponsiveContainer>
+                          {activePieEntry && (
+                            <div style={{
+                              position: "absolute",
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              background: "var(--surface)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 8,
+                              padding: "6px 10px",
+                              textAlign: "center",
+                              pointerEvents: "none",
+                            }}>
+                              <div style={{ color: "var(--text-main)", fontWeight: 600, fontSize: 12 }}>{activePieEntry.name}</div>
+                              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{activePieEntry.count}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
                   ) : (
                     <span className="stats-box-empty-label" />
-                  )}
+                  ))}
                 </article>
               );
             })}
             {statsLayoutDragState === null && statsLayoutFilledCount === 0 ? <p className="hint">-</p> : null}
+          </div>
           </div>
           )}
         </section>
@@ -4946,7 +5270,7 @@ export function App() {
                             </td>
                             <td>{offer.status || "-"}</td>
                             <td>{offer.appliedAt || "-"}</td>
-                            <td>{offer.source || "-"}</td>
+                            <td>{offer.source ? formatSourceLabel(offer.source) : "-"}</td>
                           </tr>
                         );
                       })}

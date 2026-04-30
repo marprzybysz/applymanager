@@ -18,6 +18,34 @@ export function createDefaultStatsLayoutSlots(): Array<StatsWidgetKey | null> {
   return slots;
 }
 
+const CHART_WIDGET_KEY_PREFIXES = "chart";
+
+export function normalizeStatsLayoutSlotsForCharts(slots: Array<StatsWidgetKey | null>): Array<StatsWidgetKey | null> {
+  const isChart = (k: StatsWidgetKey | null): k is StatsWidgetKey => k !== null && k.startsWith(CHART_WIDGET_KEY_PREFIXES);
+  const kpis = slots.filter((k): k is StatsWidgetKey => k !== null && !isChart(k));
+  const charts = slots.filter(isChart);
+  const result: Array<StatsWidgetKey | null> = Array.from({ length: slots.length }, () => null);
+
+  let kpiIdx = 0;
+  for (let i = 0; i < result.length && kpiIdx < kpis.length; i++) {
+    if (result[i] === null) result[i] = kpis[kpiIdx++];
+  }
+
+  let chartIdx = 0;
+  for (let i = 0; i < result.length && chartIdx < charts.length; i++) {
+    if (result[i] !== null) continue;
+    if (Math.floor(i / 4) >= 5) break;
+    const coveredByAbove = [1, 2].some((rowsAbove) => {
+      const above = i - 4 * rowsAbove;
+      return above >= 0 && isChart(result[above]);
+    });
+    if (coveredByAbove) continue;
+    result[i] = charts[chartIdx++];
+  }
+
+  return result;
+}
+
 export function isAbsoluteHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);

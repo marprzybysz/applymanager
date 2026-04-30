@@ -18,7 +18,7 @@ Projekt zawiera web UI (React + Vite), backend API (FastAPI), scraping ofert, im
 
 - Aktualna wersja: `Alpha (v0.8.1)` (wersja serwerowa)
 - Model wydania: szybkie iteracje UI/API + stabilizacja import/scraping
-- Ostatnia zmiana: poprawiona czytelność statystyk (chartów) pod szybki podgląd kluczowych informacji
+- Ostatnia zmiana (`0.8.1-alpha`, 2026-04-30): nowe widgety wykresowe (Kumulacja ofert, Trend statusów), poprawki tooltipów i motywu jasnego/ciemnego na dashboardzie statystyk, poprawki tłumaczenia PL
 
 ## Instalacja na Dockerze (skrypty .sh)
 
