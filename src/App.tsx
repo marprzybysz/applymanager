@@ -3754,9 +3754,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                itemStyle={{ color: "#cbd5e1" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                               <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
@@ -3778,9 +3778,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                  contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                  labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                  itemStyle={{ color: "#cbd5e1" }}
+                                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                  labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                  itemStyle={{ color: "var(--text-muted)" }}
                                 />
                                 <Line type="monotone" dataKey="invitations" name="Zaproszenia" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2.5 }} />
                                 <Line type="monotone" dataKey="read" name="Odczytane" stroke="#ec4899" strokeWidth={2.2} dot={{ r: 2.5 }} />
@@ -3813,9 +3813,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                itemStyle={{ color: "#cbd5e1" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                               <Line type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={2.2} dot={{ r: 2.5 }} />
                             </LineChart>
@@ -3837,9 +3837,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                 <Tooltip
-                                  contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                  labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                  itemStyle={{ color: "#cbd5e1" }}
+                                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                  labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                  itemStyle={{ color: "var(--text-muted)" }}
                                 />
                                 {statusTrendTopData.topStatuses.map((status, index) => (
                                   <Line
@@ -3879,9 +3879,10 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                itemStyle={{ color: "#cbd5e1" }}
+                                cursor={{ fill: "rgba(100, 116, 139, 0.12)" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                               <Bar dataKey="count" radius={[7, 7, 0, 0]}>
                                 {statusChartData.map((entry, index) => (
@@ -3908,9 +3909,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                                 ))}
                               </Pie>
                               <Tooltip
-                                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-                                labelStyle={{ color: "#f1f5f9", fontWeight: 600 }}
-                                itemStyle={{ color: "#cbd5e1" }}
+                                contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
+                                labelStyle={{ color: "var(--text-main)", fontWeight: 600 }}
+                                itemStyle={{ color: "var(--text-muted)" }}
                               />
                             </PieChart>
                           </ResponsiveContainer>
