@@ -3749,7 +3749,7 @@ export function App() {
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={trendOffersData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <LineChart data={trendOffersData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -3773,7 +3773,7 @@ export function App() {
                         <div className="stats-chart-layout">
                           <div className="stats-chart-wrap">
                             <ResponsiveContainer width="100%" height={220}>
-                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <LineChart data={invitationsReadTrendData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -3808,7 +3808,7 @@ export function App() {
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <LineChart data={cumulativeOffersTrendData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -3832,7 +3832,7 @@ export function App() {
                         <div className="stats-chart-layout">
                           <div className="stats-chart-wrap">
                             <ResponsiveContainer width="100%" height={220}>
-                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                              <LineChart data={statusTrendTopData.rows} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
                                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -3874,7 +3874,7 @@ export function App() {
                       ) : (
                         <div className="stats-chart-wrap">
                           <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={statusChartData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                            <BarChart data={statusChartData} margin={{ top: 8, right: 0, left: -38, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" opacity={0.25} vertical={false} />
                               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
