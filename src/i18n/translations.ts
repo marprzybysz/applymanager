@@ -58,7 +58,7 @@ export const I18N = {
     thanksAdam: "Adam Kozłowski (Pierwszy feedback)",
     roadmap: "Roadmap",
     roadmapLine:
-      "CV Reader → Usprawnienia → Wersja Desktopowa (Electron) → Integracja AI → Stabilny Release",
+      "CV Reader → Usprawnienia → Wersja Desktopowa (Electron) → Integracja AI → Oficjalny Release → Wersja Mobilna",
     roadmapNote: "Roadmap może być zmieniona na potrzeby społeczności.",
     unsupportedImportCombo: "Ten typ importu nie jest obsługiwany",
     unsupportedExportCombo: "Ten typ eksportu nie jest obsługiwany",
@@ -296,7 +296,7 @@ export const I18N = {
     thanksAdam: "Adam Kozlowski (First feedback)",
     roadmap: "Roadmap",
     roadmapLine:
-      "CV Reader → Improvements → Desktop version (Electron) → AI Integration → Stable Release",
+      "CV Reader → Improvements → Desktop version (Electron) → AI Integration → Official Release → Mobile version",
     roadmapNote: "Roadmap can change based on community needs.",
     unsupportedImportCombo: "This import type is not supported",
     unsupportedExportCombo: "This export type is not supported",
