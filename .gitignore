@@ -14,3 +14,4 @@ __pycache__/
 .env
 .env.local
 CODE_REVIEW.md
+ROADMAP_NOTES.md
