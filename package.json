@@ -1,6 +1,6 @@
 {
   "name": "applymanager",
-  "version": "0.8.1-alpha",
+  "version": "0.8.1-beta",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",

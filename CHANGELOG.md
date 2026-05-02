@@ -4,7 +4,7 @@ Wszystkie istotne zmiany w projekcie są generowane na podstawie historii commit
 
 Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (etap Alpha + szybkie iteracje).
 
-## [0.8.1-alpha] - 2026-04-30
+## [0.8.1-beta] - 2026-04-30
 
 ### Added
 - Nowe widgety wykresowe na dashboardzie statystyk: **Kumulacja ofert** (`chartCumulativeOffers`) i **Trend statusów top 3** (`chartStatusTrend`).
@@ -23,7 +23,7 @@ Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (
 - Naprawiono błędne pozycjonowanie tooltipów recharts spowodowane ujemnym `margin.left`.
 - Naprawiono migotanie napisu w centrum wykresu kołowego przy przechodzeniu między wycinkami.
 
-## [0.8.0-alpha] - 2026-04-13
+## [0.8.0-beta] — Charts Update - 2026-04-13
 
 ### Added
 - Tryb edycji wierszy tabeli i szybkie akcje: `d5ec770`, `5eb1d34`.
@@ -41,7 +41,7 @@ Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (
 - Poprawki warstwowania quick-status dropdown (`z-index`): `26a3a9c`, `3e3cbb6`, `71f4db3`.
 - Poprawka eksportu względem strefy czasowej: `18f7c97`.
 
-## [0.7.0-alpha] - 2026-04-12
+## [0.7.0-beta] — Assistant & Notifications Update - 2026-04-12
 
 ### Added
 - Dockowany floating filter island i standaryzacja polskich statusów: `3674164`.
@@ -67,31 +67,54 @@ Format jest inspirowany Keep a Changelog, a wersjonowanie opiera się o semver (
 - Poprawa mapowania `expiresAt/datePosted` w imporcie: `6c9b865`.
 - Poprawa warstw i zachowania docked tools: `5ba5ec6`, `faa3c75`.
 
-## [0.6.0-alpha] - 2026-04-11
+## [0.5.0-alpha] — 2026-04-11
 
 ### Added
-- Migracja API do FastAPI i scraperów Python: `841e8ce`.
-- Hot-reload Docker stack FE+API: `4892559`.
-- Przebudowa headera i modalu dodawania oferty: `3b82e5a`, `b46b18b`.
-- Podział backendu (`web/local/modules`) + Qt scaffold: `52b0f6b`.
-- Języki PL/EN w ustawieniach: `fef18f9`.
-- Preferences module + warunki pracy z pracuj.pl: `fca1a6e`.
-- Metryki/statystyki + endpointy update/delete: `f9938fb`, `8630e15`.
-- Modal szczegółów oferty z edycją/usuwaniem: `62ab928`.
-- Ulepszenia toolbarów, badge statusów i akcji modalu: `de5cf4a`, `af11e6f`, `bd1b159`.
-- Przeniesienie import/export/preferences do top menu: `e2159fe`.
-- Filtry okresowe i uproszczony view mode: `ae1201e`.
+- Modal szczegółów oferty z edycją, usuwaniem i lepszymi filtrami: `62ab928`.
+- Ulepszenia toolbara ofert i badge kolorystyczne statusów: `de5cf4a`.
+- Ulepszenia akcji modalu oferty i potwierdzenie usunięcia: `af11e6f`.
+- Rola oferty jako klikalny hyperlink; usunięcie zbędnej kolumny Link: `bd1b159`.
+- Dockowanie narzędzi ofert bezpośrednio pod headerem: `c1951ed`.
 
 ### Changed
-- Refactor backendu do `server/` i usunięcie legacy backendów: `f070abf`.
-- Usunięcie plików Tauri + cleanup helpers dla Docker images: `7cc6d74`.
-- Aktualizacja dokumentacji architektury/scope/setup: `88b4a14`, `87fb284`.
-- Merge pull request FastAPI: `3bb6d62`.
+- Aktualizacja dokumentacji architektury, scope i worklogu: `87fb284`.
+- Przepisanie README: setup, API i aktualne funkcje UI: `88b4a14`.
+
+## [0.4.0-alpha] — 2026-04-11
+
+### Added
+- Metryki wygasania ofert, statystyki i plumbing preferencji API: `f9938fb`.
+- Endpointy update i delete dla ofert: `8630e15`.
+- Filtry czasowe (7d / 30d / 90d) i uproszczony tryb widoku: `ae1201e`.
+- Przeniesienie import/export/preferencji do górnego menu: `e2159fe`.
+
+## [0.3.0-indev] — 2026-04-11
+
+### Added
+- Selektor języka PL/EN w ustawieniach: `fef18f9`.
+- Moduł preferencji użytkownika + scraping warunków pracy z pracuj.pl: `fca1a6e`.
+- Ulepszony modal dodawania oferty: tryb manualny, akcje zamknięcia, domyślna data: `b46b18b`.
+
+### Changed
+- Podział backendu na moduły `web/local/modules` + scaffold Qt (local desktop): `52b0f6b`.
+- Usunięcie plików Tauri i dodanie pomocników do czyszczenia obrazów Docker: `7cc6d74`.
+- Refactor backendu do katalogu `server/`, usunięcie legacy backendów: `f070abf`.
+
+## [0.2.0-indev] — 2026-04-11
+
+### Added
+- Migracja backendu do FastAPI z natywnym wsparciem Python scraperów: `841e8ce`.
+- Hot-reload Docker stack dla frontendu i API: `48925594`.
+- Przebudowa headera aplikacji i modal dodawania oferty oparty o link: `3b82e5a`.
+- Usunięcie sekcji Scrape Jobs z głównego widoku: `a1d10ae`.
+
+### Changed
+- Merge pull request #1 (FastAPI migration): `3bb6d62`.
 
 ### Fixed
-- Dismissible statusy i UX importu z user menu: `31d32a1`.
+- Dismissible statusy i UX importu Excel z menu użytkownika: `31d32a1`.
 
-## [0.1.0] - 2026-04-10
+## [0.1.0-indev] — 2026-04-10
 
 ### Added
 - Inicjalny scaffold Tauri + React: `8ab995d`.
