@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { ScrollArea } from "./components/ScrollArea";
 import { createPortal } from "react-dom";
 import {
@@ -3747,7 +3748,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
                   }}
                 >
-                  {isDropBlocked ? null : (widget?.kind === "summary" ? (
+                  {isDropBlocked ? null : (
+                    <ErrorBoundary fallback={<div className="stats-box-error"><span className="stats-box-error__icon">⚠</span><span>Błąd widgetu</span></div>}>
+                    {widget?.kind === "summary" ? (
                     <>
                       <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
                       <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
@@ -3952,7 +3955,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     </>
                   ) : (
                     <span className="stats-box-empty-label" />
-                  ))}
+                  )}
+                    </ErrorBoundary>
+                  )}
                 </article>
               );
             })}

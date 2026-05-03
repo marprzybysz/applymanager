@@ -2,6 +2,7 @@ import React from "react";
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
+  fallback?: React.ReactNode;
 };
 
 type ErrorBoundaryState = {
@@ -26,6 +27,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback !== undefined) {
+        return this.props.fallback;
+      }
       const message = this.state.error instanceof Error ? this.state.error.message : String(this.state.error ?? "");
       return (
         <div className="app" role="alert">
