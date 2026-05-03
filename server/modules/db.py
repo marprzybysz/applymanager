@@ -5,6 +5,8 @@ import os
 
 from psycopg2.pool import ThreadedConnectionPool
 
+from server.modules.errors import DBError
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", "5432")),
@@ -21,7 +23,10 @@ _POOL: ThreadedConnectionPool | None = None
 def _get_pool() -> ThreadedConnectionPool:
     global _POOL
     if _POOL is None:
-        _POOL = ThreadedConnectionPool(_POOL_MIN_CONN, _POOL_MAX_CONN, **DB_CONFIG)
+        try:
+            _POOL = ThreadedConnectionPool(_POOL_MIN_CONN, _POOL_MAX_CONN, **DB_CONFIG)
+        except Exception as exc:
+            raise DBError(f"Failed to connect to database: {exc}") from exc
     return _POOL
 
 

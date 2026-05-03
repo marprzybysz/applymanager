@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { ScrollArea } from "./components/ScrollArea";
 import { createPortal } from "react-dom";
 import {
@@ -720,6 +721,16 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled error");
+      setStatusMessage(message, "error");
+    };
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    return () => window.removeEventListener("unhandledrejection", onUnhandledRejection);
+  }, []);
+
+  useEffect(() => {
     if (statsLayoutEditMode) return;
     setShowStatsNavSettings(false);
     setStatsLayoutDragState(null);
@@ -765,8 +776,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
     };
   }, []);
 
-  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
+  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone, errorCode?: string) {
     if (!nextMessage?.trim()) return;
+    const message = errorCode && notificationSettings.showErrorCodes ? `${nextMessage} [${errorCode}]` : nextMessage;
     const tone: NotificationTone =
       toneOverride ||
       (/error|failed|invalid|http\s*\d+/i.test(nextMessage)
@@ -785,7 +797,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
     notificationIdRef.current += 1;
     const notification: AppNotification = {
       id,
-      text: nextMessage,
+      text: message,
       tone,
       read: false,
       surfaceVisible: notificationSettings.enableToasts,
@@ -3737,7 +3749,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     applyStatsLayoutDrop(statsLayoutSelectedSlotIndex, slotIndex);
                   }}
                 >
-                  {isDropBlocked ? null : (widget?.kind === "summary" ? (
+                  {isDropBlocked ? null : (
+                    <ErrorBoundary fallback={<div className="stats-box-error"><span className="stats-box-error__icon">⚠</span><span>Błąd widgetu</span></div>}>
+                    {widget?.kind === "summary" ? (
                     <>
                       <strong>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.value ?? "-"}</strong>
                       <span>{summaryMetricMap.get(widget.key as SummaryMetricKey)?.label ?? widget.label}</span>
@@ -3942,7 +3956,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     </>
                   ) : (
                     <span className="stats-box-empty-label" />
-                  ))}
+                  )}
+                    </ErrorBoundary>
+                  )}
                 </article>
               );
             })}
@@ -4892,6 +4908,14 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     />
                     <span>{t.notificationSettingBellHistory}</span>
                   </label>
+                  <label className="notification-settings__option">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.showErrorCodes}
+                      onChange={(event) => updateNotificationSetting("showErrorCodes", event.target.checked)}
+                    />
+                    <span>{t.notificationSettingShowErrorCodes}</span>
+                  </label>
                   <div className="notification-settings__tones">
                     <label className="notification-settings__option">
                       <input
@@ -5060,9 +5084,6 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                   </p>
                   <p>
                     <strong>{t.aboutScrapingLabel}</strong> {t.aboutScrapingValue}
-                  </p>
-                  <p>
-                    <strong>{t.aboutToolsLabel}</strong> {t.aboutToolsValue}
                   </p>
                   <p>
                     <strong>{t.aboutEditorLabel}</strong> {t.aboutEditorValue}

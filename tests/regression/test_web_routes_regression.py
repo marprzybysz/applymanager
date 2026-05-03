@@ -1,14 +1,23 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from fastapi.responses import JSONResponse
 
+from server.modules.errors import AppError, RateLimitError
 from server.web import routes
 
 
 def _build_test_client() -> TestClient:
     app = FastAPI()
+
+    @app.exception_handler(AppError)
+    async def _app_error(_: Request, exc: AppError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status,
+            content={"ok": False, "error": exc.message, "code": exc.code, **exc.extra},
+        )
+
     app.include_router(routes.router)
     return TestClient(app)
 
@@ -68,21 +77,19 @@ def test_create_manual_offer_requires_location(monkeypatch) -> None:
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "location is required for manual offer"
+    assert response.json()["error"] == "location is required for manual offer"
+    assert response.json()["code"] == "VALIDATION_ERROR"
 
 
 def test_scrape_rate_limit_returns_429(monkeypatch) -> None:
-    monkeypatch.setattr(
-        routes,
-        "_enforce_scrape_rate_limit",
-        lambda _request: JSONResponse(
-            status_code=429,
-            content={"ok": False, "error": "rate limit exceeded for scrape endpoints", "retryAfterSeconds": 10},
-        ),
-    )
+    def _raise_rate_limit(_request) -> None:
+        raise RateLimitError("rate limit exceeded for scrape endpoints", extra={"retryAfterSeconds": 10})
+
+    monkeypatch.setattr(routes, "_enforce_scrape_rate_limit", _raise_rate_limit)
     client = _build_test_client()
 
     response = client.post("/api/scrape", json={"query": "frontend"})
 
     assert response.status_code == 429
     assert response.json()["ok"] is False
+    assert response.json()["retryAfterSeconds"] == 10
