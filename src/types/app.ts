@@ -149,6 +149,7 @@ export type NotificationSettings = {
   allowWarning: boolean;
   allowError: boolean;
   allowNeutral: boolean;
+  showErrorCodes: boolean;
 };
 export type RowExitAnimationKind = "archive" | "delete";
 export type AppNotification = {

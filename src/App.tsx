@@ -776,8 +776,9 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
     };
   }, []);
 
-  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone) {
+  function setStatusMessage(nextMessage: string, toneOverride?: NotificationTone, errorCode?: string) {
     if (!nextMessage?.trim()) return;
+    const message = errorCode && notificationSettings.showErrorCodes ? `${nextMessage} [${errorCode}]` : nextMessage;
     const tone: NotificationTone =
       toneOverride ||
       (/error|failed|invalid|http\s*\d+/i.test(nextMessage)
@@ -796,7 +797,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
     notificationIdRef.current += 1;
     const notification: AppNotification = {
       id,
-      text: nextMessage,
+      text: message,
       tone,
       read: false,
       surfaceVisible: notificationSettings.enableToasts,
@@ -4906,6 +4907,14 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       onChange={(event) => updateNotificationSetting("enableBellHistory", event.target.checked)}
                     />
                     <span>{t.notificationSettingBellHistory}</span>
+                  </label>
+                  <label className="notification-settings__option">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.showErrorCodes}
+                      onChange={(event) => updateNotificationSetting("showErrorCodes", event.target.checked)}
+                    />
+                    <span>{t.notificationSettingShowErrorCodes}</span>
                   </label>
                   <div className="notification-settings__tones">
                     <label className="notification-settings__option">

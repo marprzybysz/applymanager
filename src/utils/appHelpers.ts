@@ -228,6 +228,7 @@ export function createDefaultNotificationSettings(): NotificationSettings {
     allowWarning: true,
     allowError: true,
     allowNeutral: true,
+    showErrorCodes: true,
   };
 }
 
