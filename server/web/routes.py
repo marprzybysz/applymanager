@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import logging
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
 from server.modules.common import to_non_empty_string
 from server.modules.db import get_connection
+from server.modules.errors import RateLimitError, ValidationError
 from server.modules.offers import (
     auto_archive_expired_offers,
     delete_offer,
@@ -50,29 +51,23 @@ def validate_manual_offer_requirements(offer_input: dict) -> None:
         return
 
     if not to_non_empty_string(offer_input.get("company")):
-        raise HTTPException(status_code=400, detail="company is required for manual offer")
+        raise ValidationError("company is required for manual offer")
     if not to_non_empty_string(offer_input.get("location")):
-        raise HTTPException(status_code=400, detail="location is required for manual offer")
+        raise ValidationError("location is required for manual offer")
     if not to_non_empty_string(offer_input.get("status")):
-        raise HTTPException(status_code=400, detail="status is required for manual offer")
+        raise ValidationError("status is required for manual offer")
     if not to_non_empty_string(offer_input.get("appliedAt")):
-        raise HTTPException(status_code=400, detail="appliedAt is required for manual offer")
+        raise ValidationError("appliedAt is required for manual offer")
 
 
-def _enforce_scrape_rate_limit(request: Request) -> JSONResponse | None:
+def _enforce_scrape_rate_limit(request: Request) -> None:
     client_ip = _resolve_client_ip(request)
     decision = SCRAPE_RATE_LIMITER.check(client_ip)
-    if decision.allowed:
-        return None
-
-    return JSONResponse(
-        status_code=429,
-        content={
-            "ok": False,
-            "error": "rate limit exceeded for scrape endpoints",
-            "retryAfterSeconds": decision.retry_after_seconds,
-        },
-    )
+    if not decision.allowed:
+        raise RateLimitError(
+            "rate limit exceeded for scrape endpoints",
+            extra={"retryAfterSeconds": decision.retry_after_seconds},
+        )
 
 
 @router.get("/greet")
@@ -140,9 +135,9 @@ async def create_offer(request: Request):
     offer_input = map_offer_for_insert_from_request(body or {})
 
     if not offer_input["company"]:
-        raise HTTPException(status_code=400, detail="company is required")
+        raise ValidationError("company is required")
     if not is_manual_offer(offer_input) and not offer_input["role"]:
-        raise HTTPException(status_code=400, detail="role is required for non-manual offer")
+        raise ValidationError("role is required for non-manual offer")
     validate_manual_offer_requirements(offer_input)
 
     try:
@@ -158,9 +153,9 @@ async def edit_offer(offer_id: int, request: Request):
     offer_input = map_offer_for_insert_from_request(body or {})
 
     if not offer_input["company"]:
-        raise HTTPException(status_code=400, detail="company is required")
+        raise ValidationError("company is required")
     if not is_manual_offer(offer_input) and not offer_input["role"]:
-        raise HTTPException(status_code=400, detail="role is required for non-manual offer")
+        raise ValidationError("role is required for non-manual offer")
     validate_manual_offer_requirements(offer_input)
 
     try:
@@ -242,10 +237,7 @@ def scrape_sources():
 
 @router.post("/scrape")
 async def scrape(request: Request):
-    blocked_response = _enforce_scrape_rate_limit(request)
-    if blocked_response:
-        return blocked_response
-
+    _enforce_scrape_rate_limit(request)
     body = await request.json()
     query = to_non_empty_string((body or {}).get("query")) or ""
     sources = (body or {}).get("sources") if isinstance((body or {}).get("sources"), list) else None
@@ -262,10 +254,7 @@ async def scrape(request: Request):
 
 @router.post("/scrape/link")
 async def scrape_link(request: Request):
-    blocked_response = _enforce_scrape_rate_limit(request)
-    if blocked_response:
-        return blocked_response
-
+    _enforce_scrape_rate_limit(request)
     body = await request.json()
     url = normalize_scrape_url((body or {}).get("url")) or ""
 

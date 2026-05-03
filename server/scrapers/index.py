@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
+from server.modules.errors import ScraperError
+
 from .http import fetch_html
 from .parsers import clean_text, parse_job_from_meta, parse_jobs_from_json_ld
 from .providers import get_provider, get_supported_sources, parse_with_optional_json_ld
@@ -175,10 +177,10 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
     hostname = (parsed_url.hostname or "").lower()
     source = detect_source_from_host(parsed_url.hostname or "")
     if source == UNKNOWN_SOURCE:
-        raise RuntimeError("Unsupported domain for direct link scraping")
+        raise ScraperError("Unsupported domain for direct link scraping")
 
     if source == "pracuj" and "pracodawcy.pracuj.pl" in hostname:
-        raise RuntimeError("To jest link do profilu pracodawcy. Wklej link do konkretnej oferty z pracuj.pl/praca/...oferta,...")
+        raise ScraperError("To jest link do profilu pracodawcy. Wklej link do konkretnej oferty z pracuj.pl/praca/...oferta,...")
 
     html = fetch_html(url_input)
     from_json_ld = parse_jobs_from_json_ld(html, source)
@@ -186,7 +188,7 @@ def scrape_job_from_link(url_input: str) -> dict[str, Any]:
 
     from_json_ld_first = next((job for job in from_json_ld if job.get("title") or job.get("company") or job.get("url")), None)
     if not from_json_ld_first and not from_meta:
-        raise RuntimeError("Could not parse job data from this URL")
+        raise ScraperError("Could not parse job data from this URL")
 
     merged: dict[str, Any] = {}
     if from_meta:
