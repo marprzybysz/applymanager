@@ -2123,6 +2123,14 @@ button:disabled {
   animation: offer-row-exit-sweep 220ms ease-out forwards;
 }
 
+.offers-table .clickable-row--archived-inline > td {
+  opacity: 0.45;
+}
+
+.offers-table .clickable-row--archived-inline:hover > td {
+  opacity: 0.75;
+}
+
 @keyframes offer-row-exit-collapse {
   0% {
     opacity: 1;
