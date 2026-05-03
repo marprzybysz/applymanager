@@ -720,6 +720,16 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled error");
+      setStatusMessage(message, "error");
+    };
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    return () => window.removeEventListener("unhandledrejection", onUnhandledRejection);
+  }, []);
+
+  useEffect(() => {
     if (statsLayoutEditMode) return;
     setShowStatsNavSettings(false);
     setStatsLayoutDragState(null);

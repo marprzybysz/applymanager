@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from urllib.parse import urlparse
 
 import requests
 from playwright.sync_api import sync_playwright
+
+from server.modules.errors import ScraperError
 
 DEFAULT_HEADERS = {
     "user-agent": (
@@ -15,6 +17,7 @@ DEFAULT_HEADERS = {
 }
 DEFAULT_TIMEOUT_SECONDS = 12
 BROWSER_TIMEOUT_MS = 30000
+BROWSER_TOTAL_TIMEOUT_SECONDS = 45
 BLOCKED_HTTP_STATUSES = {403, 429, 503}
 BROWSER_FALLBACK_HOSTS = ["pracuj.pl"]
 
@@ -52,7 +55,12 @@ def _fetch_html_with_browser(url: str) -> str:
 
     # FastAPI async handlers run inside an event loop. Run Playwright sync API in a fresh worker thread.
     with ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(_run).result()
+        future = executor.submit(_run)
+        try:
+            return future.result(timeout=BROWSER_TOTAL_TIMEOUT_SECONDS)
+        except FuturesTimeoutError:
+            future.cancel()
+            raise ScraperError(f"Browser timed out after {BROWSER_TOTAL_TIMEOUT_SECONDS}s fetching {url}")
 
 
 def fetch_html(url: str) -> str:
@@ -60,5 +68,5 @@ def fetch_html(url: str) -> str:
     if not response.ok:
         if _should_use_browser_fallback(url, response.status_code):
             return _fetch_html_with_browser(url)
-        raise RuntimeError(f"HTTP {response.status_code} for {url}")
+        raise ScraperError(f"HTTP {response.status_code} for {url}")
     return response.text
