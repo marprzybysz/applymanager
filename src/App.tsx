@@ -5086,9 +5086,6 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     <strong>{t.aboutScrapingLabel}</strong> {t.aboutScrapingValue}
                   </p>
                   <p>
-                    <strong>{t.aboutToolsLabel}</strong> {t.aboutToolsValue}
-                  </p>
-                  <p>
                     <strong>{t.aboutEditorLabel}</strong> {t.aboutEditorValue}
                   </p>
                   <div className="about-thanks">
