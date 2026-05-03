@@ -1039,11 +1039,13 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
 
   const visibleOffers = useMemo(() => {
     const textQuery = filterText.trim().toLowerCase();
+    const showArchivedInline = !compactView || textQuery !== "";
+
     const filtered = offers.filter((offer) => {
       if (filterStatus === ARCHIVED_FILTER_VALUE) {
         if (offer.archive !== true) return false;
       } else if (filterStatus === "all") {
-        if (offer.archive === true) return false;
+        if (offer.archive === true && !showArchivedInline) return false;
       } else {
         if (offer.archive === true) return false;
         if ((offer.status || "") !== filterStatus) return false;
@@ -1068,23 +1070,31 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       return haystack.includes(textQuery);
     });
 
+    const sortArchived = (list: typeof filtered) => {
+      if (filterStatus === ARCHIVED_FILTER_VALUE) return list;
+      const active = list.filter((o) => o.archive !== true);
+      const archived = list.filter((o) => o.archive === true);
+      return [...active, ...archived];
+    };
+
     if (!sortColumn || sortDirection === "none") {
-      if (!pinnedOfferIds.length) return filtered;
+      if (!pinnedOfferIds.length) return sortArchived(filtered);
       const pinnedSet = new Set(pinnedOfferIds);
       const pinned = filtered.filter((offer) => typeof offer.id === "number" && pinnedSet.has(offer.id));
       pinned.sort((a, b) => pinnedOfferIds.indexOf(a.id as number) - pinnedOfferIds.indexOf(b.id as number));
       const unpinned = filtered.filter((offer) => !(typeof offer.id === "number" && pinnedSet.has(offer.id)));
-      return [...pinned, ...unpinned];
+      return sortArchived([...pinned, ...unpinned]);
     }
 
-    return [...filtered].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       const aValue = getSortValue(a, sortColumn);
       const bValue = getSortValue(b, sortColumn);
       if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
       if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
-  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds]);
+    return sortArchived(sorted);
+  }, [offers, filterStatus, filterSource, filterPeriod, filterText, sortColumn, sortDirection, pinnedOfferIds, compactView]);
 
   const isQuickStatusLocked = quickStatusOfferId !== null;
   const offersById = useMemo(() => {
@@ -3431,7 +3441,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                     return (
                     <tr
                       key={`${offer.id || "offer"}-${absoluteIndex}`}
-                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${isSelectedRow ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""}`}
+                      className={`clickable-row ${editorMode ? "clickable-row--editor" : ""} ${isSelectedRow ? "clickable-row--selected" : ""} ${isPanelRow ? "clickable-row--panel-open" : ""} ${isRowExiting ? "clickable-row--exit" : ""} ${rowExitKind === "archive" ? "clickable-row--exit-archive" : ""} ${rowExitKind === "delete" ? "clickable-row--exit-delete" : ""} ${offer.archive === true && filterStatus !== ARCHIVED_FILTER_VALUE ? "clickable-row--archived-inline" : ""}`}
                       onMouseEnter={() => {
                         if (isRowExiting) return;
                         handleEditorRowMouseEnter(rowId, canInteractWithRow);
