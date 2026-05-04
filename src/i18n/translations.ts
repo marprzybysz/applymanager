@@ -235,7 +235,8 @@ export const I18N = {
     autoArchivedExpired: "Automatycznie zarchiwizowano wygasłe oferty: {count}",
     selectedRows: "Zaznaczone",
     clearSelectionRows: "Wyczyść zaznaczenie",
-    pinNeedsNoSort: "Uwaga: przypinanie działa tylko gdy sortowanie jest wyłączone."
+    pinNeedsNoSort: "Uwaga: przypinanie działa tylko gdy sortowanie jest wyłączone.",
+    genericError: "Wystąpił nieoczekiwany błąd"
   },
   en: {
     ready: "Ready",
@@ -473,7 +474,8 @@ export const I18N = {
     autoArchivedExpired: "Automatically archived expired offers: {count}",
     selectedRows: "Selected",
     clearSelectionRows: "Clear selection",
-    pinNeedsNoSort: "Warning: pinning works only when sorting is disabled."
+    pinNeedsNoSort: "Warning: pinning works only when sorting is disabled.",
+    genericError: "An unexpected error occurred"
   }
 } as const;
 

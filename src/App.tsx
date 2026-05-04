@@ -92,6 +92,7 @@ import {
   getStatusBarColor,
   getTodayDate,
   getTodayLocalDate,
+  extractErrorMessage,
   isAbsoluteHttpUrl,
   normalizeDateForDuplicate,
   normalizeDateForInput,
@@ -1318,7 +1319,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       });
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -1344,7 +1345,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setSelectedRowIds([]);
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -1396,7 +1397,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setQuickStatusMode("single");
       setStatusMessage(t.updated);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -1756,7 +1757,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
     setLoading(true);
     Promise.all([fetchOffers(), fetchPreferences(), fetchStats()])
       .then(() => setStatusMessage(t.dataLoaded))
-      .catch((error) => setStatusMessage(String(error)))
+      .catch((error) => setStatusMessage(extractErrorMessage(error, t.genericError), "error"))
       .finally(() => setLoading(false));
   }, [language]);
 
@@ -1863,7 +1864,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setShowSettingsModal(false);
       setShowRoadmap(false);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2109,8 +2110,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
         ...prev,
         sourceUrl: addOfferUrl || prev.sourceUrl
       }));
-      setAddOfferOperationMessage(String(error));
-      setStatusMessage(String(error));
+      setAddOfferOperationMessage(extractErrorMessage(error, t.genericError));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2175,8 +2176,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setAddOfferOperationMessage(t.linkFetched);
       setStatusMessage(t.linkFetched);
     } catch (error) {
-      setAddOfferOperationMessage(String(error));
-      setStatusMessage(String(error));
+      setAddOfferOperationMessage(extractErrorMessage(error, t.genericError));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2274,8 +2275,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
 
       throw new Error(t.unsupportedImportCombo);
     } catch (error) {
-      setImportOperationMessage(String(error));
-      setStatusMessage(String(error));
+      setImportOperationMessage(extractErrorMessage(error, t.genericError));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2347,8 +2348,8 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           .replace("{skipped}", String(skippedCount))
       );
     } catch (error) {
-      setImportOperationMessage(String(error));
-      setStatusMessage(String(error));
+      setImportOperationMessage(extractErrorMessage(error, t.genericError));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2427,7 +2428,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       await Promise.all([fetchOffers(), fetchStats()]);
       setStatusMessage(t.exportAssistantSaved.replace("{count}", String(savedCount)));
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2484,7 +2485,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
 
       throw new Error(t.unsupportedExportCombo);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2523,7 +2524,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
         setPendingScrapedIndex(0);
       }
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2581,7 +2582,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setPendingScrapedIndex(null);
       setStatusMessage(t.scrapedSaved);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2611,7 +2612,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setEditingSelectedOffer(false);
       setStatusMessage(t.updated);
     } catch (error) {
-      setStatusMessage(String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2634,7 +2635,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setEditingSelectedOffer(false);
       setStatusMessage(nextArchiveValue ? t.archived : t.restored);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2658,7 +2659,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       closeOfferDetails();
       setStatusMessage(t.deleted);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -2698,7 +2699,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
       setShowBulkDeleteConfirm(false);
       setStatusMessage(t.deleted);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : String(error));
+      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
     } finally {
       setLoading(false);
     }
@@ -4746,7 +4747,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
                       await Promise.all([fetchOffers(), fetchStats()]);
                       setStatusMessage(t.exportAssistantSaved.replace("{count}", "1"));
                     } catch (error) {
-                      setStatusMessage(String(error));
+                      setStatusMessage(extractErrorMessage(error, t.genericError), "error");
                     } finally {
                       setLoading(false);
                     }

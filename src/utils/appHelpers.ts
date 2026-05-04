@@ -262,3 +262,9 @@ export function getStatusBarColor(statusName: string, index: number): string {
   }
   return CHART_COLORS[index % CHART_COLORS.length];
 }
+
+export function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}

@@ -18,9 +18,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return { hasError: true };
   }
 
-  componentDidCatch(error: unknown): void {
+  componentDidCatch(error: unknown, info: React.ErrorInfo): void {
     // eslint-disable-next-line no-console
-    console.error("Unhandled UI error:", error);
+    console.error("Unhandled UI error:", error, info.componentStack);
   }
 
   render() {
@@ -28,8 +28,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div className="app" role="alert">
           <section className="card">
-            <h2>Wystapil blad interfejsu</h2>
-            <p className="hint">Odswiez strone, aby sprobowac ponownie.</p>
+            <h2>Wystąpił błąd interfejsu</h2>
+            <p className="hint">Odśwież stronę, aby spróbować ponownie.</p>
           </section>
         </div>
       );
