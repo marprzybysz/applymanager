@@ -293,7 +293,10 @@ export function CvPanel({ offers, t }: CvPanelProps) {
     high: t.cvHighMatch, med: t.cvMedMatch, low: t.cvLowMatch, none: t.cvNoMatch,
   });
 
-  const scoredOffers = useMemo(() => scoreOffers(offers, skills), [offers, skills]);
+  const scoredOffers = useMemo(
+    () => scoreOffers(offers, skills).filter((o) => o.score > 0),
+    [offers, skills]
+  );
 
   const profile = parsedCv?.profile ?? activeCv?.profile ?? null;
   const hasCv = profile !== null;
@@ -511,15 +514,11 @@ export function CvPanel({ offers, t }: CvPanelProps) {
                       </a>
                     )}
                   </div>
-                  {matchedSkills.length > 0 ? (
-                    <div className="cv-offer-skills">
-                      {matchedSkills.map((s) => (
-                        <span key={s} className="cv-offer-skill-tag">{s}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="cv-offer-no-match">{t.cvNoMatchedSkills}</span>
-                  )}
+                  <div className="cv-offer-skills">
+                    {matchedSkills.map((s) => (
+                      <span key={s} className="cv-offer-skill-tag">{s}</span>
+                    ))}
+                  </div>
                 </li>
               ))}
             </ul>
