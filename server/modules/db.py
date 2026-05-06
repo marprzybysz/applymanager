@@ -111,4 +111,20 @@ def ensure_schema() -> None:
                 ON CONFLICT (id) DO NOTHING
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cvs (
+                  id SERIAL PRIMARY KEY,
+                  title TEXT NOT NULL,
+                  content TEXT,
+                  profile JSONB,
+                  skills TEXT[] NOT NULL DEFAULT '{}',
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute("ALTER TABLE cvs ADD COLUMN IF NOT EXISTS profile JSONB")
+            cur.execute("ALTER TABLE cvs ADD COLUMN IF NOT EXISTS skills TEXT[] NOT NULL DEFAULT '{}'")
+            cur.execute("ALTER TABLE cvs ADD COLUMN IF NOT EXISTS file_data BYTEA")
         conn.commit()

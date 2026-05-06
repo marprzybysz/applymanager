@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, Response
 
 from server.modules.common import to_non_empty_string
 from server.modules.cv import parse_pdf_document
+from server.modules.cv_db import create_cv, delete_cv, get_cv, get_cv_file, list_cvs, update_cv_skills
 from server.modules.db import get_connection
 from server.modules.errors import RateLimitError, ValidationError
 from server.modules.offers import (
@@ -241,12 +242,108 @@ async def parse_cv_pdf(file: UploadFile = File(...)):
     filename = (file.filename or "").lower()
     if filename and not filename.endswith(".pdf"):
         return JSONResponse(status_code=400, content={"ok": False, "error": "only .pdf files are supported"})
-
     try:
         content = await file.read()
         return parse_pdf_document(content)
     except ValueError as error:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(error)})
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.post("/cv/upload")
+async def upload_and_save_cv(file: UploadFile = File(...)):
+    filename = (file.filename or "").lower()
+    if filename and not filename.endswith(".pdf"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "only .pdf files are supported"})
+    try:
+        content = await file.read()
+        parsed = parse_pdf_document(content)
+        profile = parsed.get("profile", {})
+        name = profile.get("name")
+        original_name = (file.filename or "CV").replace(".pdf", "").replace(".PDF", "")
+        title = f"CV – {name}" if name else original_name
+        skills = profile.get("skills") or []
+        record = create_cv(
+            title=title,
+            content=parsed.get("text"),
+            profile=profile,
+            skills=skills,
+            file_data=content,
+        )
+        return {"ok": True, "cv": record, "parsed": parsed}
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(error)})
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.get("/cv")
+async def get_cv_list():
+    try:
+        return {"ok": True, "cvs": list_cvs()}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.get("/cv/{cv_id}/file")
+async def get_cv_file_endpoint(cv_id: int):
+    try:
+        data = get_cv_file(cv_id)
+        if data is None:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "file not found"})
+        return Response(content=data, media_type="application/pdf")
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.get("/cv/{cv_id}")
+async def get_cv_detail(cv_id: int):
+    try:
+        record = get_cv(cv_id)
+        if record is None:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "not found"})
+        return {"ok": True, "cv": record}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.post("/cv")
+async def create_cv_record(request: Request):
+    try:
+        body = await request.json()
+        title = to_non_empty_string(body.get("title")) or "CV"
+        content = to_non_empty_string(body.get("content"))
+        profile = body.get("profile") if isinstance(body.get("profile"), dict) else None
+        skills = body.get("skills") if isinstance(body.get("skills"), list) else []
+        skills = [s for s in skills if isinstance(s, str)]
+        record = create_cv(title, content, profile, skills)
+        return {"ok": True, "cv": record}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.put("/cv/{cv_id}/skills")
+async def update_cv_skills_endpoint(cv_id: int, request: Request):
+    try:
+        body = await request.json()
+        skills = body.get("skills") if isinstance(body.get("skills"), list) else []
+        skills = [s for s in skills if isinstance(s, str)]
+        record = update_cv_skills(cv_id, skills)
+        if record is None:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "not found"})
+        return {"ok": True, "cv": record}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
+
+
+@router.delete("/cv/{cv_id}")
+async def delete_cv_record(cv_id: int):
+    try:
+        deleted = delete_cv(cv_id)
+        if not deleted:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "not found"})
+        return {"ok": True}
     except Exception as error:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(error)})
 
