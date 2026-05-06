@@ -3597,8 +3597,108 @@ button:disabled {
 }
 
 .cv-section--chart {
+  min-height: 240px;
+}
+
+/* Matched offers list */
+.cv-section--offers {
+  padding-bottom: 1rem;
+}
+
+.cv-offer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cv-offer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.cv-offer-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.cv-offer-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 20px;
+  padding: 0.15rem 0.45rem;
+  flex-shrink: 0;
+  min-width: 2.6rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.cv-offer-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   flex: 1;
-  min-height: 260px;
+}
+
+.cv-offer-role {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-offer-company {
+  font-size: 0.68rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-offer-link {
+  font-size: 0.8rem;
+  color: var(--link);
+  text-decoration: none;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 120ms;
+}
+
+.cv-offer-link:hover {
+  opacity: 1;
+}
+
+.cv-offer-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.cv-offer-skill-tag {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--link) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--link) 25%, var(--border));
+  color: var(--link);
+  font-weight: 500;
+}
+
+.cv-offer-no-match {
+  font-size: 0.68rem;
+  color: var(--text-soft);
 }
 
 /* Responsive — tablet: lewy i prawy jako row, środek pełna szerokość */

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { CvProfile, Offer, ParsedCv } from "../types/app";
 
@@ -35,6 +35,9 @@ type Translations = {
   cvPages: string;
   cvPreviewTitle: string;
   cvInfoNotExtracted: string;
+  cvMatchedOffersList: string;
+  cvMatchedSkills: string;
+  cvNoMatchedSkills: string;
 };
 
 interface SavedCvMeta {
@@ -82,6 +85,30 @@ const PROFILE_FIELDS: Array<{ key: keyof CvProfile; label: keyof Translations; i
   { key: "languages", label: "cvLanguages" },
   { key: "projects", label: "cvProjects" },
 ];
+
+interface ScoredOffer {
+  offer: Offer;
+  score: number;
+  matchedSkills: string[];
+}
+
+function scoreOffers(offers: Offer[], skills: string[]): ScoredOffer[] {
+  if (skills.length === 0 || offers.length === 0) return [];
+  return offers
+    .map((offer) => {
+      const text = `${offer.role} ${offer.company} ${offer.notes ?? ""}`.toLowerCase();
+      const matchedSkills = skills.filter((s) => text.includes(s.toLowerCase()));
+      return { offer, score: matchedSkills.length / skills.length, matchedSkills };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+function matchColor(score: number): string {
+  if (score >= 0.3) return MATCH_COLORS.high;
+  if (score >= 0.1) return MATCH_COLORS.med;
+  if (score > 0) return MATCH_COLORS.low;
+  return MATCH_COLORS.none;
+}
 
 function calculateMatchBuckets(
   offers: Offer[],
@@ -266,6 +293,8 @@ export function CvPanel({ offers, t }: CvPanelProps) {
     high: t.cvHighMatch, med: t.cvMedMatch, low: t.cvLowMatch, none: t.cvNoMatch,
   });
 
+  const scoredOffers = useMemo(() => scoreOffers(offers, skills), [offers, skills]);
+
   const profile = parsedCv?.profile ?? activeCv?.profile ?? null;
   const hasCv = profile !== null;
 
@@ -441,17 +470,61 @@ export function CvPanel({ offers, t }: CvPanelProps) {
           {offers.length === 0 || skills.length === 0 || matchData.length === 0 ? (
             <p className="cv-empty-hint">{t.cvNoOffersToMatch}</p>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={matchData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                <Pie data={matchData} cx="50%" cy="50%" innerRadius={50} outerRadius={78} paddingAngle={3} dataKey="value">
                   {matchData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(value, name) => [`${value} ofert`, name]} />
-                <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: "0.75rem" }} />
+                <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: "0.72rem" }} />
               </PieChart>
             </ResponsiveContainer>
           )}
         </section>
+
+        {scoredOffers.length > 0 && (
+          <section className="cv-section cv-section--offers">
+            <h3 className="cv-section-title">{t.cvMatchedOffersList}</h3>
+            <ul className="cv-offer-list">
+              {scoredOffers.map(({ offer, score, matchedSkills }) => (
+                <li key={offer.id ?? `${offer.company}-${offer.role}`} className="cv-offer-item">
+                  <div className="cv-offer-header">
+                    <span
+                      className="cv-offer-badge"
+                      style={{ background: matchColor(score) }}
+                    >
+                      {Math.round(score * 100)}%
+                    </span>
+                    <div className="cv-offer-title">
+                      <span className="cv-offer-role">{offer.role}</span>
+                      <span className="cv-offer-company">{offer.company}</span>
+                    </div>
+                    {offer.sourceUrl && (
+                      <a
+                        href={offer.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="cv-offer-link"
+                        title="Otwórz ofertę"
+                      >
+                        ↗
+                      </a>
+                    )}
+                  </div>
+                  {matchedSkills.length > 0 ? (
+                    <div className="cv-offer-skills">
+                      {matchedSkills.map((s) => (
+                        <span key={s} className="cv-offer-skill-tag">{s}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="cv-offer-no-match">{t.cvNoMatchedSkills}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
       </div>
     </div>

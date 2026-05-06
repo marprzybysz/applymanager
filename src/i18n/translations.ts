@@ -267,7 +267,10 @@ export const I18N = {
     cvConfidence: "Pewność odczytu",
     cvPages: "Strony",
     cvPreviewTitle: "Podgląd CV",
-    cvInfoNotExtracted: "Nie odczytano"
+    cvInfoNotExtracted: "Nie odczytano",
+    cvMatchedOffersList: "Oferty wg dopasowania",
+    cvMatchedSkills: "Pasujące umiejętności",
+    cvNoMatchedSkills: "Brak dopasowania"
   },
   en: {
     ready: "Ready",
@@ -537,7 +540,10 @@ export const I18N = {
     cvConfidence: "Read confidence",
     cvPages: "Pages",
     cvPreviewTitle: "CV Preview",
-    cvInfoNotExtracted: "Not detected"
+    cvInfoNotExtracted: "Not detected",
+    cvMatchedOffersList: "Offers by match",
+    cvMatchedSkills: "Matching skills",
+    cvNoMatchedSkills: "No match"
   }
 } as const;
 
