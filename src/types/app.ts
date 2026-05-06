@@ -126,7 +126,30 @@ export type ImportTarget = "offers" | "preferences";
 export type ImportFormat = "xlsx" | "json";
 export type ExportTarget = "offers" | "preferences" | "all";
 export type ExportFormat = "xlsx" | "json";
-export type TopTab = "offers" | "stats";
+export type TopTab = "offers" | "stats" | "cv";
+
+export type CvProfile = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin: string | null;
+  github: string | null;
+  portfolio: string | null;
+  summary: string | null;
+  experience: string | null;
+  education: string | null;
+  languages: string | null;
+  projects: string | null;
+  skills: string[];
+  confidence: number;
+};
+
+export type ParsedCv = {
+  pageCount: number;
+  characters: number;
+  text: string;
+  profile: CvProfile;
+};
 export type PeriodFilter = "all" | "month" | "quarter" | "year";
 export type SortDirection = "none" | "asc" | "desc";
 export type SortType = "text" | "date" | "number";

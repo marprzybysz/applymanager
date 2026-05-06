@@ -1,8 +1,9 @@
-export type TopTabRoute = "offers" | "stats";
+export type TopTabRoute = "offers" | "stats" | "cv";
 
 const TOP_TAB_PATHS: Record<TopTabRoute, string> = {
   offers: "/offers",
   stats: "/charts",
+  cv: "/cv",
 };
 
 const STATS_PATH_ALIASES = new Set(["/charts", "/stats"]);
@@ -20,6 +21,7 @@ export function resolveTopTabFromPathname(pathname: string): TopTabRoute | null 
   const normalized = normalizePathname(pathname);
   if (normalized === TOP_TAB_PATHS.offers) return "offers";
   if (STATS_PATH_ALIASES.has(normalized)) return "stats";
+  if (normalized === TOP_TAB_PATHS.cv) return "cv";
   return null;
 }
 

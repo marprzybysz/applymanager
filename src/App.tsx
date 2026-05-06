@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ScrollArea } from "./components/ScrollArea";
+import { CvPanel } from "./components/CvPanel";
 import { createPortal } from "react-dom";
 import {
   Bar,
@@ -2949,7 +2950,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           <button
             type="button"
             className={`ghost-btn nav-btn ${activeTopTab === "cv" ? "nav-btn--active" : ""}`}
-            onClick={() => setActiveTopTab("cv")}
+            onClick={() => handleTopTabChange("cv")}
           >
             {t.cv}
           </button>
@@ -3985,7 +3986,7 @@ const [statsLayoutDeleteDropActive, setStatsLayoutDeleteDropActive] = useState(f
           )}
         </section>
       ) : (
-        <section id="cv" />
+        <CvPanel offers={offers} t={t} />
       )}
 
       {showAddOffer ? (

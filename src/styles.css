@@ -3160,3 +3160,471 @@ button:disabled {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* ─── CV MODULE ─── */
+
+.cv-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr 300px;
+  gap: 0.75rem;
+  height: calc(100vh - 5.5rem);
+  min-height: 0;
+}
+
+.cv-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+}
+
+/* Left panel — CV manager */
+.cv-panel--left {
+  transition: outline 120ms ease, background 120ms ease;
+}
+
+.cv-panel--drag {
+  outline: 2px dashed var(--link);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--link) 5%, var(--surface));
+}
+
+.cv-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.cv-toolbar-btn {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cv-toolbar-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.cv-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cv-saving-indicator {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+.cv-saved-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.cv-saved-item {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cv-saved-item:last-child {
+  border-bottom: none;
+}
+
+.cv-saved-item--active {
+  background: color-mix(in srgb, var(--link) 10%, var(--surface));
+}
+
+.cv-saved-item-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-main);
+  min-width: 0;
+}
+
+.cv-saved-item-btn:hover {
+  background: color-mix(in srgb, var(--link) 5%, var(--surface));
+}
+
+.cv-saved-item-title {
+  font-size: 0.76rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+.cv-saved-item-meta {
+  font-size: 0.68rem;
+  color: var(--text-soft);
+}
+
+.cv-saved-item-delete {
+  display: flex;
+  align-items: center;
+  padding: 0 0.55rem;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-soft);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.cv-saved-item:hover .cv-saved-item-delete {
+  opacity: 1;
+}
+
+.cv-saved-item-delete:hover {
+  color: #ef4444;
+}
+
+/* Drop zone (left panel, no CVs yet) */
+.cv-drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cv-drop-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.cv-drop-label {
+  line-height: 1.4;
+}
+
+/* Loading overlay inside left panel */
+.cv-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  z-index: 2;
+}
+
+/* Center panel — preview */
+.cv-panel--center {
+  overflow: hidden;
+}
+
+.cv-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  min-height: 0;
+}
+
+.cv-text-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.cv-text-content {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.cv-center-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.cv-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-soft);
+  font-size: 0.875rem;
+}
+
+.cv-loading-spinner {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--link);
+  border-radius: 50%;
+  animation: cv-spin 0.7s linear infinite;
+}
+
+@keyframes cv-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cv-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #dc2626;
+  font-size: 0.875rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Right panel — info / skills / chart */
+.cv-panel--right {
+  overflow-y: auto;
+}
+
+.cv-section {
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cv-section:last-child {
+  border-bottom: none;
+}
+
+.cv-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-soft);
+  margin: 0 0 0.6rem;
+}
+
+.cv-info-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.cv-info-row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.cv-info-label {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-info-value {
+  font-size: 0.78rem;
+  color: var(--text-main);
+  margin: 0;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cv-link {
+  color: var(--link);
+  text-decoration: none;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.cv-link:hover {
+  text-decoration: underline;
+}
+
+.cv-confidence-bar {
+  display: inline-flex;
+  width: 72px;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cv-confidence-fill {
+  background: var(--link);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.cv-empty-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+/* Skills */
+.cv-skills-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+.cv-skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+  min-height: 1.4rem;
+}
+
+.cv-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  background: color-mix(in srgb, var(--link) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--link) 30%, var(--border));
+  color: var(--link);
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.cv-skill-chip:hover {
+  background: color-mix(in srgb, #ef4444 12%, var(--surface));
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.cv-skill-remove {
+  font-size: 0.78rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.cv-skill-add-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.cv-skill-input {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-main);
+  min-width: 0;
+}
+
+.cv-skill-input:focus {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+.cv-skill-add-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cv-skill-add-btn:hover {
+  opacity: 0.88;
+}
+
+.cv-section--chart {
+  flex: 1;
+  min-height: 260px;
+}
+
+/* Responsive — tablet: lewy i prawy jako row, środek pełna szerokość */
+@media (max-width: 900px) {
+  .cv-layout {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: calc(100vh - 5.5rem);
+  }
+
+  .cv-panel--center {
+    grid-column: 1 / -1;
+    height: 55vh;
+  }
+}
+
+/* Responsive — mobile */
+@media (max-width: 600px) {
+  .cv-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .cv-panel--center {
+    grid-column: auto;
+    height: 60vh;
+  }
+}
