@@ -3659,25 +3659,21 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+.cv-offer-role--link {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.cv-offer-role--link:hover {
+  text-decoration: underline;
+}
+
 .cv-offer-company {
   font-size: 0.68rem;
   color: var(--text-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.cv-offer-link {
-  font-size: 0.8rem;
-  color: var(--link);
-  text-decoration: none;
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: opacity 120ms;
-}
-
-.cv-offer-link:hover {
-  opacity: 1;
 }
 
 .cv-offer-skills {

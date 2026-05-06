@@ -499,20 +499,20 @@ export function CvPanel({ offers, t }: CvPanelProps) {
                       {Math.round(score * 100)}%
                     </span>
                     <div className="cv-offer-title">
-                      <span className="cv-offer-role">{offer.role}</span>
+                      {offer.sourceUrl ? (
+                        <a
+                          href={offer.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="cv-offer-role cv-offer-role--link"
+                        >
+                          {offer.role}
+                        </a>
+                      ) : (
+                        <span className="cv-offer-role">{offer.role}</span>
+                      )}
                       <span className="cv-offer-company">{offer.company}</span>
                     </div>
-                    {offer.sourceUrl && (
-                      <a
-                        href={offer.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="cv-offer-link"
-                        title="Otwórz ofertę"
-                      >
-                        ↗
-                      </a>
-                    )}
                   </div>
                   <div className="cv-offer-skills">
                     {matchedSkills.map((s) => (
